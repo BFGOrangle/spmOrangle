@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: spmorange-backend
+  profiles:
+    active: dev

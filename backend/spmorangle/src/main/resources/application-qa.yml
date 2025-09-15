@@ -1,0 +1,21 @@
+spring:
+  config:
+    activate:
+      on-profile: qa
+
+  datasource:
+    url: ${QA_DB_URL:jdbc:postgresql://localhost:5432/qa_db}
+    driver-class-name: ${QA_DB_DRIVER:org.postgresql.Driver}
+    username: ${QA_DB_USERNAME:qa_user}
+    password: ${QA_DB_PASSWORD:qa_password}
+  jpa:
+    hibernate:
+      ddl-auto: ${QA_JPA_DDL_AUTO:validate}
+    show-sql: ${QA_JPA_SHOW_SQL:false}
+
+server:
+  port: ${QA_SERVER_PORT:8081}
+
+logging:
+  level:
+    root: ${QA_LOG_LEVEL:INFO}
