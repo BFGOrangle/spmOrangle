@@ -38,7 +38,7 @@ jobs:
         run: npm ci
 
       - name: Run type checking
-        run: npm run type-check
+        run: npm run typecheck
 
       # Skip for now
       - name: Run linting
