@@ -1,0 +1,21 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${PROD_DB_URL:jdbc:postgresql://prod-server:5432/prod_db}
+    driver-class-name: ${PROD_DB_DRIVER:org.postgresql.Driver}
+    username: ${PROD_DB_USERNAME:prod_user}
+    password: ${PROD_DB_PASSWORD:prod_password}
+  jpa:
+    hibernate:
+      ddl-auto: ${PROD_JPA_DDL_AUTO:validate}
+    show-sql: ${PROD_JPA_SHOW_SQL:false}
+
+server:
+  port: ${PROD_SERVER_PORT:8082}
+
+logging:
+  level:
+    root: ${PROD_LOG_LEVEL:WARN}
