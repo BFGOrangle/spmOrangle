@@ -6,3 +6,4 @@
 package*.json
 .secrets
 .iml
+.claude
