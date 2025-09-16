@@ -31,13 +31,13 @@ import java.util.List;
 @EnableMethodSecurity(securedEnabled = true)
 public class SecurityConfig {
 
-    @Value("${cognito.region}")
+    @Value("${aws.cognito.region}")
     private String cognitoRegion;
 
-    @Value("${cognito.app-client-id}")
+    @Value("${aws.cognito.app-client-id}")
     private String cognitoAppClientId;
 
-    @Value("${cognito.user-pool-id}")
+    @Value("${aws.cognito.user-pool-id}")
     private String cognitoUserPoolId;
 
     @Bean

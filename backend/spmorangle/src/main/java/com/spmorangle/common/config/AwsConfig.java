@@ -12,7 +12,7 @@ import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityPr
 @Configuration
 public class AwsConfig {
 
-    @Value("${cognito.region}")
+    @Value("${aws.cognito.region}")
     private String cognitoRegion;
 
     @Value("${aws.access-key-id:}")
