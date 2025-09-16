@@ -1,6 +1,6 @@
 # IAM Role for Cognito to send SMS via SNS
 resource "aws_iam_role" "cognito_sns_role" {
-  name = "cognito-sns-role-${var.environment}"
+  name = "cognito-sns-role-${var.environment}-${var.project_name}"
   assume_role_policy = jsonencode({
     "Version": "2012-10-17",
     "Statement": [{
@@ -14,7 +14,7 @@ resource "aws_iam_role" "cognito_sns_role" {
 }
 
 resource "aws_iam_role_policy" "cognito_sns_policy" {
-  name = "cognito-sns-policy-${var.environment}"
+  name = "cognito-sns-policy-${var.environment}-${var.project_name}"
   role = aws_iam_role.cognito_sns_role.id
   policy = jsonencode({
     "Version": "2012-10-17",
@@ -96,7 +96,7 @@ resource "aws_cognito_user_pool" "cognito" {
 }
 
 resource "aws_cognito_user_pool_client" "client" {
-  name             = "${var.user_pool_name}-client-${var.environment}"
+  name             = "${var.user_pool_name}-client-${var.environment}-${var.project_name}"
   user_pool_id     = aws_cognito_user_pool.cognito.id
 
   allowed_oauth_flows_user_pool_client = true
@@ -131,7 +131,7 @@ resource "aws_cognito_user_pool_client" "client" {
 }
 
 resource "aws_cognito_user_pool_domain" "domain" {
-  domain      = "${var.project_name}-${var.environment}"
+  domain      = "${var.project_name}-${var.environment}-${var.project_name}"
   user_pool_id = aws_cognito_user_pool.cognito.id
 }
 
@@ -183,5 +183,5 @@ resource "aws_cognito_user" "root_admin" {
 resource "aws_cognito_user_in_group" "root_admin_membership" {
   user_pool_id = aws_cognito_user_pool.cognito.id
   username     = aws_cognito_user.root_admin.username
-  group_name   = aws_cognito_user_group.admin_group.name
+  group_name   = aws_cognito_user_group.manager_group.name
 }
