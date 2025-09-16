@@ -21,6 +21,21 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: spmorangle_test
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,17 +51,11 @@ jobs:
         working-directory: ./backend/spmorangle
         run: mvn compile
 
-      # Skip tests for now as we don't have unit tests and the postgres setup for tests (Make sure to run flyway migrations first)
-      #   - name: Run tests
-      #     working-directory: ./backend/spmorangle
-      #     run: mvn test
-      #     env:
-      #       SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/spmorangle_test
-      #       SPRING_DATASOURCE_USERNAME: postgres
-      #       SPRING_DATASOURCE_PASSWORD: test
+      - name: Run tests
+        working-directory: ./backend/spmorangle
+        run: mvn test -Dspring.profiles.active=test
 
       - name: Package application
         working-directory: ./backend/spmorangle
-        # Like above, we skip tests for now as we don't have unit tests and the postgres setup for tests
         run: mvn package -DskipTests
   

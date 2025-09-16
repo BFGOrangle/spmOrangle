@@ -1,0 +1,36 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/spmorangle_test
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: test
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Disable JWT validation for tests
+          issuer-uri: ""
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerAutoConfiguration
+
+# Mock AWS configuration for tests
+aws:
+  region: us-east-1
+  cognito:
+    region: us-east-1
+    user-pool-id: test-pool
+    app-client-id: test-client
+  access-key-id: test-access-key
+  secret-access-key: test-secret-key
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.spmorangle: DEBUG
+    software.amazon.awssdk: ERROR
