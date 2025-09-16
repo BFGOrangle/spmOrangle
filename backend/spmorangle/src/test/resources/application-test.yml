@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/spmorangle_test
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: test
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Disable JWT validation for tests
+          issuer-uri: ""
+  logging:
+    level:
+      org.springframework.security: DEBUG
+      com.spmorangle: DEBUG
