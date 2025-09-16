@@ -1,4 +1,4 @@
-package com.spmorangle.backend;
+package com.spmorangle;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

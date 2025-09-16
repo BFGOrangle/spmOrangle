@@ -1,4 +1,4 @@
-package com.spmorangle.backend.crm.taskmanagement.controller;
+package com.spmorangle.crm.taskmanagement.controller;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

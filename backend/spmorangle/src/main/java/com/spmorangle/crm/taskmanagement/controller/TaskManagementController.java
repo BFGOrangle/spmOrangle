@@ -1,4 +1,4 @@
-package com.spmorangle.backend.crm.taskmanagement.controller;
+package com.spmorangle.crm.taskmanagement.controller;
 
 import lombok.extern.slf4j.Slf4j;
 
