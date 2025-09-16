@@ -15,7 +15,19 @@ spring:
         jwt:
           # Disable JWT validation for tests
           issuer-uri: ""
-  logging:
-    level:
-      org.springframework.security: DEBUG
-      com.spmorangle: DEBUG
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerAutoConfiguration
+
+# Disable AWS configuration for tests
+aws:
+  region: us-east-1
+  cognito:
+    user-pool-id: test-pool
+    client-id: test-client
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.spmorangle: DEBUG
+    software.amazon.awssdk: ERROR
