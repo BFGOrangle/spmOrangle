@@ -135,16 +135,28 @@ resource "aws_cognito_user_pool_domain" "domain" {
   user_pool_id = aws_cognito_user_pool.cognito.id
 }
 
-resource "aws_cognito_user_group" "admin_group" {
+resource "aws_cognito_user_group" "manager_group" {
   user_pool_id = aws_cognito_user_pool.cognito.id
-  name         = "ADMIN"
-  description  = "Group for admin users who can manage staff and centers"
+  name         = "MANAGER"
+  description  = "Group for Manager users"
 }
 
 resource "aws_cognito_user_group" "staff_group" {
   user_pool_id = aws_cognito_user_pool.cognito.id
   name         = "STAFF"
-  description  = "Group for staff users who can access their assigned center"
+  description  = "Group for staff users"
+}
+
+resource "aws_cognito_user_group" "director_group" {
+  user_pool_id = aws_cognito_user_pool.cognito.id
+  name         = "DIRECTOR"
+  description  = "Group for director users"
+}
+
+resource "aws_cognito_user_group" "hr_group" {
+  user_pool_id = aws_cognito_user_pool.cognito.id
+  name         = "HR"
+  description  = "Group for HR users"
 }
 
 # Create a root admin user
