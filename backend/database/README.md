@@ -102,7 +102,7 @@ We use a timestamp-based naming scheme with a `V` prefix in the format `Vyyyymmd
    - Navigate to the project migration folder (e.g., `/database/migrations`).
    - Create a new SQL file using the naming convention. For instance:
      ```
-     V202503061045__Add_Product_Table.sql
+     V202503061045__add_product_table.sql
      ```
 
 3. **Write the Migration SQL:**
