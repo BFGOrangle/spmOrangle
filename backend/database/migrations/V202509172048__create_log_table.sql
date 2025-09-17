@@ -1,0 +1,8 @@
+CREATE TABLE syncup.update_logs (
+  table_type        VARCHAR NOT NULL,
+  row_id          INT     NOT NULL,
+  updated_by  BIGINT NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_update_logs_type_id ON syncup.update_logs (table_type, row_id);
