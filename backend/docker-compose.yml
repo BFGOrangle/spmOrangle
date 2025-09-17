@@ -1,6 +1,6 @@
 services:
   postgres:
-    container_name: orangle-local-postgres
+    container_name: syncUp-local-postgres
     image: postgres:16.2
     environment:
       # These are for local development only and are not secrets
@@ -18,7 +18,7 @@ services:
       retries: 10
 
   flyway-db-migrations:
-    container_name: orangle-flyway-db-migrations
+    container_name: syncUp-flyway-db-migrations
     image: flyway/flyway:11.3.4
     volumes:
       - ./database/migrations:/flyway/sql
@@ -34,8 +34,8 @@ services:
         condition: service_healthy
 volumes:
   pgdata:
-    name: orangle-pgdata
+    name: syncUp-pgdata
 
 networks:
   default:
-    name: orangle-default
+    name: syncUp-default
