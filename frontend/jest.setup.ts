@@ -1,8 +1,8 @@
 // Jest setup file
-import '@testing-library/jest-dom'
+import "@testing-library/jest-dom";
 
 // Mock Next.js router
-jest.mock('next/navigation', () => ({
+jest.mock("next/navigation", () => ({
   useRouter() {
     return {
       push: jest.fn(),
@@ -11,23 +11,23 @@ jest.mock('next/navigation', () => ({
       back: jest.fn(),
       forward: jest.fn(),
       prefetch: jest.fn(),
-    }
+    };
   },
   useSearchParams() {
-    return new URLSearchParams()
+    return new URLSearchParams();
   },
   usePathname() {
-    return '/'
+    return "/";
   },
-}))
+}));
 
 // Mock fetch globally
-global.fetch = jest.fn()
+global.fetch = jest.fn();
 
 // Mock window.matchMedia
-Object.defineProperty(window, 'matchMedia', {
+Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: jest.fn().mockImplementation(query => ({
+  value: jest.fn().mockImplementation((query) => ({
     matches: false, // Default to light mode in tests
     media: query,
     onchange: null,
@@ -37,16 +37,16 @@ Object.defineProperty(window, 'matchMedia', {
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
   })),
-})
+});
 
 // Mock Next.js font imports
-jest.mock('next/font/google', () => ({
+jest.mock("next/font/google", () => ({
   Geist: () => ({
-    className: 'mocked-geist-font',
-    variable: '--font-geist-sans'
+    className: "mocked-geist-font",
+    variable: "--font-geist-sans",
   }),
   Geist_Mono: () => ({
-    className: 'mocked-geist-mono-font',
-    variable: '--font-geist-mono'
-  })
-}))
+    className: "mocked-geist-mono-font",
+    variable: "--font-geist-mono",
+  }),
+}));
