@@ -13,6 +13,10 @@ public class TaskAssigneeCK implements Serializable {
     private long userId;
     private long assignedId;
 
+    public TaskAssigneeCK() {
+        // Default constructor required by JPA
+    }
+
     public TaskAssigneeCK(long taskId, long userId, long assignedId){
         this.taskId = taskId;
         this.userId = userId;
