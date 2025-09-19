@@ -21,11 +21,18 @@ public class TaskAssignee {
     @Column(name = "user_id", nullable = false)
     private long userId;
 
-    @Column(name = "assigned_at", nullable = false, insertable = false, updatable = false)
+    @Column(name = "assigned_at", nullable = false)
     @ColumnDefault("now()")
     private OffsetDateTime assignedAt;
 
     @Id
     @Column(name = "assigned_id", nullable = false)
     private long assignedId;
+
+    @PrePersist
+    protected void onCreate() {
+        if (assignedAt == null) {
+            assignedAt = OffsetDateTime.now();
+        }
+    }
 }
