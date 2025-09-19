@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.OffsetDateTime;
@@ -23,14 +24,16 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(TaskManagementController.class)
+@WebMvcTest({TaskManagementController.class, GlobalExceptionHandler.class})
 @DisplayName("TaskManagementController Tests")
+@WithMockUser(username = "test@example.com", authorities = {"ROLE_USER"})
 public class TaskManagementControllerTest {
 
     @Autowired
@@ -71,6 +74,7 @@ public class TaskManagementControllerTest {
 
             // When & Then
             mockMvc.perform(post("/api/tasks/collaborator")
+                            .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(validAddRequest)))
                     .andExpect(status().isCreated())
@@ -89,7 +93,7 @@ public class TaskManagementControllerTest {
                     .thenThrow(new CollaboratorAlreadyExistsException(1L, 2L));
 
             // When & Then
-            mockMvc.perform(post("/api/tasks/collaborator")
+            mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(validAddRequest)))
                     .andExpect(status().isConflict());
@@ -102,7 +106,7 @@ public class TaskManagementControllerTest {
             AddCollaboratorRequestDto invalidRequest = new AddCollaboratorRequestDto(null, 2L, 3L);
 
             // When & Then
-            mockMvc.perform(post("/api/tasks/collaborator")
+            mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest());
@@ -115,7 +119,7 @@ public class TaskManagementControllerTest {
             AddCollaboratorRequestDto invalidRequest = new AddCollaboratorRequestDto(1L, null, 3L);
 
             // When & Then
-            mockMvc.perform(post("/api/tasks/collaborator")
+            mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest());
@@ -128,7 +132,7 @@ public class TaskManagementControllerTest {
             AddCollaboratorRequestDto invalidRequest = new AddCollaboratorRequestDto(1L, 2L, null);
 
             // When & Then
-            mockMvc.perform(post("/api/tasks/collaborator")
+            mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest());
@@ -141,7 +145,7 @@ public class TaskManagementControllerTest {
             AddCollaboratorRequestDto invalidRequest = new AddCollaboratorRequestDto(0L, 2L, 3L);
 
             // When & Then
-            mockMvc.perform(post("/api/tasks/collaborator")
+            mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest());
@@ -151,7 +155,7 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 400 when request body is empty")
         void addCollaborator_EmptyRequestBody_ReturnsBadRequest() throws Exception {
             // When & Then
-            mockMvc.perform(post("/api/tasks/collaborator")
+            mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
                     .andExpect(status().isBadRequest());
@@ -161,7 +165,7 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 400 when request body is malformed")
         void addCollaborator_MalformedRequestBody_ReturnsBadRequest() throws Exception {
             // When & Then
-            mockMvc.perform(post("/api/tasks/collaborator")
+            mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{invalid json"))
                     .andExpect(status().isBadRequest());
@@ -179,7 +183,7 @@ public class TaskManagementControllerTest {
             doNothing().when(collaboratorService).removeCollaborator(any(RemoveCollaboratorRequestDto.class));
 
             // When & Then
-            mockMvc.perform(delete("/api/tasks/collaborator")
+            mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(validRemoveRequest)))
                     .andExpect(status().isNoContent());
@@ -193,7 +197,7 @@ public class TaskManagementControllerTest {
                     .when(collaboratorService).removeCollaborator(any(RemoveCollaboratorRequestDto.class));
 
             // When & Then
-            mockMvc.perform(delete("/api/tasks/collaborator")
+            mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(validRemoveRequest)))
                     .andExpect(status().isNotFound());
@@ -206,7 +210,7 @@ public class TaskManagementControllerTest {
             RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto(null, 2L, 3L);
 
             // When & Then
-            mockMvc.perform(delete("/api/tasks/collaborator")
+            mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest());
@@ -219,7 +223,7 @@ public class TaskManagementControllerTest {
             RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto(1L, null, 3L);
 
             // When & Then
-            mockMvc.perform(delete("/api/tasks/collaborator")
+            mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest());
@@ -232,7 +236,7 @@ public class TaskManagementControllerTest {
             RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto(1L, 2L, null);
 
             // When & Then
-            mockMvc.perform(delete("/api/tasks/collaborator")
+            mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest());
@@ -245,7 +249,7 @@ public class TaskManagementControllerTest {
             RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto(1L, 0L, 3L);
 
             // When & Then
-            mockMvc.perform(delete("/api/tasks/collaborator")
+            mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest());
@@ -255,7 +259,7 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 400 when request body is empty")
         void removeCollaborator_EmptyRequestBody_ReturnsBadRequest() throws Exception {
             // When & Then
-            mockMvc.perform(delete("/api/tasks/collaborator")
+            mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
                     .andExpect(status().isBadRequest());
