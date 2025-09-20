@@ -16,6 +16,7 @@ jest.mock("@/services/authenticated-api-client", () => ({
   AuthenticatedApiClient: jest.fn().mockImplementation(() => ({
     post: jest.fn(),
     request: jest.fn(),
+    deleteWithBody: jest.fn(),
   })),
   BaseApiError: class BaseApiError extends Error {
     constructor(
@@ -150,44 +151,36 @@ describe("TaskCollaboratorApiService", () => {
     };
 
     it("should successfully remove a collaborator", async () => {
-      mockClient.request.mockResolvedValue(undefined);
+      mockClient.deleteWithBody.mockResolvedValue(undefined);
 
       const result = await apiService.removeCollaborator(mockRequest);
 
-      expect(mockClient.request).toHaveBeenCalledWith(
+      expect(mockClient.deleteWithBody).toHaveBeenCalledWith(
         expect.stringContaining("/api/tasks/collaborator"),
-        {
-          method: "DELETE",
-          body: JSON.stringify(mockRequest),
-        },
+        mockRequest,
       );
       expect(result).toBeUndefined();
     });
 
     it("should call the correct endpoint with DELETE method", async () => {
-      mockClient.request.mockResolvedValue(undefined);
+      mockClient.deleteWithBody.mockResolvedValue(undefined);
 
       await apiService.removeCollaborator(mockRequest);
 
-      expect(mockClient.request).toHaveBeenCalledWith(
+      expect(mockClient.deleteWithBody).toHaveBeenCalledWith(
         expect.stringMatching(/\/api\/tasks\/collaborator$/),
-        {
-          method: "DELETE",
-          body: JSON.stringify(mockRequest),
-        },
+        mockRequest,
       );
     });
 
     it("should serialize request body correctly", async () => {
-      mockClient.request.mockResolvedValue(undefined);
+      mockClient.deleteWithBody.mockResolvedValue(undefined);
 
       await apiService.removeCollaborator(mockRequest);
 
-      expect(mockClient.request).toHaveBeenCalledWith(
+      expect(mockClient.deleteWithBody).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({
-          body: JSON.stringify(mockRequest),
-        }),
+        mockRequest,
       );
     });
 
@@ -199,7 +192,7 @@ describe("TaskCollaboratorApiService", () => {
         },
       ];
       const error = new CollaboratorApiError(404, "Not Found", errorDetails);
-      mockClient.request.mockRejectedValue(error);
+      mockClient.deleteWithBody.mockRejectedValue(error);
 
       await expect(apiService.removeCollaborator(mockRequest)).rejects.toThrow(
         CollaboratorApiError,
@@ -219,7 +212,7 @@ describe("TaskCollaboratorApiService", () => {
         },
       ];
       const error = new CollaboratorValidationError(validationErrors);
-      mockClient.request.mockRejectedValue(error);
+      mockClient.deleteWithBody.mockRejectedValue(error);
 
       await expect(apiService.removeCollaborator(mockRequest)).rejects.toThrow(
         CollaboratorValidationError,
@@ -227,7 +220,7 @@ describe("TaskCollaboratorApiService", () => {
     });
 
     it("should handle network errors", async () => {
-      mockClient.request.mockRejectedValue(new Error("Network error"));
+      mockClient.deleteWithBody.mockRejectedValue(new Error("Network error"));
 
       await expect(apiService.removeCollaborator(mockRequest)).rejects.toThrow(
         "Network error",
