@@ -43,6 +43,13 @@ export class CollaboratorValidationError extends BaseValidationError {
 }
 
 class TaskCollaboratorApiClient extends AuthenticatedApiClient {
+  async deleteWithBody<T>(url: string, data: any): Promise<T> {
+    return this.request<T>(url, {
+      method: "DELETE",
+      body: JSON.stringify(data),
+    });
+  }
+
   protected async handleErrorResponse(response: Response): Promise<never> {
     let errorData: unknown;
 
@@ -124,10 +131,7 @@ export class TaskCollaboratorApiService {
   }
 
   async removeCollaborator(payload: RemoveCollaboratorRequestDto): Promise<void> {
-    await this.client.request<void>(TASK_COLLABORATOR_ENDPOINT, {
-      method: "DELETE",
-      body: JSON.stringify(payload),
-    });
+    await this.client.deleteWithBody<void>(TASK_COLLABORATOR_ENDPOINT, payload);
   }
 }
 
