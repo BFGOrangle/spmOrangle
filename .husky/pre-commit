@@ -1,0 +1,8 @@
+cd frontend && npm test
+npx lint-staged || exit 1
+
+# If any Java files in backend/ are staged, run Maven tests
+if git diff --cached --name-only --diff-filter=ACM | grep -q '^backend/.*\.java$'; then
+  echo ">>> Java changes detected. Running Maven tests..."
+  (cd backend && mvn -q test) || exit 1
+fi
