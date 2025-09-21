@@ -42,6 +42,10 @@ const config: Config = {
     "!jest.config.ts",
     "!jest.setup.ts",
     "!**/__tests__/test-utils.tsx",
+    "!**/components/ui/**",
+    "!**/app/layout.tsx",
+    "!**/app/page.tsx",
+    "!next.config.ts",
   ],
 };
 
