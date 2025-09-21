@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS syncup.user_types CASCADE;
+
+ALTER TABLE syncup.users
+ALTER COLUMN role_type TYPE VARCHAR(50)
+USING role_type::VARCHAR;
