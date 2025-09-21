@@ -34,7 +34,9 @@ export function ErrorMessageCallout(props: ErrorMessageCalloutProps) {
   const formatTimestamp = (ts?: string) => {
     if (!ts) return null;
     try {
-      return new Date(ts).toLocaleString();
+      const date = new Date(ts);
+      const result = date.toLocaleString();
+      return result;
     } catch {
       return ts;
     }
