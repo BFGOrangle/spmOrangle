@@ -26,7 +26,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     public void createUser(CreateUserDto createStaffDto) {
-        String cognitoUsername = (createStaffDto.fullName().toLowerCase())
+        String cognitoUsername = (createStaffDto.userName().toLowerCase())
                 .replaceAll("\\s+", "_")
                 .replaceAll("[^\\p{L}\\p{M}\\p{S}\\p{N}\\p{P}]", "");
 
@@ -60,7 +60,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         // Create user record in database
         User user = new User();
         user.setCognitoSub(cognitoSub); // Store Cognito sub
-        user.setFullName(createStaffDto.fullName());
+        user.setUserName(createStaffDto.userName());
         user.setEmail(createStaffDto.email());
         user.setRoleType(createStaffDto.roleType());
 

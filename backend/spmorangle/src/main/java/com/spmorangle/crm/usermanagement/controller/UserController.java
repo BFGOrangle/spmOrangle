@@ -27,7 +27,7 @@ public class UserController {
     private final UserContextService userContextService;
 
     @PreAuthorize("permitAll()")
-    @PostMapping
+    @PostMapping("/create")
     public ResponseEntity<Void> createUser(@Valid @RequestBody CreateUserDto createUserDto) {
         log.info("Creating staff member with email: {}", createUserDto.email());
         userManagementService.createUser(createUserDto);

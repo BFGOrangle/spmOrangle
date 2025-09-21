@@ -10,7 +10,7 @@ public class UserConverter {
         }
         return UserResponseDto.builder()
                 .id(user.getId())
-                .fullName(user.getFullName())
+                .username(user.getUserName())
                 .email(user.getEmail())
                 .roleType(user.getRoleType())
                 .cognitoSub(user.getCognitoSub())

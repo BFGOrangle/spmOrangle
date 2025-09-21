@@ -7,7 +7,7 @@ import java.util.UUID;
 @Builder
 public record UserResponseDto(
         Long id,
-        String fullName,
+        String username,
         String email,
         String roleType,
         UUID cognitoSub

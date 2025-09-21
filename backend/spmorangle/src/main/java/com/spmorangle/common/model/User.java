@@ -3,8 +3,6 @@ package com.spmorangle.common.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.Builder;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
@@ -22,8 +20,8 @@ public class User {
     private Long id;
 
     @NotNull
-    @Column(name = "full_name", nullable = false, length = Integer.MAX_VALUE)
-    private String fullName;
+    @Column(name = "username", nullable = false, length = Integer.MAX_VALUE)
+    private String userName;
 
     @Size(max = 255)
     @Column(name = "email")
