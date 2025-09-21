@@ -81,14 +81,6 @@ resource "aws_cognito_user_pool" "cognito" {
 
   sms_verification_message = "Your Orangle verification code is: {####}"
 
-  admin_create_user_config {
-    invite_message_template {
-      email_message = "Hello {username}, your spm-orangle account has been created. Your temporary password is {####}. Please sign in using your email and temporary password."
-      email_subject = "Welcome to Orangle"
-      sms_message   = "Hello {username}, your Orangle temporary password is {####}"
-    }
-  }
-
   tags = {
     Environment = var.environment
   }
