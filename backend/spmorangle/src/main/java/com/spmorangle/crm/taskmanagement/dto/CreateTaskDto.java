@@ -1,7 +1,6 @@
 package com.spmorangle.crm.taskmanagement.dto;
 
 import com.spmorangle.crm.taskmanagement.enums.Status;
-`import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
