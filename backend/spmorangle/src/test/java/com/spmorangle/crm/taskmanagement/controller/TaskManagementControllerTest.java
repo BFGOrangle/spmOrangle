@@ -5,6 +5,7 @@ import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
+import com.spmorangle.crm.taskmanagement.service.TaskService;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAlreadyExistsException;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAssignmentNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +18,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
-
 import java.time.OffsetDateTime;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -44,6 +44,9 @@ public class TaskManagementControllerTest {
 
     @MockBean
     private CollaboratorService collaboratorService;
+
+    @MockBean
+    private TaskService taskService;
 
     private AddCollaboratorRequestDto validAddRequest;
     private RemoveCollaboratorRequestDto validRemoveRequest;
