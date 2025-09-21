@@ -1,23 +1,14 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: 
+    url: jdbc:postgresql://localhost:5432/spmorangle_test
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: test
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: create-drop
     show-sql: true
-    defer-datasource-initialization: true
-    properties:
-      hibernate:
-        hbm2ddl:
-          create_namespaces: true
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:schema.sql
   security:
     oauth2:
       resourceserver:
