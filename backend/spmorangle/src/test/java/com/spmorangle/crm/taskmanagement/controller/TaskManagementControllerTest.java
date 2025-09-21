@@ -17,7 +17,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.context.ActiveProfiles;
+
 import java.time.OffsetDateTime;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -32,7 +32,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest({TaskManagementController.class, GlobalExceptionHandler.class})
-@ActiveProfiles("test")
 @DisplayName("TaskManagementController Tests")
 @WithMockUser(username = "test@example.com", authorities = {"ROLE_USER"})
 public class TaskManagementControllerTest {
