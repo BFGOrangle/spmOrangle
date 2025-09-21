@@ -9,6 +9,7 @@ import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -18,15 +19,15 @@ public class Task {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    private int id;
+    private long id;
 
     @NotNull
     @Column(name = "project_id", nullable = false)
-    private int projectId;
+    private long projectId;
 
     @NotNull
     @Column(name = "owner_id", nullable = false)
-    private int ownerId;
+    private long ownerId;
 
     @Column(name = "task_type", nullable = false)
     private int taskType;
@@ -41,8 +42,8 @@ public class Task {
     @Column(name = "status", nullable = false)
     private Status status = Status.TODO;
 
-    @Column(name = "delete_index", nullable = false)
-    private boolean deleteIndex = false;
+    @Column(name = "delete_ind", nullable = false)
+    private boolean deleteInd = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     @ColumnDefault("now()")
@@ -53,8 +54,11 @@ public class Task {
     private OffsetDateTime updatedAt;
 
     @Column(name = "created_by", nullable = false, updatable = false)
-    private int createdBy;
+    private long createdBy;
 
     @Column(name = "updated_by", nullable = false)
-    private int updatedBy;
+    private long updatedBy;
+
+    @Column(name = "tags", nullable = true)
+    private List<String> tags;
 }
