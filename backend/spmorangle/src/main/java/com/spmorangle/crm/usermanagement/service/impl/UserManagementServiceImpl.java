@@ -5,7 +5,7 @@ import com.spmorangle.common.enums.UserType;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.crm.usermanagement.dto.CreateUserDto;
-import com.spmorangle.crm.usermanagement.dto.UpdateUserDto;
+import com.spmorangle.crm.usermanagement.dto.UpdateUserRoleDto;
 import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
 import com.spmorangle.crm.usermanagement.service.UserManagementService;
 import lombok.RequiredArgsConstructor;
@@ -84,43 +84,27 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Transactional
     @Override
-    public void updateUser(UpdateUserDto updateUserDto) {
-        User user = userRepository.findById(updateUserDto.id())
-                .orElseThrow(() -> new IllegalArgumentException("Staff member not found with ID: " + updateUserDto.id()));
-
-        // Update user fields if provided
-        if (updateUserDto.fullName() != null) {
-            String fullName = updateUserDto.fullName().trim();
-            user.setFullName(fullName);
-        }
-        if (updateUserDto.email() != null) {
-            user.setEmail(updateUserDto.email());
+    public void updateUserRole(UpdateUserRoleDto updateUserDto) {
+        boolean groupRemoved = cognitoService.removeUserFromGroup(updateUserDto.email(), updateUserDto.roleType());
+        if (!groupRemoved) {
+            log.warn("Failed to remove user from Cognito group: {}", updateUserDto.roleType());
+            throw new RuntimeException("Failed to update user role - Cognito group removal failed");
         }
 
-        if (updateUserDto.roleType() != null && !updateUserDto.roleType().equals(user.getRoleType())) {
-            // Remove user from old Cognito group
-            boolean groupRemoved = cognitoService.removeUserFromGroup(user.getEmail(), user.getRoleType());
-            if (!groupRemoved) {
-                log.warn("Failed to remove user from Cognito group: {}", user.getRoleType());
-                throw new RuntimeException("Failed to update user role - Cognito group removal failed");
+        // Add user to new Cognito group
+        boolean groupAdded = cognitoService.addUserToGroup(updateUserDto.email(), updateUserDto.roleType());
+        if (!groupAdded) {
+            log.warn("Failed to add user to Cognito group: {}", updateUserDto.roleType());
+            // Try to revert the removal
+            boolean isReverted = cognitoService.addUserToGroup(updateUserDto.email(), updateUserDto.roleType());
+            if (!isReverted) {
+                log.error("Failed to revert Cognito group addition for user: {}", updateUserDto.email());
             }
-
-            // Add user to new Cognito group
-            boolean groupAdded = cognitoService.addUserToGroup(user.getEmail(), updateUserDto.roleType());
-            if (!groupAdded) {
-                log.warn("Failed to add user to Cognito group: {}", updateUserDto.roleType());
-                // Try to revert the removal
-                boolean isReverted = cognitoService.addUserToGroup(user.getEmail(), user.getRoleType());
-                if (!isReverted) {
-                    log.error("Failed to revert Cognito group addition for user: {}", user.getEmail());
-                }
-                throw new RuntimeException("Failed to update user role - Cognito group addition failed");
-            }
-            log.info("Updated user role type from {} to {}", user.getRoleType(), updateUserDto.roleType());
-            user.setRoleType(updateUserDto.roleType());
+            throw new RuntimeException("Failed to update user role - Cognito group addition failed");
         }
+        log.info("Updated user role type from {} to {}", updateUserDto.roleType(), updateUserDto.roleType());
 
-        userRepository.save(user);
+        userRepository.updateUserTypeById(updateUserDto.userId(), updateUserDto.roleType());
     }
 
     @Transactional

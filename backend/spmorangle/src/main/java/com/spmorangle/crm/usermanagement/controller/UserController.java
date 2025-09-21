@@ -2,7 +2,7 @@ package com.spmorangle.crm.usermanagement.controller;
 
 import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.usermanagement.dto.CreateUserDto;
-import com.spmorangle.crm.usermanagement.dto.UpdateUserDto;
+import com.spmorangle.crm.usermanagement.dto.UpdateUserRoleDto;
 import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
 import com.spmorangle.crm.usermanagement.service.UserManagementService;
 import jakarta.validation.Valid;
@@ -26,6 +26,7 @@ public class UserController {
     private final UserManagementService userManagementService;
     private final UserContextService userContextService;
 
+    @PreAuthorize("permitAll()")
     @PostMapping
     public ResponseEntity<Void> createUser(@Valid @RequestBody CreateUserDto createUserDto) {
         log.info("Creating staff member with email: {}", createUserDto.email());
@@ -45,14 +46,11 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-    @PutMapping
-    public ResponseEntity<Void> updateUser(@Valid @RequestBody UpdateUserDto updateUserDto) {
-        if (!userContextService.isRequestingUserSelfCheckByUserId(updateUserDto.id())) {
-            log.warn("Unauthorized update attempt by user ID: {}", userContextService.getRequestingUser().getId());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-        log.info("Updating staff member with ID: {}", updateUserDto.id());
-        userManagementService.updateUser(updateUserDto);
+    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'DIRECTOR')")
+    @PutMapping("/role")
+    public ResponseEntity<Void> updateUserRole(@Valid @RequestBody UpdateUserRoleDto updateUserDto) {
+        log.info("Updating staff member with ID: {}", updateUserDto.userId());
+        userManagementService.updateUserRole(updateUserDto);
         return ResponseEntity.ok().build();
     }
 

@@ -7,15 +7,12 @@ import jakarta.validation.constraints.NotNull;
 /**
  * DTO for updating an existing staff member
  */
-public record UpdateUserDto(
-    @NotNull(message = "id must not be blank")
-    Long id,
+public record UpdateUserRoleDto(
+    @NotNull(message = "userId must not be blank")
+    Long userId,
 
-    @NotBlank(message = "fullName must not be blank")
-    String fullName,
-
-    @NotBlank(message = "email must not be blank")
     @Email
+    @NotBlank(message = "email must not be blank")
     String email,
 
     @NotBlank(message = "roleType must not be blank")
