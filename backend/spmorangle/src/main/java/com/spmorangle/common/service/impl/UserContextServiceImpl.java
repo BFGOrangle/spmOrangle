@@ -19,22 +19,14 @@ public class UserContextServiceImpl implements UserContextService {
         UUID cognitoSub = SecurityContextUtil.getCurrentCognitoSubUUID()
                 .orElseThrow(() -> new RuntimeException("Requesting User Cognito sub not available"));
         return userRepository.findByCognitoSub(cognitoSub)
-                .orElseThrow(() -> new RuntimeException("user not found"));
+                .orElseThrow(() -> new RuntimeException("Requesting user not found"));
     }
 
     public boolean isRequestingUserSelfCheckByUserId(Long requestedUserId) {
-        UUID cognitoSub = SecurityContextUtil.getCurrentCognitoSubUUID()
-                .orElseThrow(() -> new RuntimeException("Requesting User Cognito sub not available"));
-        User user = userRepository.findByCognitoSub(cognitoSub)
-                .orElseThrow(() -> new RuntimeException("Requesting User not found"));
-        return user.getId().equals(requestedUserId);
+        return getRequestingUser().getId().equals(requestedUserId);
     }
 
     public boolean isRequestingUserSelfCheckBySub(UUID cognitoSub) {
-        User user = userRepository.findByCognitoSub(cognitoSub)
-                .orElseThrow(() -> new RuntimeException("Requesting User not found"));
-        UUID currentCognitoSub = SecurityContextUtil.getCurrentCognitoSubUUID()
-                .orElseThrow(() -> new RuntimeException("Requesting User Cognito sub not available"));
-        return user.getCognitoSub().equals(currentCognitoSub);
+        return getRequestingUser().getCognitoSub().equals(cognitoSub);
     }
 }
