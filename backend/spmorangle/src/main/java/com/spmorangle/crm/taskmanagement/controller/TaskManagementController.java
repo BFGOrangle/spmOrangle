@@ -3,10 +3,14 @@ package com.spmorangle.crm.taskmanagement.controller;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
+import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
+import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
+import com.spmorangle.crm.taskmanagement.service.TaskService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,6 +26,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class TaskManagementController {
 
     private final CollaboratorService collaboratorService;
+    private final TaskService taskService;
+
+    @PostMapping
+    public ResponseEntity<CreateTaskResponseDto> createTask(
+            @Valid @RequestBody CreateTaskDto createTaskDto) {
+        
+        log.info("Creating task for user {}", createTaskDto.getOwnerId());
+        
+        CreateTaskResponseDto response = taskService.createTask(createTaskDto, createTaskDto.getOwnerId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
 
     @PostMapping("/collaborator")
     public ResponseEntity<AddCollaboratorResponseDto> addCollaborator(
