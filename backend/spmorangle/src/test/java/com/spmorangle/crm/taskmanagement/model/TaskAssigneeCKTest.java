@@ -10,7 +10,6 @@ import java.io.Serializable;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("TaskAssigneeCK Tests")
-@ActiveProfiles("test")
 class TaskAssigneeCKTest {
 
     private TaskAssigneeCK taskAssigneeCK1;

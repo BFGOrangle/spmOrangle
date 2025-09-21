@@ -15,7 +15,6 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("Collaborator DTO Validation Tests")
-@ActiveProfiles("test")
 class CollaboratorDtoValidationTest {
 
     private Validator validator;

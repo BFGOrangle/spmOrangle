@@ -14,7 +14,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 @DisplayName("TaskAssigneeRepository Tests")
-@ActiveProfiles("test")
 class TaskAssigneeRepositoryTest {
 
     @Autowired

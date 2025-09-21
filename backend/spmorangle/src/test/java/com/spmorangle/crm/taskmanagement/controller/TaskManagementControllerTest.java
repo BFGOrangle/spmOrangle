@@ -33,7 +33,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest({TaskManagementController.class, GlobalExceptionHandler.class})
-@ActiveProfiles("test")
 @DisplayName("TaskManagementController Tests")
 @WithMockUser(username = "test@example.com", authorities = {"ROLE_USER"})
 public class TaskManagementControllerTest {
