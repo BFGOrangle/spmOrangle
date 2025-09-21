@@ -1,6 +1,6 @@
 package com.spmorangle.crm.taskmanagement.enums;
 
-public enum RequestStatus {
+public enum Status {
     TODO,
     IN_PROGRESS,
     COMPLETED,

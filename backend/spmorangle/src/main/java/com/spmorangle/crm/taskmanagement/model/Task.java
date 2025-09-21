@@ -1,6 +1,6 @@
 package com.spmorangle.crm.taskmanagement.model;
 
-import com.spmorangle.crm.taskmanagement.enums.RequestStatus;
+import com.spmorangle.crm.taskmanagement.enums.Status;
 import jakarta.persistence.Id;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -39,7 +39,7 @@ public class Task {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private RequestStatus status = RequestStatus.TODO;
+    private Status status = Status.TODO;
 
     @Column(name = "delete_index", nullable = false)
     private boolean deleteIndex = false;
