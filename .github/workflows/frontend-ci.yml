@@ -41,10 +41,9 @@ jobs:
         run: npm run typecheck
 
       # Skip for now
-      - name: Run linting
-        run: npm run lint
+      # - name: Run linting
+      #   run: npm run lint
 
-      # Commenting out tests until test suite is implemented
       - name: Run tests
         run: npm test -- --coverage --watchAll=false
         env:

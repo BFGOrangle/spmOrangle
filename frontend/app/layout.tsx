@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/lib/query-client";
 import { ThemeProvider } from "@/lib/theme-context";
+import { UserProvider } from "@/contexts/user-context";
+import ConfigureAmplifyClientSide from "@/lib/amplify-cognito-config";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,14 +31,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-        >
-          <QueryProvider>
-            {children}
-          </QueryProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ConfigureAmplifyClientSide />
+          <UserProvider>
+            <QueryProvider>{children}</QueryProvider>
+          </UserProvider>
         </ThemeProvider>
       </body>
     </html>

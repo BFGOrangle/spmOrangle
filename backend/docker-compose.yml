@@ -1,0 +1,41 @@
+services:
+  postgres:
+    container_name: syncUp-local-postgres
+    image: postgres:16.2
+    environment:
+      # These are for local development only and are not secrets
+      POSTGRES_DB: localtestdb
+      POSTGRES_USER: localtestuser
+      POSTGRES_PASSWORD: localtestpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -p 5432 -U localtestuser -d localtestdb"]
+      interval: 1s
+      timeout: 10s
+      retries: 10
+
+  flyway-db-migrations:
+    container_name: syncUp-flyway-db-migrations
+    image: flyway/flyway:11.3.4
+    volumes:
+      - ./database/migrations:/flyway/sql
+    environment:
+      FLYWAY_URL: "jdbc:postgresql://postgres:5432/localtestdb"
+      FLYWAY_USER: localtestuser
+      FLYWAY_PASSWORD: localtestpassword
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+      FLYWAY_LOCATIONS: "filesystem:/flyway/sql,filesystem:/flyway/sql/_local_seeding_data"
+    command: migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  pgdata:
+    name: syncUp-pgdata
+
+networks:
+  default:
+    name: syncUp-default
