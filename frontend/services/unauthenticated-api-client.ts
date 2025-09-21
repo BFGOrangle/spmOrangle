@@ -1,55 +1,13 @@
 /**
- * Base HTTP client with JWT authentication for SeniorSync API services
+ * Unauthenticated HTTP client for public API endpoints
  *
- * This client automatically:
- * - Adds JWT authentication headers from AWS Amplify Cognito session
- * - Handles common error responses
- * - Provides type-safe HTTP methods
- * - Can be extended by service-specific clients for custom error handling
+ * This client handles requests that don't require authentication,
+ * such as user signup and public endpoints.
  */
 
-import { createAuthenticatedRequestConfig } from "@/lib/auth-utils";
+import { BaseApiError, BaseValidationError } from "./authenticated-api-client";
 
-// Base error class for API errors
-export class BaseApiError extends Error {
-  constructor(
-    public status: number,
-    public statusText: string,
-    public errors: Array<{
-      message: string;
-      timestamp: string;
-      field?: string;
-      rejectedValue?: any;
-    }> = [],
-    public timestamp?: string,
-  ) {
-    super(`API Error ${status}: ${statusText}`);
-    this.name = "BaseApiError";
-  }
-}
-
-// Base validation error class
-export class BaseValidationError extends BaseApiError {
-  constructor(
-    public validationErrors: Array<{
-      message: string;
-      field: string;
-      rejectedValue?: any;
-      timestamp: string;
-    }>,
-    status: number = 400,
-    statusText: string = "Validation Error",
-  ) {
-    super(status, statusText, validationErrors);
-    this.name = "BaseValidationError";
-  }
-}
-
-/**
- * Authenticated HTTP client base class
- * Services can extend this for service-specific error handling
- */
-export class AuthenticatedApiClient {
+export class UnauthenticatedApiClient {
   private baseUrl: string;
 
   constructor() {
@@ -63,24 +21,36 @@ export class AuthenticatedApiClient {
   ): Promise<T> {
     const fullUrl = `${this.baseUrl}${url}`;
 
-    // Use existing auth-utils function for authentication
-    const method =
-      (options.method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH") || "GET";
-    const body = options.body ? JSON.parse(options.body as string) : undefined;
-    const config = await createAuthenticatedRequestConfig(method, body);
+    // Default headers for JSON content
+    const defaultHeaders = {
+      "Content-Type": "application/json",
+    };
 
-    // Merge with any additional options (preserving custom headers)
     const finalConfig: RequestInit = {
-      ...config,
       ...options,
       headers: {
-        ...config.headers,
+        ...defaultHeaders,
         ...options.headers,
       },
     };
 
+    console.group("🌐 Unauthenticated API Request");
+    console.log("🎯 URL:", fullUrl);
+    console.log("📋 Method:", finalConfig.method || "GET");
+    console.log("📤 Headers:", finalConfig.headers);
+    if (finalConfig.body) {
+      console.log("📦 Body:", finalConfig.body);
+    }
+
     try {
       const response = await fetch(fullUrl, finalConfig);
+
+      console.log("📥 Response Status:", response.status, response.statusText);
+      console.log(
+        "📥 Response Headers:",
+        Object.fromEntries(response.headers.entries()),
+      );
+      console.groupEnd();
 
       if (!response.ok) {
         await this.handleErrorResponse(response);
@@ -103,6 +73,8 @@ export class AuthenticatedApiClient {
         return text as unknown as T;
       }
     } catch (error) {
+      console.groupEnd();
+
       if (error instanceof BaseApiError) {
         throw error;
       }
@@ -120,10 +92,10 @@ export class AuthenticatedApiClient {
   }
 
   /**
-   * Default error handling - can be overridden by service-specific clients
+   * Error handling for unauthenticated requests
    */
   protected async handleErrorResponse(response: Response): Promise<never> {
-    console.error("🚨 API Error Response:", {
+    console.error("API Error Response:", {
       status: response.status,
       statusText: response.statusText,
       url: response.url,
@@ -134,33 +106,17 @@ export class AuthenticatedApiClient {
 
     try {
       errorData = await response.json();
-      console.error("🚨 Error Response Body:", errorData);
+      console.error("Error Response Body:", errorData);
     } catch (parseError) {
-      console.log("❌ Failed to parse error response as JSON");
-      console.log("🔍 Parse Error:", parseError);
+      console.log("Failed to parse error response as JSON");
 
       // Try to get the response as text
       try {
         const textResponse = await response.text();
-        console.log("📄 Error Response Text:", textResponse);
-
-        // Check if this looks like an HTML error page (Next.js default error)
-        if (
-          textResponse.includes("<html") ||
-          textResponse.includes("<!DOCTYPE")
-        ) {
-          console.warn(
-            "🚨 Received HTML response - this might be a Next.js error page!",
-          );
-          console.warn(
-            "💡 This suggests the request went to Next.js instead of your backend",
-          );
-        }
+        console.log("Error Response Text:", textResponse);
       } catch (textError) {
-        console.log("❌ Failed to get error response as text:", textError);
+        console.log("Failed to get error response as text:", textError);
       }
-
-      console.groupEnd();
 
       // If JSON parsing fails, create a generic error
       throw new BaseApiError(response.status, response.statusText, [
@@ -170,8 +126,6 @@ export class AuthenticatedApiClient {
         },
       ]);
     }
-
-    console.groupEnd();
 
     // Handle validation errors (400)
     if (response.status === 400 && errorData.errors) {

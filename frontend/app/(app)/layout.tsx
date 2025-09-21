@@ -1,22 +1,20 @@
 "use client";
-import Image from "next/image";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { useEffect } from "react";
 import { useCurrentUser } from "@/contexts/user-context";
 import { useRouter } from "next/navigation";
 import { Route } from "@/enums/Route";
 import FullPageSpinnerLoader from "@/components/full-page-spinner-loader";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
 
-export default function Home() {
+export default function Layout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { currentUser, isLoading: isUserLoading } = useCurrentUser();
 
-  // Redirect authenticated users at layout level
+  // Redirect authenticated users
   useEffect(() => {
     if (!isUserLoading && !currentUser) {
       router.push(Route.SignIn);
-    } else {
-      router.push(Route.Dashboard);
     }
   }, [isUserLoading, currentUser]);
 
@@ -24,5 +22,17 @@ export default function Home() {
     return <FullPageSpinnerLoader />;
   }
 
-  return null;
+  return (
+    <>
+      <SidebarProvider>
+        {!isUserLoading && currentUser && (
+          <>
+            <AppSidebar />
+            <SidebarTrigger />
+          </>
+        )}
+        {children}
+      </SidebarProvider>
+    </>
+  );
 }

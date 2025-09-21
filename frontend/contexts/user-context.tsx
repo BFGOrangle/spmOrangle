@@ -87,19 +87,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       // Get backend staff profile to get the actual staff ID
       let backendStaffId: number | undefined;
-      try {
-        const { staffApiService } = await import("@/services/staff-api");
-        const staffProfile = await staffApiService.getCurrentUserProfile();
+      // TODO: integrate with user service
+      // try {
+      //   const { staffApiService } = await import("@/services/staff-api");
+      //   const staffProfile = await staffApiService.getCurrentUserProfile();
 
-        if (staffProfile) {
-          backendStaffId = staffProfile.id;
-          console.log("Backend staff ID from API:", backendStaffId);
-        } else {
-          console.warn("No backend staff profile found for current user");
-        }
-      } catch (error) {
-        console.error("Error fetching backend staff profile:", error);
-      }
+      //   if (staffProfile) {
+      //     backendStaffId = staffProfile.id;
+      //     console.log("Backend staff ID from API:", backendStaffId);
+      //   } else {
+      //     console.warn("No backend staff profile found for current user");
+      //   }
+      // } catch (error) {
+      //   console.error("Error fetching backend staff profile:", error);
+      // }
 
       // Map to your existing CurrentUser format
       const user: CurrentUser = {
@@ -156,8 +157,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     console.warn("setCurrentUser called but user state is managed by Amplify");
   };
 
-  const isAdmin = currentUser?.role === "ADMIN";
+  const isManager = currentUser?.role === "MANAGER";
   const isStaff = currentUser?.role === "STAFF";
+  // add others where needed for other roles
 
   return (
     <UserContext.Provider
@@ -165,7 +167,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         currentUser,
         setCurrentUser: handleSetCurrentUser,
         isLoading,
-        isAdmin,
+        isAdmin: isManager,
         isStaff,
         signOut: handleSignOut,
       }}

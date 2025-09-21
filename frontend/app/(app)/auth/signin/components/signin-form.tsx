@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { ErrorMessageCallout } from "@/components/error-message-callout";
 import { handleSignIn } from "@/lib/cognito-actions";
+import Link from "next/link";
 
 export default function SigninForm() {
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
@@ -95,6 +96,14 @@ export default function SigninForm() {
           </div>
           <SigninButton isPending={isPending} />
           {errorMessage && <ErrorMessageCallout errorMessage={errorMessage} />}
+          <div className="flex justify-center">
+            <Link
+              href="/auth/signup"
+              className="mt-2 cursor-pointer text-blue-800 text-sm"
+            >
+              {"Don't have an account? "} Sign up.
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </form>
