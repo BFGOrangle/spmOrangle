@@ -50,6 +50,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/**").permitAll() // Spring Boot Actuator endpoints
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Allow preflight requests
+                        .requestMatchers(HttpMethod.POST, "/api/user/create").permitAll()
                         .requestMatchers("/api/auth/**").permitAll() // Public auth endpoints
                         .requestMatchers("/api/test/**").permitAll() // Test endpoints
                         .requestMatchers("/api/vendor-applications").permitAll()
