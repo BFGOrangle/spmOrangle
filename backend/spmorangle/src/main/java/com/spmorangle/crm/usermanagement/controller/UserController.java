@@ -29,19 +29,19 @@ public class UserController {
     @PreAuthorize("permitAll()")
     @PostMapping("/create")
     public ResponseEntity<Void> createUser(@Valid @RequestBody CreateUserDto createUserDto) {
-        log.info("Creating staff member with email: {}", createUserDto.email());
+        log.info("Creating user with email: {}", createUserDto.email());
         userManagementService.createUser(createUserDto);
         return ResponseEntity.ok().build();
     }
 
     @GetMapping("/user-id/{userId}")
-    public ResponseEntity<UserResponseDto> getStaffByStaffId(@PathVariable Long userId) {
+    public ResponseEntity<UserResponseDto> getUserById(@PathVariable Long userId) {
         UserResponseDto user = userManagementService.getUserById(userId);
         return ResponseEntity.ok(user);
     }
 
     @GetMapping("/sub/{cognitoSub}")
-    public ResponseEntity<UserResponseDto> getStaffByStaffCognitoSub(@PathVariable String cognitoSub) {
+    public ResponseEntity<UserResponseDto> getUserByCognitoSub(@PathVariable String cognitoSub) {
         UserResponseDto user = userManagementService.getUserByCognitoSub(UUID.fromString(cognitoSub));
         return ResponseEntity.ok(user);
     }
@@ -49,7 +49,7 @@ public class UserController {
     @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'DIRECTOR')")
     @PutMapping("/role")
     public ResponseEntity<Void> updateUserRole(@Valid @RequestBody UpdateUserRoleDto updateUserDto) {
-        log.info("Updating staff member with ID: {}", updateUserDto.userId());
+        log.info("Updating user with ID: {}", updateUserDto.userId());
         userManagementService.updateUserRole(updateUserDto);
         return ResponseEntity.ok().build();
     }
@@ -60,7 +60,7 @@ public class UserController {
             log.warn("Unauthorized update attempt by user ID: {}", userContextService.getRequestingUser().getId());
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        log.info("Deleting staff member with ID: {}", userId);
+        log.info("Deleting user with ID: {}", userId);
         userManagementService.deleteUser(userId);
         return ResponseEntity.noContent().build();
     }

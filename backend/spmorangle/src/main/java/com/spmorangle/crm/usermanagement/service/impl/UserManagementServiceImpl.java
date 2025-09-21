@@ -68,8 +68,8 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     @Override
-    public UserResponseDto getUserById(Long staffId) {
-        User user = userRepository.findById(staffId)
+    public UserResponseDto getUserById(Long userId) {
+        User user = userRepository.findById(userId)
                 .orElse(null);
         return UserConverter.convert(user);
 
@@ -109,18 +109,18 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Transactional
     @Override
-    public void deleteUser(Long staffId) {
-        User user = userRepository.findById(staffId)
-                .orElseThrow(() -> new IllegalArgumentException("Staff member not found with ID: " + staffId));
+    public void deleteUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Staff member not found with ID: " + userId));
         cognitoService.disableUser(user.getEmail());
         cognitoService.deleteUser(user.getEmail());
         userRepository.delete(user);
     }
 
     @Override
-    public void toggleUserStatus(Long staffId, boolean isActive) {
-        User user = userRepository.findById(staffId)
-                .orElseThrow(() -> new IllegalArgumentException("Staff member not found with ID: " + staffId));
+    public void toggleUserStatus(Long userId, boolean isActive) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Staff member not found with ID: " + userId));
 
         // Toggle status in Cognito
         boolean isToggleSuccess;
@@ -137,7 +137,7 @@ public class UserManagementServiceImpl implements UserManagementService {
             throw new RuntimeException("Failed to toggle staff status in Cognito");
         }
 
-        log.info("Successfully toggled staff status for ID: {}", staffId);
+        log.info("Successfully toggled staff status for ID: {}", userId);
     }
 
     public boolean isUserExistsByEmail(String email) {
