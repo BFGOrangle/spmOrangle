@@ -7,6 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -39,6 +41,7 @@ public class Task {
     private String description;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "status", nullable = false)
     private Status status = Status.TODO;
 
@@ -49,14 +52,14 @@ public class Task {
     @ColumnDefault("now()")
     private OffsetDateTime createdAt;
 
-    @Column(name = "updated_at", nullable = false)
+    @Column(name = "updated_at", nullable = true)
     @ColumnDefault("now()")
     private OffsetDateTime updatedAt;
 
     @Column(name = "created_by", nullable = false, updatable = false)
     private long createdBy;
 
-    @Column(name = "updated_by", nullable = false)
+    @Column(name = "updated_by", nullable = true)
     private long updatedBy;
 
     @Column(name = "tags", nullable = true)
