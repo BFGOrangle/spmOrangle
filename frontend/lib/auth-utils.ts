@@ -2,14 +2,19 @@
 import { fetchAuthSession } from "aws-amplify/auth";
 
 export const getBearerToken = async (): Promise<string> => {
-  const session = await fetchAuthSession();
-  let token = "";
-  if (session && session.tokens && session.tokens.accessToken) {
-    token = `Bearer ${session.tokens.accessToken}`;
-  } else {
+  try {
+    const session = await fetchAuthSession();
+    let token = "";
+    if (session && session.tokens && session.tokens.accessToken) {
+      token = `Bearer ${session.tokens.accessToken}`;
+    } else {
+      console.error("Error in retrieving access token.");
+    }
+    return token;
+  } catch (error) {
     console.error("Error in retrieving access token.");
+    return "";
   }
-  return token;
 };
 
 export const createAuthenticatedRequestConfig = async (

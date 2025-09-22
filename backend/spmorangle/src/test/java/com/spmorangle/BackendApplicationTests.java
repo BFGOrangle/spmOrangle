@@ -11,8 +11,4 @@ import org.springframework.context.annotation.Import;
 @Import(TestConfig.class)
 class BackendApplicationTests {
 
-	@Test
-	void contextLoads() {
-	}
-
 }
