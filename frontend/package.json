@@ -15,7 +15,7 @@
       "eslint --fix",
       "prettier --write"
     ],
-    "*.ts": "tsc-files --noEmit"
+    "*.ts": "node ./scripts/run-tsc.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

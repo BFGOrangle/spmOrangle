@@ -1,5 +1,12 @@
 "use client";
-import { Layout, LogOut, RefreshCcwDot, User } from "lucide-react";
+import {
+  Briefcase,
+  CheckSquare,
+  Layout,
+  LogOut,
+  RefreshCcwDot,
+  User,
+} from "lucide-react";
 
 import {
   Sidebar,
@@ -24,6 +31,16 @@ const items = [
     title: "My Analytics",
     url: "/dashboard",
     icon: Layout,
+  },
+  {
+    title: "Projects",
+    url: "/projects",
+    icon: Briefcase,
+  },
+  {
+    title: "Tasks",
+    url: "/tasks",
+    icon: CheckSquare,
   },
   {
     title: "My Profile",
