@@ -96,6 +96,8 @@ jest.mock("@/components/ui/sidebar", () => ({
 
 // Mock Lucide icons
 jest.mock("lucide-react", () => ({
+  Briefcase: () => <div data-testid="briefcase-icon" />,
+  CheckSquare: () => <div data-testid="check-square-icon" />,
   Layout: () => <div data-testid="layout-icon" />,
   LogOut: () => <div data-testid="logout-icon" />,
   RefreshCcwDot: () => <div data-testid="refresh-icon" />,
@@ -120,12 +122,22 @@ describe("AppSidebar", () => {
     // Check for main navigation elements
     expect(screen.getByText("Application")).toBeInTheDocument();
     expect(screen.getByText("My Analytics")).toBeInTheDocument();
+    expect(screen.getByText("Projects")).toBeInTheDocument();
+    expect(screen.getByText("Tasks")).toBeInTheDocument();
     expect(screen.getByText("My Profile")).toBeInTheDocument();
 
     // Check for links
     expect(screen.getByRole("link", { name: /my analytics/i })).toHaveAttribute(
       "href",
       "/dashboard",
+    );
+    expect(screen.getByRole("link", { name: /projects/i })).toHaveAttribute(
+      "href",
+      "/projects",
+    );
+    expect(screen.getByRole("link", { name: /tasks/i })).toHaveAttribute(
+      "href",
+      "/tasks",
     );
     expect(screen.getByRole("link", { name: /my profile/i })).toHaveAttribute(
       "href",
@@ -156,6 +168,8 @@ describe("AppSidebar", () => {
     expect(screen.getByTestId("layout-icon")).toBeInTheDocument();
     expect(screen.getByTestId("logout-icon")).toBeInTheDocument();
     expect(screen.getByTestId("refresh-icon")).toBeInTheDocument();
+    expect(screen.getByTestId("briefcase-icon")).toBeInTheDocument();
+    expect(screen.getByTestId("check-square-icon")).toBeInTheDocument();
   });
 
   it("has correct structure for sidebar sections", () => {
@@ -195,6 +209,8 @@ describe("AppSidebar", () => {
     const linkTexts = links.map((link) => link.textContent);
 
     expect(linkTexts).toContain("My Analytics");
+    expect(linkTexts).toContain("Projects");
+    expect(linkTexts).toContain("Tasks");
     expect(linkTexts).toContain("My Profile");
   });
 
@@ -205,6 +221,8 @@ describe("AppSidebar", () => {
     expect(
       screen.getByRole("link", { name: /my analytics/i }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /projects/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /tasks/i })).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /my profile/i }),
     ).toBeInTheDocument();
@@ -231,7 +249,7 @@ describe("AppSidebar", () => {
     expect(
       screen.getByRole("button", { name: /sign out/i }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("link")).toHaveLength(2); // My Analytics and My Profile
+    expect(screen.getAllByRole("link")).toHaveLength(4);
   });
 
   it("applies correct CSS classes to sign out button", () => {
