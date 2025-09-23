@@ -10,7 +10,15 @@ jest.mock("@/lib/cognito-actions", () => ({
 
 // Mock Next.js Link
 jest.mock("next/link", () => {
-  return function MockLink({ children, href, ...props }: any) {
+  return function MockLink({
+    children,
+    href,
+    ...props
+  }: {
+    children: React.ReactNode;
+    href: string;
+    [key: string]: unknown;
+  }) {
     return (
       <a href={href} {...props}>
         {children}
@@ -53,7 +61,15 @@ jest.mock("@/components/ui/sidebar", () => ({
   SidebarMenu: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="sidebar-menu">{children}</div>
   ),
-  SidebarMenuButton: ({ children, asChild, ...props }: any) => {
+  SidebarMenuButton: ({
+    children,
+    asChild,
+    ...props
+  }: {
+    children: React.ReactNode;
+    asChild?: boolean;
+    [key: string]: unknown;
+  }) => {
     if (asChild) {
       return <div {...props}>{children}</div>;
     }
@@ -86,10 +102,9 @@ jest.mock("lucide-react", () => ({
   User: () => <div data-testid="user-icon" />,
 }));
 
-const mockHandleSignOut = handleSignOut as jest.MockedFunction<typeof handleSignOut>;
-
 // Helper function to render with SidebarProvider
 const renderWithSidebarProvider = (component: React.ReactElement) => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { SidebarProvider } = require("@/components/ui/sidebar");
   return render(<SidebarProvider>{component}</SidebarProvider>);
 };
@@ -157,5 +172,85 @@ describe("AppSidebar", () => {
     renderWithSidebarProvider(<AppSidebar />);
 
     expect(screen.getByTestId("theme-toggle")).toBeInTheDocument();
+  });
+
+  it("renders the SyncUp brand name correctly", () => {
+    renderWithSidebarProvider(<AppSidebar />);
+
+    expect(screen.getByText("SyncUp")).toBeInTheDocument();
+  });
+
+  it("has correct sign out button attributes", () => {
+    renderWithSidebarProvider(<AppSidebar />);
+
+    const signOutButton = screen.getByRole("button", { name: /sign out/i });
+    expect(signOutButton).toHaveAttribute("title", "Sign Out");
+    expect(signOutButton).toHaveClass("w-full", "p-2");
+  });
+
+  it("renders navigation links in correct order", () => {
+    renderWithSidebarProvider(<AppSidebar />);
+
+    const links = screen.getAllByRole("link");
+    const linkTexts = links.map((link) => link.textContent);
+
+    expect(linkTexts).toContain("My Analytics");
+    expect(linkTexts).toContain("My Profile");
+  });
+
+  it("renders all required navigation items from items array", () => {
+    renderWithSidebarProvider(<AppSidebar />);
+
+    // Check that each menu item from the items array is rendered
+    expect(
+      screen.getByRole("link", { name: /my analytics/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /my profile/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("calls handleSignOut correctly when button is clicked", async () => {
+    renderWithSidebarProvider(<AppSidebar />);
+
+    const signOutButton = screen.getByRole("button", { name: /sign out/i });
+
+    await userEvent.click(signOutButton);
+
+    expect(handleSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders without props (no required props)", () => {
+    expect(() => renderWithSidebarProvider(<AppSidebar />)).not.toThrow();
+  });
+
+  it("has proper semantic structure for accessibility", () => {
+    renderWithSidebarProvider(<AppSidebar />);
+
+    // Check for proper semantic elements
+    expect(
+      screen.getByRole("button", { name: /sign out/i }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("link")).toHaveLength(2); // My Analytics and My Profile
+  });
+
+  it("applies correct CSS classes to sign out button", () => {
+    renderWithSidebarProvider(<AppSidebar />);
+
+    const signOutButton = screen.getByRole("button", { name: /sign out/i });
+
+    // Check for expected utility classes
+    expect(signOutButton).toHaveClass("w-full");
+    expect(signOutButton).toHaveClass("p-2");
+  });
+
+  it("renders brand logo with correct styling", () => {
+    renderWithSidebarProvider(<AppSidebar />);
+
+    const refreshIcon = screen.getByTestId("refresh-icon");
+    expect(refreshIcon).toBeInTheDocument();
+
+    const brandText = screen.getByText("SyncUp");
+    expect(brandText).toBeInTheDocument();
   });
 });
