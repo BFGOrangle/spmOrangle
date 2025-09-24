@@ -7,33 +7,25 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.time.OffsetDateTime;
-import java.util.List;
-
 @Getter
 @Builder
 @AllArgsConstructor
-public class CreateTaskDto {
+public class CreateSubtaskDto {
 
+    @NotNull(message = "Task ID is required")
+    private final Long taskId;
+
+    @NotNull(message = "Project ID is required")
     private final Long projectId;
-
-    @NotNull(message = "Owner ID is required")
-    private final Long ownerId;
 
     @NotNull(message = "Title is required")
     private final String title;
 
-    private final String description;
+    private final String details;
 
     @Builder.Default
     private final Status status = Status.TODO;
 
     @NotNull(message = "Task Type is required")
     private final TaskType taskType;
-
-
-    private final List<String> tags;
-
-    private final List<Long> assignedUserIds;
-
 }

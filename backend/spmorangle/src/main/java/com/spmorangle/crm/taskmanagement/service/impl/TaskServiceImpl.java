@@ -3,9 +3,12 @@ package com.spmorangle.crm.taskmanagement.service.impl;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.SubtaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
+import com.spmorangle.crm.taskmanagement.service.SubtaskService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -23,6 +27,7 @@ public class TaskServiceImpl implements TaskService {
 
     private final TaskRepository taskRepository;
     private final CollaboratorService collaboratorService;
+    private final SubtaskService subtaskService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -75,6 +80,75 @@ public class TaskServiceImpl implements TaskService {
                 .tags(savedTask.getTags())
                 .createdBy(savedTask.getCreatedBy())
                 .createdAt(savedTask.getCreatedAt())
+                .build();
+    }
+
+    @Override
+    public List<TaskResponseDto> getProjectTasks(Long projectId) {
+        log.info("Getting tasks for project: {}", projectId);
+        List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
+        return tasks.stream()
+                .map(this::mapToTaskResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<TaskResponseDto> getPersonalTasks(Long userId) {
+        log.info("Getting personal tasks for user: {}", userId);
+        List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
+        return tasks.stream()
+                .map(this::mapToTaskResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<TaskResponseDto> getAllUserTasks(Long userId) {
+        log.info("Getting all tasks for user: {}", userId);
+        List<Task> tasks = taskRepository.findUserTasks(userId);
+        return tasks.stream()
+                .map(this::mapToTaskResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteTask(Long taskId, Long currentUserId) {
+        log.info("Deleting task: {} by user: {}", taskId, currentUserId);
+        
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+        
+        // Only owner can delete the task
+        if (!task.getOwnerId().equals(currentUserId)) {
+            throw new RuntimeException("Only task owner can delete the task");
+        }
+        
+        task.setDeleteInd(true);
+        task.setUpdatedBy(currentUserId);
+        task.setUpdatedAt(OffsetDateTime.now());
+        
+        taskRepository.save(task);
+        log.info("Task {} marked as deleted", taskId);
+    }
+
+    private TaskResponseDto mapToTaskResponseDto(Task task) {
+        // Load subtasks for this task
+        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId());
+        
+        return TaskResponseDto.builder()
+                .id(task.getId())
+                .projectId(task.getProjectId())
+                .ownerId(task.getOwnerId())
+                .taskType(task.getTaskType())
+                .title(task.getTitle())
+                .description(task.getDescription())
+                .status(task.getStatus())
+                .tags(task.getTags())
+                .createdAt(task.getCreatedAt())
+                .updatedAt(task.getUpdatedAt())
+                .createdBy(task.getCreatedBy())
+                .updatedBy(task.getUpdatedBy())
+                .subtasks(subtasks)
                 .build();
     }
 }

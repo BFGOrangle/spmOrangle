@@ -1,7 +1,6 @@
 package com.spmorangle.crm.taskmanagement.model;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 
 import org.hibernate.annotations.ColumnDefault;
 
@@ -22,19 +21,20 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "tasks", schema = "syncup")
-public class Task {
+@Table(name = "subtasks", schema = "syncup")
+public class Subtask {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    private long id;
-
-    @Column(name = "project_id", nullable = true)
-    private Long projectId;
+    private Long id;
 
     @NotNull
-    @Column(name = "owner_id", nullable = false)
-    private Long ownerId;
+    @Column(name = "task_id", nullable = false)
+    private Long taskId;
+
+    @NotNull
+    @Column(name = "project_id", nullable = false)
+    private Long projectId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "task_type", nullable = false)
@@ -43,8 +43,8 @@ public class Task {
     @Column(name = "title", nullable = false)
     private String title;
 
-    @Column(name = "description", nullable = true)
-    private String description;
+    @Column(name = "details", nullable = true)
+    private String details;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
@@ -62,11 +62,8 @@ public class Task {
     private OffsetDateTime updatedAt;
 
     @Column(name = "created_by", nullable = false, updatable = false)
-    private long createdBy;
+    private Long createdBy;
 
     @Column(name = "updated_by", nullable = true)
     private Long updatedBy;
-
-    @Column(name = "tags", nullable = true)
-    private List<String> tags;
 }
