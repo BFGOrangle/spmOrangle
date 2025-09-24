@@ -1,9 +1,13 @@
 package com.spmorangle.crm.taskmanagement.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.spmorangle.common.model.User;
+import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.GetTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
+import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAlreadyExistsException;
@@ -19,13 +23,23 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -48,9 +62,13 @@ public class TaskManagementControllerTest {
     @MockBean
     private TaskService taskService;
 
+    @MockBean
+    private UserContextService userContextService;
+
     private AddCollaboratorRequestDto validAddRequest;
     private RemoveCollaboratorRequestDto validRemoveRequest;
     private AddCollaboratorResponseDto responseDto;
+    private User testUser;
 
     @BeforeEach
     void setUp() {
@@ -62,6 +80,360 @@ public class TaskManagementControllerTest {
                 .assignedById(3L)
                 .assignedAt(OffsetDateTime.now())
                 .build();
+
+        testUser = new User();
+        testUser.setId(123L);
+        testUser.setUserName("testuser");
+        testUser.setEmail("test@example.com");
+        testUser.setRoleType("USER");
+        testUser.setCognitoSub(UUID.randomUUID());
+    }
+
+    @Nested
+    @DisplayName("Get Tasks Tests")
+    class GetTasksTests {
+
+        @Test
+        @DisplayName("Should successfully return tasks for authenticated user")
+        void getTasks_AuthenticatedUser_ReturnsTasksWithFound() throws Exception {
+            // Given
+            List<GetTaskResponseDto> expectedTasks = Arrays.asList(
+                    GetTaskResponseDto.builder()
+                            .id(1L)
+                            .projectId(101L)
+                            .ownerId(123L)
+                            .title("Task 1")
+                            .description("Description 1")
+                            .status(Status.TODO)
+                            .tags(Arrays.asList("tag1", "tag2"))
+                            .createdBy(123L)
+                            .createdAt(OffsetDateTime.now())
+                            .assignedUserIds(Collections.emptyList())
+                            .build(),
+                    GetTaskResponseDto.builder()
+                            .id(2L)
+                            .projectId(102L)
+                            .ownerId(123L)
+                            .title("Task 2")
+                            .description("Description 2")
+                            .status(Status.IN_PROGRESS)
+                            .tags(Collections.singletonList("tag3"))
+                            .createdBy(123L)
+                            .createdAt(OffsetDateTime.now())
+                            .assignedUserIds(Collections.emptyList())
+                            .build()
+            );
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getTasks(eq(123L))).thenReturn(expectedTasks);
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].id").value(1L))
+                    .andExpect(jsonPath("$[0].projectId").value(101L))
+                    .andExpect(jsonPath("$[0].ownerId").value(123L))
+                    .andExpect(jsonPath("$[0].title").value("Task 1"))
+                    .andExpect(jsonPath("$[0].description").value("Description 1"))
+                    .andExpect(jsonPath("$[0].status").value("TODO"))
+                    .andExpect(jsonPath("$[0].tags").isArray())
+                    .andExpect(jsonPath("$[0].tags.length()").value(2))
+                    .andExpect(jsonPath("$[0].tags[0]").value("tag1"))
+                    .andExpect(jsonPath("$[0].tags[1]").value("tag2"))
+                    .andExpect(jsonPath("$[0].createdBy").value(123L))
+                    .andExpect(jsonPath("$[0].createdAt").exists())
+                    .andExpect(jsonPath("$[0].assignedUserIds").isArray())
+                    .andExpect(jsonPath("$[0].assignedUserIds").isEmpty())
+                    .andExpect(jsonPath("$[1].id").value(2L))
+                    .andExpect(jsonPath("$[1].title").value("Task 2"))
+                    .andExpect(jsonPath("$[1].status").value("IN_PROGRESS"))
+                    .andExpect(jsonPath("$[1].tags.length()").value(1));
+        }
+
+        @Test
+        @DisplayName("Should return empty array when user has no tasks")
+        void getTasks_UserWithNoTasks_ReturnsEmptyArrayWithFound() throws Exception {
+            // Given
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getTasks(eq(123L))).thenReturn(Collections.emptyList());
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(0));
+        }
+
+        @Test
+        @DisplayName("Should handle single task correctly")
+        void getTasks_SingleTask_ReturnsSingleTaskArray() throws Exception {
+            // Given
+            List<GetTaskResponseDto> singleTask = Collections.singletonList(
+                    GetTaskResponseDto.builder()
+                            .id(1L)
+                            .projectId(101L)
+                            .ownerId(123L)
+                            .title("Single Task")
+                            .description("Single Description")
+                            .status(Status.COMPLETED)
+                            .tags(Collections.emptyList())
+                            .createdBy(123L)
+                            .createdAt(OffsetDateTime.now())
+                            .assignedUserIds(Collections.emptyList())
+                            .build()
+            );
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getTasks(eq(123L))).thenReturn(singleTask);
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(1))
+                    .andExpect(jsonPath("$[0].id").value(1L))
+                    .andExpect(jsonPath("$[0].title").value("Single Task"))
+                    .andExpect(jsonPath("$[0].status").value("COMPLETED"));
+        }
+
+        @Test
+        @DisplayName("Should handle tasks with null description correctly")
+        void getTasks_TaskWithNullDescription_HandlesCorrectly() throws Exception {
+            // Given
+            List<GetTaskResponseDto> taskWithNullDesc = Collections.singletonList(
+                    GetTaskResponseDto.builder()
+                            .id(1L)
+                            .projectId(101L)
+                            .ownerId(123L)
+                            .title("Task with null desc")
+                            .description(null)
+                            .status(Status.TODO)
+                            .tags(Collections.emptyList())
+                            .createdBy(123L)
+                            .createdAt(OffsetDateTime.now())
+                            .assignedUserIds(Collections.emptyList())
+                            .build()
+            );
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getTasks(eq(123L))).thenReturn(taskWithNullDesc);
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$[0].id").value(1L))
+                    .andExpect(jsonPath("$[0].title").value("Task with null desc"))
+                    .andExpect(jsonPath("$[0].description").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("Should handle tasks with all status types")
+        void getTasks_TasksWithAllStatuses_HandlesCorrectly() throws Exception {
+            // Given
+            List<GetTaskResponseDto> tasksWithAllStatuses = Arrays.asList(
+                    createTaskDto(1L, "TODO Task", Status.TODO),
+                    createTaskDto(2L, "In Progress Task", Status.IN_PROGRESS),
+                    createTaskDto(3L, "Completed Task", Status.COMPLETED),
+                    createTaskDto(4L, "Blocked Task", Status.BLOCKED)
+            );
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getTasks(eq(123L))).thenReturn(tasksWithAllStatuses);
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.length()").value(4))
+                    .andExpect(jsonPath("$[0].status").value("TODO"))
+                    .andExpect(jsonPath("$[1].status").value("IN_PROGRESS"))
+                    .andExpect(jsonPath("$[2].status").value("COMPLETED"))
+                    .andExpect(jsonPath("$[3].status").value("BLOCKED"));
+        }
+
+        @Test
+        @DisplayName("Should verify service is called with correct user ID")
+        void getTasks_VerifyServiceCall_CallsWithCorrectUserId() throws Exception {
+            // Given
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getTasks(eq(123L))).thenReturn(Collections.emptyList());
+
+            // When
+            mockMvc.perform(get("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isFound());
+
+            // Then
+            verify(userContextService).getRequestingUser();
+            verify(taskService).getTasks(eq(123L));
+        }
+
+        @Test
+        @DisplayName("Should return 302 Found status as implemented")
+        void getTasks_StatusCode_ReturnsFound() throws Exception {
+            // Given
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getTasks(eq(123L))).thenReturn(Collections.emptyList());
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isFound()); // HTTP 302 FOUND as per implementation
+        }
+
+        private GetTaskResponseDto createTaskDto(Long id, String title, Status status) {
+            return GetTaskResponseDto.builder()
+                    .id(id)
+                    .projectId(101L)
+                    .ownerId(123L)
+                    .title(title)
+                    .description("Description for " + title)
+                    .status(status)
+                    .tags(Collections.emptyList())
+                    .createdBy(123L)
+                    .createdAt(OffsetDateTime.now())
+                    .assignedUserIds(Collections.emptyList())
+                    .build();
+        }
+    }
+
+    @Nested
+    @DisplayName("Get Tasks Content Validation Tests")
+    class GetTasksContentValidationTests {
+
+        @Test
+        @DisplayName("Should handle tasks with special characters in JSON response")
+        void getTasks_TasksWithSpecialCharacters_ReturnsValidJson() throws Exception {
+            // Given
+            String titleWithSpecialChars = "Task with \"quotes\" and \\backslashes\\ and /slashes/ and \n newlines";
+            String descriptionWithUnicode = "Description with émojis 🚀 and unicode characters: 你好世界";
+
+            List<GetTaskResponseDto> tasksWithSpecialContent = Collections.singletonList(
+                    GetTaskResponseDto.builder()
+                            .id(1L)
+                            .projectId(101L)
+                            .ownerId(123L)
+                            .title(titleWithSpecialChars)
+                            .description(descriptionWithUnicode)
+                            .status(Status.TODO)
+                            .tags(Arrays.asList("tag with spaces", "tag\"with\"quotes", "tag\\with\\backslashes"))
+                            .createdBy(123L)
+                            .createdAt(OffsetDateTime.now())
+                            .assignedUserIds(Collections.emptyList())
+                            .build()
+            );
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getTasks(eq(123L))).thenReturn(tasksWithSpecialContent);
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$[0].title").value(titleWithSpecialChars))
+                    .andExpect(jsonPath("$[0].description").value(descriptionWithUnicode))
+                    .andExpect(jsonPath("$[0].tags[0]").value("tag with spaces"))
+                    .andExpect(jsonPath("$[0].tags[1]").value("tag\"with\"quotes"))
+                    .andExpect(jsonPath("$[0].tags[2]").value("tag\\with\\backslashes"));
+        }
+
+        @Test
+        @DisplayName("Should handle empty string values correctly")
+        void getTasks_TasksWithEmptyStringValues_HandlesCorrectly() throws Exception {
+            // Given
+            List<GetTaskResponseDto> tasksWithEmptyStrings = Collections.singletonList(
+                    GetTaskResponseDto.builder()
+                            .id(1L)
+                            .projectId(101L)
+                            .ownerId(123L)
+                            .title("")
+                            .description("")
+                            .status(Status.TODO)
+                            .tags(Arrays.asList("", "valid", ""))
+                            .createdBy(123L)
+                            .createdAt(OffsetDateTime.now())
+                            .assignedUserIds(Collections.emptyList())
+                            .build()
+            );
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getTasks(eq(123L))).thenReturn(tasksWithEmptyStrings);
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isFound())
+                    .andExpect(jsonPath("$[0].title").value(""))
+                    .andExpect(jsonPath("$[0].description").value(""))
+                    .andExpect(jsonPath("$[0].tags[0]").value(""))
+                    .andExpect(jsonPath("$[0].tags[1]").value("valid"))
+                    .andExpect(jsonPath("$[0].tags[2]").value(""));
+        }
+
+        @Test
+        @DisplayName("Should validate response structure matches DTO contract")
+        void getTasks_ResponseStructure_MatchesDtoContract() throws Exception {
+            // Given
+            OffsetDateTime fixedTime = OffsetDateTime.now();
+            List<GetTaskResponseDto> validTask = Collections.singletonList(
+                    GetTaskResponseDto.builder()
+                            .id(1L)
+                            .projectId(101L)
+                            .ownerId(123L)
+                            .title("Valid Task")
+                            .description("Valid Description")
+                            .status(Status.TODO)
+                            .tags(Arrays.asList("tag1", "tag2"))
+                            .createdBy(123L)
+                            .createdAt(fixedTime)
+                            .assignedUserIds(Arrays.asList(456L, 789L))
+                            .build()
+            );
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getTasks(eq(123L))).thenReturn(validTask);
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$[0]").exists())
+                    .andExpect(jsonPath("$[0].id").isNumber())
+                    .andExpect(jsonPath("$[0].projectId").isNumber())
+                    .andExpect(jsonPath("$[0].ownerId").isNumber())
+                    .andExpect(jsonPath("$[0].title").isString())
+                    .andExpect(jsonPath("$[0].description").isString())
+                    .andExpect(jsonPath("$[0].status").isString())
+                    .andExpect(jsonPath("$[0].tags").isArray())
+                    .andExpect(jsonPath("$[0].createdBy").isNumber())
+                    .andExpect(jsonPath("$[0].createdAt").isString())
+                    .andExpect(jsonPath("$[0].assignedUserIds").isArray())
+                    .andExpect(jsonPath("$[0].assignedUserIds[0]").value(456L))
+                    .andExpect(jsonPath("$[0].assignedUserIds[1]").value(789L));
+        }
     }
 
     @Nested

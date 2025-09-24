@@ -5,6 +5,7 @@ import java.util.List;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.GetTaskResponseDto;
 
 public interface TaskService {
 
@@ -17,4 +18,6 @@ public interface TaskService {
     List<TaskResponseDto> getAllUserTasks(Long userId);
     
     void deleteTask(Long taskId, Long currentUserId);
+    List<GetTaskResponseDto> getTasks(long userId);
+//    List<GetSubTaskResponseDto> getSubTasks(long taskId);
 }

@@ -2,12 +2,9 @@ package com.spmorangle.crm.taskmanagement.controller;
 
 import java.util.List;
 
-import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
-import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
-import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
-import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
-import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
-import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
+import com.spmorangle.common.model.User;
+import com.spmorangle.common.service.UserContextService;
+import com.spmorangle.crm.taskmanagement.dto.*;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
 import jakarta.validation.Valid;
@@ -33,6 +30,16 @@ public class TaskManagementController {
 
     private final CollaboratorService collaboratorService;
     private final TaskService taskService;
+    private final UserContextService userContextService;
+
+    @GetMapping
+    public ResponseEntity<List<GetTaskResponseDto>> getTasks(){
+        User user = userContextService.getRequestingUser();
+        log.info("Fetching tasks for user {}", user.getId());
+        List<GetTaskResponseDto> response = taskService.getTasks(user.getId());
+
+        return ResponseEntity.status(HttpStatus.FOUND).body(response);
+    }
 
     @PostMapping
     public ResponseEntity<CreateTaskResponseDto> createTask(

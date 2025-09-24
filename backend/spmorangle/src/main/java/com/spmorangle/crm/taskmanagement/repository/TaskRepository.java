@@ -25,4 +25,8 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
            "LEFT JOIN TaskAssignee ta ON t.id = ta.taskId " +
            "WHERE t.deleteInd = false AND (t.ownerId = :userId OR ta.userId = :userId)")
     List<Task> findUserTasks(@Param("userId") Long userId);
+    
+    List<Task> getTasksById(long id);
+
+    List<Task> getTasksByOwnerId(long ownerId);
 }
