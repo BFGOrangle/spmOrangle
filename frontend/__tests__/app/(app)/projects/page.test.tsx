@@ -392,7 +392,7 @@ describe("ProjectsPage", () => {
       });
 
       // Check that progress bars have width styles
-      const hasProgressBarWidths = Array.from(progressBars).some((bar) => {
+      const hasProgressBarWidths = Array.from(progressBars).some((bar: Element) => {
         const style = bar.getAttribute("style");
         return style?.match(/width:\s*(75|45|20|100)%/);
       });
