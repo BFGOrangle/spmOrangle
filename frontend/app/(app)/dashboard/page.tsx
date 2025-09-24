@@ -46,7 +46,7 @@ const statusTone = {
 
 const summarizeTeamLoad = (tasks: TaskSummary[]) => {
   const load = tasks.reduce<Record<string, number>>((acc, task) => {
-    acc[task.assignee] = (acc[task.assignee] ?? 0) + 1;
+    acc[task.owner] = (acc[task.owner] ?? 0) + 1;
     return acc;
   }, {});
   return Object.entries(load)
@@ -240,7 +240,7 @@ export default function Dashboard() {
                       variant="outline"
                       className="border-primary/40 text-primary"
                     >
-                      {task.assignee}
+                      {task.owner}
                     </Badge>
                     <Badge>{task.status}</Badge>
                     <span className="font-medium">
@@ -305,7 +305,7 @@ export default function Dashboard() {
                   <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                     <span>{task.project}</span>
                     <span>•</span>
-                    <span>{task.assignee}</span>
+                    <span>{task.owner}</span>
                     <span>•</span>
                     <span>Due {formatDate(task.dueDate)}</span>
                   </div>
