@@ -1,10 +1,8 @@
 package com.spmorangle.crm.taskmanagement.controller;
 
-import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
-import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
-import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
-import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
-import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
+import com.spmorangle.common.model.User;
+import com.spmorangle.common.service.UserContextService;
+import com.spmorangle.crm.taskmanagement.dto.*;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
 import jakarta.validation.Valid;
@@ -13,11 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -27,6 +23,16 @@ public class TaskManagementController {
 
     private final CollaboratorService collaboratorService;
     private final TaskService taskService;
+    private final UserContextService userContextService;
+
+    @GetMapping
+    public ResponseEntity<List<GetTaskResponseDto>> getTasks(){
+        User user = userContextService.getRequestingUser();
+        log.info("Fetching tasks for user {}", user.getId());
+        List<GetTaskResponseDto> response = taskService.getTasks(user.getId());
+
+        return ResponseEntity.status(HttpStatus.FOUND).body(response);
+    }
 
     @PostMapping
     public ResponseEntity<CreateTaskResponseDto> createTask(
