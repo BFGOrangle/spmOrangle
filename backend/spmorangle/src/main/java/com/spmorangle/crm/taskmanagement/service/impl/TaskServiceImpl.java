@@ -3,6 +3,7 @@ package com.spmorangle.crm.taskmanagement.service.impl;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.GetTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
@@ -76,4 +77,35 @@ public class TaskServiceImpl implements TaskService {
                 .createdAt(savedTask.getCreatedAt())
                 .build();
     }
+
+    @Override
+    public List<GetTaskResponseDto> getTasks(long userId){
+        List<Task> userTasks = taskRepository.getTasksByOwnerId(userId);
+        return userTasks.stream().map(task -> {
+            List<Long> assignedUserIds = new ArrayList<>();
+            
+            return GetTaskResponseDto.builder()
+                    .id(task.getId())
+                    .projectId(task.getProjectId())
+                    .ownerId(task.getOwnerId())
+                    .title(task.getTitle())
+                    .description(task.getDescription())
+                    .status(task.getStatus())
+                    .tags(task.getTags())
+                    .createdBy(task.getCreatedBy())
+                    .createdAt(task.getCreatedAt())
+                    .assignedUserIds(assignedUserIds)
+                    .build();
+        }).toList();
+    }
+
+//    @Override
+//    public List<GetSubtaskResponseDto> getSubtasks(long taskId){
+//        /*
+//        * are all subtasks viewable by owner and collaborator of main task?
+//        * assume that if user can click into the task, they should be able to fetch the subtask
+//        * no need for user validation
+//        * */
+//
+//    }
 }
