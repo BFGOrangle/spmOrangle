@@ -67,6 +67,7 @@ public class TaskServiceImpl implements TaskService {
                 .id(savedTask.getId())
                 .projectId(savedTask.getProjectId())
                 .ownerId(savedTask.getOwnerId())
+                .taskType(savedTask.getTaskType())
                 .title(savedTask.getTitle())
                 .description(savedTask.getDescription())
                 .status(savedTask.getStatus())

@@ -1,6 +1,7 @@
 package com.spmorangle.crm.taskmanagement.dto;
 
 import com.spmorangle.crm.taskmanagement.enums.Status;
+import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,7 +30,7 @@ public class CreateTaskDto {
     private final Status status = Status.TODO;
 
     @NotNull(message = "Task Type is required")
-    private final int taskType;
+    private final TaskType taskType;
 
 
     private final List<String> tags;

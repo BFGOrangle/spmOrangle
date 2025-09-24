@@ -1,6 +1,7 @@
 package com.spmorangle.crm.taskmanagement.dto;
 
 import com.spmorangle.crm.taskmanagement.enums.Status;
+import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -18,6 +19,7 @@ public class CreateTaskResponseDto {
     private final String title;
     private final String description;
     private final Status status;
+    private final TaskType taskType;
     private final List<String> tags;
     private final Long createdBy;
     private final OffsetDateTime createdAt;
