@@ -32,21 +32,24 @@ interface SubtaskListProps {
   onSubtaskUpdated: (subtask: SubtaskResponse) => void;
 }
 
-const statusIcons = {
+type SubtaskStatus = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
+type TaskType = 'BUG' | 'FEATURE' | 'CHORE' | 'RESEARCH';
+
+const statusIcons: Record<SubtaskStatus, React.ComponentType<{ className?: string }>> = {
   'TODO': Circle,
   'IN_PROGRESS': Clock,
   'COMPLETED': CheckCircle2,
   'BLOCKED': AlertCircle,
 };
 
-const statusColors = {
+const statusColors: Record<SubtaskStatus, string> = {
   'TODO': "text-slate-500",
   'IN_PROGRESS': "text-blue-500", 
   'COMPLETED': "text-green-500",
   'BLOCKED': "text-amber-500",
 };
 
-const statusLabels = {
+const statusLabels: Record<SubtaskStatus, string> = {
   'TODO': "Todo",
   'IN_PROGRESS': "In Progress", 
   'COMPLETED': "Done",
@@ -105,7 +108,7 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
       const currentUserId = 1;
       const updatedSubtask = await projectService.updateSubtask(
         subtaskId, 
-        { status: newStatus as any }, 
+        { status: newStatus as SubtaskStatus }, 
         currentUserId
       );
       onSubtaskUpdated(updatedSubtask);
@@ -200,7 +203,7 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
       {/* Subtask list */}
       <div className="space-y-2">
         {subtasks.map((subtask) => {
-          const StatusIcon = statusIcons[subtask.status];
+          const StatusIcon = statusIcons[subtask.status as SubtaskStatus];
           return (
             <div
               key={subtask.id}
@@ -211,7 +214,7 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
                   const newStatus = subtask.status === 'COMPLETED' ? 'TODO' : 'COMPLETED';
                   handleStatusChange(subtask.id, newStatus);
                 }}
-                className={`${statusColors[subtask.status]} hover:scale-110 transition-transform`}
+                className={`${statusColors[subtask.status as SubtaskStatus]} hover:scale-110 transition-transform`}
               >
                 <StatusIcon className="h-4 w-4" />
               </button>
@@ -228,7 +231,7 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
               </div>
 
               <Badge variant="outline" className="text-xs">
-                {statusLabels[subtask.status]}
+                {statusLabels[subtask.status as SubtaskStatus]}
               </Badge>
             </div>
           );
@@ -274,7 +277,7 @@ function CreateSubtaskForm({ newSubtask, setNewSubtask, onSubmit, isCreating }: 
           <Label htmlFor="status">Status</Label>
           <Select
             value={newSubtask.status}
-            onValueChange={(value) => setNewSubtask({ ...newSubtask, status: value as any })}
+            onValueChange={(value: string) => setNewSubtask({ ...newSubtask, status: value as SubtaskStatus })}
           >
             <SelectTrigger>
               <SelectValue />
@@ -292,7 +295,7 @@ function CreateSubtaskForm({ newSubtask, setNewSubtask, onSubmit, isCreating }: 
           <Label htmlFor="taskType">Type</Label>
           <Select
             value={newSubtask.taskType}
-            onValueChange={(value) => setNewSubtask({ ...newSubtask, taskType: value as any })}
+            onValueChange={(value: string) => setNewSubtask({ ...newSubtask, taskType: value as TaskType })}
           >
             <SelectTrigger>
               <SelectValue />
@@ -308,7 +311,7 @@ function CreateSubtaskForm({ newSubtask, setNewSubtask, onSubmit, isCreating }: 
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => {}}>
+        <Button variant="outline" onClick={() => setNewSubtask({ taskId: newSubtask.taskId, projectId: newSubtask.projectId, title: "", details: "", status: "TODO", taskType: "FEATURE" })}>
           Cancel
         </Button>
         <Button onClick={onSubmit} disabled={isCreating || !newSubtask.title?.trim()}>
