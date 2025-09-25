@@ -130,6 +130,7 @@ const mockProjectsData = [
     ownerId: 1,
     taskCount: 40,
     completedTaskCount: 30,
+    createdAt: "2025-01-20",
     updatedAt: "2025-01-24",
   },
   {
@@ -139,6 +140,7 @@ const mockProjectsData = [
     ownerId: 2,
     taskCount: 40,
     completedTaskCount: 18,
+    createdAt: "2025-02-10",
     updatedAt: "2025-02-15",
   },
   {
@@ -148,6 +150,7 @@ const mockProjectsData = [
     ownerId: 3,
     taskCount: 25,
     completedTaskCount: 5,
+    createdAt: "2025-03-05",
     updatedAt: "2025-03-10",
   },
   {
@@ -157,6 +160,7 @@ const mockProjectsData = [
     ownerId: 4,
     taskCount: 50,
     completedTaskCount: 50,
+    createdAt: "2024-12-10",
     updatedAt: "2024-12-15",
   },
 ];

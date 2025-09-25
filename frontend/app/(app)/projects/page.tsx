@@ -66,12 +66,12 @@ export default function ProjectsPage() {
   const totals = displayProjects.reduce(
     (acc, project) => {
       // For real projects, we'll need to map status differently
-      const status = 'status' in project ? project.status : 'Active';
-      const progress = 'progress' in project ? project.progress : 
+      const status = 'status' in project ? (project as any).status : 'Active';
+      const progress = 'progress' in project ? (project as any).progress : 
                       project.completedTaskCount && project.taskCount ? 
                       Math.round((project.completedTaskCount / project.taskCount) * 100) : 0;
-      const tasksCompleted = 'tasksCompleted' in project ? project.tasksCompleted : project.completedTaskCount || 0;
-      const tasksTotal = 'tasksTotal' in project ? project.tasksTotal : project.taskCount || 0;
+      const tasksCompleted = 'tasksCompleted' in project ? (project as any).tasksCompleted : project.completedTaskCount || 0;
+      const tasksTotal = 'tasksTotal' in project ? (project as any).tasksTotal : project.taskCount || 0;
       
       acc[status as ProjectStatus] = (acc[status as ProjectStatus] || 0) + 1;
       acc.progress += progress;
@@ -214,12 +214,12 @@ export default function ProjectsPage() {
               const isRealProject = 'taskCount' in project;
               const progress = isRealProject ? 
                 (project.taskCount > 0 ? Math.round((project.completedTaskCount / project.taskCount) * 100) : 0) :
-                project.progress;
-              const tasksCompleted = isRealProject ? project.completedTaskCount : project.tasksCompleted;
-              const tasksTotal = isRealProject ? project.taskCount : project.tasksTotal;
-              const status = isRealProject ? 'Active' : project.status; // Default to Active for real projects
-              const dueDate = isRealProject ? project.updatedAt : project.dueDate;
-              const owner = isRealProject ? `User ${project.ownerId}` : project.owner;
+                (project as any).progress;
+              const tasksCompleted = isRealProject ? project.completedTaskCount : (project as any).tasksCompleted;
+              const tasksTotal = isRealProject ? project.taskCount : (project as any).tasksTotal;
+              const status = isRealProject ? 'Active' : (project as any).status; // Default to Active for real projects
+              const dueDate = isRealProject ? project.updatedAt : (project as any).dueDate;
+              const owner = isRealProject ? `User ${project.ownerId}` : (project as any).owner;
 
               return (
                 <Card key={project.id} className="h-full group hover:shadow-md transition-shadow cursor-pointer">
