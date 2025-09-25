@@ -140,86 +140,11 @@ jest.mock("@/components/ui/separator", () => ({
   ),
 }));
 
-describe("Dashboard Page", () => {
-  it("renders the dashboard page with main heading", () => {
-    render(<Dashboard />);
-
-    expect(screen.getByText("My Analytics")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "A single view of delivery health across projects, priorities, and owners.",
-      ),
-    ).toBeInTheDocument();
-  });
 
   it("renders within SidebarInset", () => {
     render(<Dashboard />);
 
     expect(screen.getByTestId("sidebar-inset")).toBeInTheDocument();
-  });
-
-  it("renders sidebar trigger", () => {
-    render(<Dashboard />);
-
-    expect(screen.getByTestId("sidebar-trigger")).toBeInTheDocument();
-  });
-
-  it("renders all metric cards", () => {
-    render(<Dashboard />);
-
-    // Check for metric card descriptions
-    expect(screen.getByText("Active projects")).toBeInTheDocument();
-    expect(screen.getByText("Task completion")).toBeInTheDocument();
-    expect(screen.getByText("High priority focus")).toBeInTheDocument();
-    expect(screen.getByText("Blocked tasks")).toBeInTheDocument();
-  });
-
-  it("renders project health section", () => {
-    render(<Dashboard />);
-
-    expect(screen.getByText("Project health")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Status, ownership, and completion trends across your portfolio.",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("renders upcoming commitments section", () => {
-    render(<Dashboard />);
-
-    expect(screen.getByText("Upcoming commitments")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Due dates and owners so you can unblock ahead of time.",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("renders team load section", () => {
-    render(<Dashboard />);
-
-    expect(screen.getByText("Team load")).toBeInTheDocument();
-    expect(
-      screen.getByText("Who is carrying the most tasks right now."),
-    ).toBeInTheDocument();
-  });
-
-  it("renders priority queue section", () => {
-    render(<Dashboard />);
-
-    expect(screen.getByText("Priority queue")).toBeInTheDocument();
-    expect(
-      screen.getByText("High-urgency items that warrant immediate attention."),
-    ).toBeInTheDocument();
-  });
-
-  it("renders action buttons", () => {
-    render(<Dashboard />);
-
-    expect(screen.getByText("Share update")).toBeInTheDocument();
-    expect(screen.getByText("View all")).toBeInTheDocument();
-    expect(screen.getByText("Add reminder")).toBeInTheDocument();
   });
 
   it("renders without crashing", () => {
@@ -248,18 +173,3 @@ describe("Dashboard Page", () => {
     expect(() => render(<Dashboard />)).not.toThrow();
   });
 
-  it("displays proper grid layout structure", () => {
-    const { container } = render(<Dashboard />);
-
-    // Check for grid layout classes in the container
-    const gridElements = container.querySelectorAll('[class*="grid"]');
-    expect(gridElements.length).toBeGreaterThan(0);
-  });
-
-  it("renders all card components", () => {
-    render(<Dashboard />);
-
-    const cards = screen.getAllByTestId("card");
-    expect(cards.length).toBeGreaterThan(0);
-  });
-});

@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import { demoProjects, type ProjectStatus } from "@/lib/mvp-data";
+import { type ProjectStatus } from "@/lib/mvp-data";
 import { projectService, ProjectResponse } from "@/services/project-service";
 import { ArrowRight, Plus } from "lucide-react";
 
@@ -60,8 +60,8 @@ export default function ProjectsPage() {
     loadProjects();
   }, []);
 
-  // Use demo data for now if API fails, or if no real projects exist
-  const displayProjects = projects.length > 0 ? projects : demoProjects;
+  // Use only real projects - no fallback to demo data
+  const displayProjects = projects;
   
   const totals = displayProjects.reduce(
     (acc, project) => {
@@ -192,6 +192,24 @@ export default function ProjectsPage() {
                   </CardContent>
                 </Card>
               ))
+            ) : error ? (
+              <div className="flex items-center justify-center h-64 col-span-2">
+                <div className="text-center space-y-2">
+                  <div className="text-lg font-semibold text-destructive">Failed to load projects</div>
+                  <div className="text-muted-foreground">Please try refreshing the page</div>
+                </div>
+              </div>
+            ) : displayProjects.length === 0 ? (
+              <div className="flex items-center justify-center h-64 col-span-2">
+                <div className="text-center space-y-4">
+                  <div className="text-lg font-semibold">No projects yet</div>
+                  <div className="text-muted-foreground">Create your first project to get started</div>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Project
+                  </Button>
+                </div>
+              </div>
             ) : displayProjects.map((project) => {
               const isRealProject = 'taskCount' in project;
               const progress = isRealProject ? 

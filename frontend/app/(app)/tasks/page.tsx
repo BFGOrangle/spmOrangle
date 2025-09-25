@@ -14,7 +14,6 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import {
-  demoTasks,
   type TaskPriority,
   type TaskStatus,
   type TaskSummary,
@@ -417,80 +416,39 @@ export default function TasksPage() {
     setTasks(prevTasks => [newTask, ...prevTasks]);
   };
 
-  // Use real tasks or fallback to demo tasks for display
-  const displayTasks = tasks.length > 0 ? tasks : demoTasks;
-  const isUsingRealData = tasks.length > 0;
+  // Use only real tasks - no fallback to demo data
+  const displayTasks = tasks;
 
   const totals = useMemo(() => {
-    if (isUsingRealData) {
-      const owners = new Set<number>();
-      let dueSoon = 0;
+    const owners = new Set<number>();
+    let dueSoon = 0;
 
-      tasks.forEach((task) => {
-        owners.add(task.ownerId);
-        
-        const createdDate = new Date(task.createdAt);
-        const daysSinceCreated = Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (daysSinceCreated <= 7) {
-          dueSoon += 1;
-        }
-      });
+    tasks.forEach((task) => {
+      owners.add(task.ownerId);
+      
+      const createdDate = new Date(task.createdAt);
+      const daysSinceCreated = Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceCreated <= 7) {
+        dueSoon += 1;
+      }
+    });
 
-      return {
-        workItems: tasks.length,
-        owners: owners.size,
-        collaborators: 0, // We don't have collaborators data in the simple API response
-        dueSoon,
-        subtaskTotal: 0, // We don't have subtasks in the current model
-        subtaskDone: 0,
-        subtaskRemaining: 0,
-      };
-    } else {
-      // Fallback to demo data logic
-      const owners = new Set<string>();
-      const collaborators = new Set<string>();
-      let dueSoon = 0;
-      let subtaskTotal = 0;
-      let subtaskDone = 0;
-
-      demoTasks.forEach((task) => {
-        owners.add(task.owner);
-        task.collaborators.forEach((name) => collaborators.add(name));
-
-        subtaskTotal += task.subtasks.length;
-        subtaskDone += task.subtasks.filter(
-          (subtask) => subtask.status === "Done",
-        ).length;
-
-        const remainingDays = daysUntil(task.dueDate);
-        if (remainingDays <= 7 && remainingDays >= 0) {
-          dueSoon += 1;
-        }
-      });
-
-      return {
-        workItems: demoTasks.length,
-        owners: owners.size,
-        collaborators: collaborators.size,
-        dueSoon,
-        subtaskTotal,
-        subtaskDone,
-        subtaskRemaining: Math.max(subtaskTotal - subtaskDone, 0),
-      };
-    }
-  }, [tasks, isUsingRealData]);
+    return {
+      workItems: tasks.length,
+      owners: owners.size,
+      collaborators: 0, // We don't have collaborators data in the simple API response
+      dueSoon,
+      subtaskTotal: 0, // We don't have subtasks in the current model
+      subtaskDone: 0,
+      subtaskRemaining: 0,
+    };
+  }, [tasks]);
 
   const sortedTasks = useMemo(() => {
-    if (isUsingRealData) {
-      return [...tasks].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      );
-    } else {
-      return [...demoTasks].sort(
-        (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
-      );
-    }
-  }, [tasks, isUsingRealData]);
+    return [...tasks].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+  }, [tasks]);
 
   const tasksByStatus = useMemo(() => {
     const grouped = statusOrder.reduce<Record<TaskStatus, (TaskResponse | TaskSummary)[]>>(
@@ -501,22 +459,15 @@ export default function TasksPage() {
       {} as Record<TaskStatus, (TaskResponse | TaskSummary)[]>,
     );
 
-    if (isUsingRealData) {
-      sortedTasks.forEach((task) => {
-        const mappedStatus = mapBackendStatus(task.status);
-        if (grouped[mappedStatus]) {
-          grouped[mappedStatus].push(task);
-        }
-      });
-    } else {
-      sortedTasks.forEach((task) => {
-        const taskSummary = task as TaskSummary;
-        grouped[taskSummary.status]?.push(task);
-      });
-    }
+    sortedTasks.forEach((task) => {
+      const mappedStatus = mapBackendStatus(task.status);
+      if (grouped[mappedStatus]) {
+        grouped[mappedStatus].push(task);
+      }
+    });
 
     return grouped;
-  }, [sortedTasks, isUsingRealData]);
+  }, [sortedTasks]);
 
   const boardStatuses: TaskStatus[] =
     selectedStatus === "All" ? statusOrder : [selectedStatus as TaskStatus];
@@ -655,11 +606,22 @@ export default function TasksPage() {
                   <div className="text-muted-foreground">Please wait while we fetch your tasks</div>
                 </div>
               </div>
-            ) : error && tasks.length === 0 ? (
+            ) : error ? (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center space-y-2">
                   <div className="text-lg font-semibold text-destructive">Failed to load tasks</div>
-                  <div className="text-muted-foreground">Showing demo data instead</div>
+                  <div className="text-muted-foreground">Please try refreshing the page</div>
+                </div>
+              </div>
+            ) : displayTasks.length === 0 ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center space-y-4">
+                  <div className="text-lg font-semibold">No tasks yet</div>
+                  <div className="text-muted-foreground">Create your first task to get started</div>
+                  <Button onClick={() => setShowCreateDialog(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Task
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -732,9 +694,23 @@ export default function TasksPage() {
             </CardHeader>
             <Separator className="mx-6" />
             <CardContent className="divide-border flex flex-col divide-y">
-              {filteredTasks.map((task) => (
-                <TaskCard key={task.id} task={task} variant="table" />
-              ))}
+              {filteredTasks.length > 0 ? (
+                filteredTasks.map((task) => (
+                  <TaskCard key={task.id} task={task} variant="table" />
+                ))
+              ) : (
+                <div className="flex items-center justify-center py-16">
+                  <div className="text-center space-y-2">
+                    <div className="text-muted-foreground">No tasks match the current filters</div>
+                    {displayTasks.length === 0 && (
+                      <Button onClick={() => setShowCreateDialog(true)} variant="outline" size="sm">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create Task
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </section>

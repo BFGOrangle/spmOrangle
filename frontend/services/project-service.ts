@@ -87,21 +87,21 @@ export class ProjectService {
    * Get all projects for a user
    */
   async getUserProjects(userId: number): Promise<ProjectResponse[]> {
-    return this.authenticatedClient.get(`/api/projects?userId=${userId}`);
+    return this.authenticatedClient.get(`/api/projects`);
   }
 
   /**
    * Create a new project
    */
   async createProject(projectData: CreateProjectRequest, currentUserId: number): Promise<ProjectResponse> {
-    return this.authenticatedClient.post(`/api/projects?currentUserId=${currentUserId}`, projectData);
+    return this.authenticatedClient.post(`/api/projects`, projectData);
   }
 
   /**
    * Delete a project
    */
   async deleteProject(projectId: number, currentUserId: number): Promise<void> {
-    await this.authenticatedClient.delete(`/api/projects/${projectId}?currentUserId=${currentUserId}`);
+    await this.authenticatedClient.delete(`/api/projects/${projectId}`);
   }
 
   /**
@@ -115,14 +115,14 @@ export class ProjectService {
    * Get personal tasks (not associated with any project)
    */
   async getPersonalTasks(userId: number): Promise<TaskResponse[]> {
-    return this.authenticatedClient.get(`/api/tasks/personal?userId=${userId}`);
+    return this.authenticatedClient.get(`/api/tasks/personal`);
   }
 
   /**
    * Get all tasks for a user (both personal and project tasks)
    */
   async getAllUserTasks(userId: number): Promise<TaskResponse[]> {
-    return this.authenticatedClient.get(`/api/tasks/user?userId=${userId}`);
+    return this.authenticatedClient.get(`/api/tasks/user`);
   }
 
   /**
@@ -143,28 +143,28 @@ export class ProjectService {
    * Create a new subtask
    */
   async createSubtask(subtaskData: CreateSubtaskRequest, currentUserId: number): Promise<SubtaskResponse> {
-    return this.authenticatedClient.post(`/api/subtasks?currentUserId=${currentUserId}`, subtaskData);
+    return this.authenticatedClient.post(`/api/subtasks`, subtaskData);
   }
 
   /**
    * Update a subtask
    */
   async updateSubtask(subtaskId: number, updateData: UpdateSubtaskRequest, currentUserId: number): Promise<SubtaskResponse> {
-    return this.authenticatedClient.put(`/api/subtasks/${subtaskId}?currentUserId=${currentUserId}`, updateData);
+    return this.authenticatedClient.put(`/api/subtasks/${subtaskId}`, updateData);
   }
 
   /**
    * Delete a subtask
    */
   async deleteSubtask(subtaskId: number, currentUserId: number): Promise<void> {
-    return this.authenticatedClient.delete(`/api/subtasks/${subtaskId}?currentUserId=${currentUserId}`);
+    return this.authenticatedClient.delete(`/api/subtasks/${subtaskId}`);
   }
 
   /**
    * Delete a task
    */
   async deleteTask(taskId: number, currentUserId: number): Promise<void> {
-    await this.authenticatedClient.delete(`/api/tasks/${taskId}?currentUserId=${currentUserId}`);
+    await this.authenticatedClient.delete(`/api/tasks/${taskId}`);
   }
 }
 

@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
@@ -32,25 +31,26 @@ public class TaskManagementController {
     private final TaskService taskService;
     private final UserContextService userContextService;
 
-    @GetMapping
-    public ResponseEntity<List<GetTaskResponseDto>> getTasks(){
-        User user = userContextService.getRequestingUser();
-        log.info("Fetching tasks for user {}", user.getId());
-        List<GetTaskResponseDto> response = taskService.getTasks(user.getId());
 
-        return ResponseEntity.status(HttpStatus.FOUND).body(response);
-    }
-
+    /**
+     * Create a new task
+     * @param createTaskDto
+     * @return CreateTaskResponseDto
+     */
     @PostMapping
     public ResponseEntity<CreateTaskResponseDto> createTask(
             @Valid @RequestBody CreateTaskDto createTaskDto) {
-        
-        log.info("Creating task for user {}", createTaskDto.getOwnerId());
-        
-        CreateTaskResponseDto response = taskService.createTask(createTaskDto, createTaskDto.getOwnerId());
+        User user = userContextService.getRequestingUser();
+        log.info("Creating task for user {}", user.getId());
+        CreateTaskResponseDto response = taskService.createTask(createTaskDto, user.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /**
+     * Add a collaborator to a task
+     * @param addCollaboratorRequestDto
+     * @return AddCollaboratorResponseDto
+     */
     @PostMapping("/collaborator")
     public ResponseEntity<AddCollaboratorResponseDto> addCollaborator(
             @Valid
@@ -60,6 +60,10 @@ public class TaskManagementController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /**
+     * Remove a collaborator from a task
+     * @param removeCollaboratorRequestDto
+     */
     @DeleteMapping("/collaborator")
     public ResponseEntity<Void> removeCollaborator(
             @Valid
@@ -69,6 +73,11 @@ public class TaskManagementController {
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
+    /**
+     * Get tasks for a project
+     * @param projectId
+     * @return List<TaskResponseDto>
+     */
     @GetMapping("/project/{projectId}")
     public ResponseEntity<List<TaskResponseDto>> getProjectTasks(
             @PathVariable Long projectId) {
@@ -77,28 +86,40 @@ public class TaskManagementController {
         return ResponseEntity.ok(tasks);
     }
 
+    /**
+     * Get personal tasks
+     * @return List<TaskResponseDto>
+     */
     @GetMapping("/personal")
-    public ResponseEntity<List<TaskResponseDto>> getPersonalTasks(
-            @RequestParam Long userId) {
-        log.info("Getting personal tasks for user: {}", userId);
-        List<TaskResponseDto> tasks = taskService.getPersonalTasks(userId);
+    public ResponseEntity<List<TaskResponseDto>> getPersonalTasks() {
+        User user = userContextService.getRequestingUser();
+        log.info("Fetching tasks for user {}", user.getId());
+        List<TaskResponseDto> tasks = taskService.getPersonalTasks(user.getId());
         return ResponseEntity.ok(tasks);
     }
 
+    /**
+     * Get all tasks for a user
+     * @return List<TaskResponseDto>
+     */
     @GetMapping("/user")
-    public ResponseEntity<List<TaskResponseDto>> getAllUserTasks(
-            @RequestParam Long userId) {
-        log.info("Getting all tasks for user: {}", userId);
-        List<TaskResponseDto> tasks = taskService.getAllUserTasks(userId);
+    public ResponseEntity<List<TaskResponseDto>> getAllUserTasks() {
+        User user = userContextService.getRequestingUser();
+        log.info("Getting all tasks for user: {}", user.getId());
+        List<TaskResponseDto> tasks = taskService.getAllUserTasks(user.getId());
         return ResponseEntity.ok(tasks);
     }
 
+    /**
+     * Delete a task
+     * @param taskId
+     */
     @DeleteMapping("/{taskId}")
     public ResponseEntity<Void> deleteTask(
-            @PathVariable Long taskId,
-            @RequestParam Long currentUserId) {
-        log.info("Deleting task: {} by user: {}", taskId, currentUserId);
-        taskService.deleteTask(taskId, currentUserId);
+            @PathVariable Long taskId) {
+        User user = userContextService.getRequestingUser();
+        log.info("Deleting task: {} by user: {}", taskId, user.getId());
+        taskService.deleteTask(taskId, user.getId());
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 }
