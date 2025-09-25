@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Link from "next/link";
+
 import {
   Card,
   CardContent,
@@ -11,7 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import { demoProjects, type ProjectStatus } from "@/lib/mvp-data";
+import { type ProjectStatus } from "@/lib/mvp-data";
+import { projectService, ProjectResponse } from "@/services/project-service";
+import { ArrowRight, Plus } from "lucide-react";
 
 const statusTone: Record<ProjectStatus, string> = {
   Active:
@@ -32,12 +37,46 @@ const formatDate = (value: string) =>
   });
 
 export default function ProjectsPage() {
-  const totals = demoProjects.reduce(
+  const [projects, setProjects] = useState<ProjectResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        setLoading(true);
+        // TODO: REPLACE WITH AUTH CONTEXT USER ID?
+        const userId = 1;
+        const projectsData = await projectService.getUserProjects(userId);
+        setProjects(projectsData);
+      } catch (err) {
+        console.error('Error loading projects:', err);
+        setError("Failed to load projects");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProjects();
+  }, []);
+
+  // Use only real projects - no fallback to demo data
+  const displayProjects = projects;
+  
+  const totals = displayProjects.reduce(
     (acc, project) => {
-      acc[project.status] += 1;
-      acc.progress += project.progress;
-      acc.completed += project.tasksCompleted;
-      acc.total += project.tasksTotal;
+      // For real projects, we'll need to map status differently
+      const status = 'status' in project ? (project as any).status : 'Active';
+      const progress = 'progress' in project ? (project as any).progress : 
+                      project.completedTaskCount && project.taskCount ? 
+                      Math.round((project.completedTaskCount / project.taskCount) * 100) : 0;
+      const tasksCompleted = 'tasksCompleted' in project ? (project as any).tasksCompleted : project.completedTaskCount || 0;
+      const tasksTotal = 'tasksTotal' in project ? (project as any).tasksTotal : project.taskCount || 0;
+      
+      acc[status as ProjectStatus] = (acc[status as ProjectStatus] || 0) + 1;
+      acc.progress += progress;
+      acc.completed += tasksCompleted;
+      acc.total += tasksTotal;
       return acc;
     },
     {
@@ -51,7 +90,7 @@ export default function ProjectsPage() {
     } as Record<ProjectStatus | "progress" | "completed" | "total", number>,
   );
 
-  const averageProgress = Math.round(totals.progress / demoProjects.length);
+  const averageProgress = displayProjects.length > 0 ? Math.round(totals.progress / displayProjects.length) : 0;
   const completionRate = totals.total
     ? Math.round((totals.completed / totals.total) * 100)
     : 0;
@@ -72,7 +111,10 @@ export default function ProjectsPage() {
               </p>
             </div>
           </div>
-          <Button size="sm">New Project</Button>
+          <Button size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            New Project
+          </Button>
         </header>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -80,7 +122,7 @@ export default function ProjectsPage() {
             <CardHeader>
               <CardDescription>Total projects</CardDescription>
               <CardTitle className="text-3xl font-semibold">
-                {demoProjects.length}
+                {displayProjects.length}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-muted-foreground text-sm">
@@ -135,62 +177,112 @@ export default function ProjectsPage() {
             </Button>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            {demoProjects.map((project) => (
-              <Card key={project.id} className="h-full">
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg font-semibold">
-                        {project.name}
-                      </CardTitle>
-                      <CardDescription className="text-sm">
-                        {project.description}
-                      </CardDescription>
+            {loading ? (
+              Array.from({ length: 4 }).map((_, index) => (
+                <Card key={index} className="h-full">
+                  <CardHeader className="pb-4">
+                    <div className="space-y-2">
+                      <div className="h-5 bg-muted animate-pulse rounded"></div>
+                      <div className="h-4 bg-muted animate-pulse rounded w-3/4"></div>
                     </div>
-                    <Badge className={statusTone[project.status]}>
-                      {project.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <Separator className="mx-6" />
-                <CardContent className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Progress
-                    </p>
-                    <div className="bg-secondary/60 w-full rounded-full">
-                      <div
-                        className="bg-primary h-2 rounded-full transition-all"
-                        style={{ width: `${project.progress}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{project.progress}% complete</span>
-                      <span>
-                        {project.tasksCompleted} / {project.tasksTotal} tasks
-                      </span>
-                    </div>
-                  </div>
+                  </CardHeader>
+                  <Separator className="mx-6" />
+                  <CardContent className="space-y-4 pt-4">
+                    <div className="h-12 bg-muted animate-pulse rounded"></div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : error ? (
+              <div className="flex items-center justify-center h-64 col-span-2">
+                <div className="text-center space-y-2">
+                  <div className="text-lg font-semibold text-destructive">Failed to load projects</div>
+                  <div className="text-muted-foreground">Please try refreshing the page</div>
+                </div>
+              </div>
+            ) : displayProjects.length === 0 ? (
+              <div className="flex items-center justify-center h-64 col-span-2">
+                <div className="text-center space-y-4">
+                  <div className="text-lg font-semibold">No projects yet</div>
+                  <div className="text-muted-foreground">Create your first project to get started</div>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Project
+                  </Button>
+                </div>
+              </div>
+            ) : displayProjects.map((project) => {
+              const isRealProject = 'taskCount' in project;
+              const progress = isRealProject ? 
+                (project.taskCount > 0 ? Math.round((project.completedTaskCount / project.taskCount) * 100) : 0) :
+                (project as any).progress;
+              const tasksCompleted = isRealProject ? project.completedTaskCount : (project as any).tasksCompleted;
+              const tasksTotal = isRealProject ? project.taskCount : (project as any).tasksTotal;
+              const status = isRealProject ? 'Active' : (project as any).status; // Default to Active for real projects
+              const dueDate = isRealProject ? project.updatedAt : (project as any).dueDate;
+              const owner = isRealProject ? `User ${project.ownerId}` : (project as any).owner;
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1 text-sm">
-                      <p className="text-muted-foreground text-xs uppercase tracking-wide">
-                        Owner
-                      </p>
-                      <p className="font-medium">{project.owner}</p>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <p className="text-muted-foreground text-xs uppercase tracking-wide">
-                        Due date
-                      </p>
-                      <p className="font-medium">
-                        {formatDate(project.dueDate)}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+              return (
+                <Card key={project.id} className="h-full group hover:shadow-md transition-shadow cursor-pointer">
+                  <Link href={`/projects/${project.id}`}>
+                    <CardHeader className="pb-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg font-semibold group-hover:text-primary transition-colors">
+                              {project.name}
+                            </CardTitle>
+                            <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
+                          </div>
+                          <CardDescription className="text-sm">
+                            {project.description || "No description available"}
+                          </CardDescription>
+                        </div>
+                        <Badge className={statusTone[status as ProjectStatus]}>
+                          {status}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <Separator className="mx-6" />
+                    <CardContent className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Progress
+                        </p>
+                        <div className="bg-secondary/60 w-full rounded-full">
+                          <div
+                            className="bg-primary h-2 rounded-full transition-all"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{progress}% complete</span>
+                          <span>
+                            {tasksCompleted} / {tasksTotal} tasks
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1 text-sm">
+                          <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Owner
+                          </p>
+                          <p className="font-medium">{owner}</p>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            {isRealProject ? "Updated" : "Due date"}
+                          </p>
+                          <p className="font-medium">
+                            {formatDate(dueDate)}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Link>
+                </Card>
+              );
+            })}
           </div>
         </section>
       </div>

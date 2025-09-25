@@ -2,8 +2,9 @@ package com.spmorangle.crm.taskmanagement.controller;
 
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.service.UserContextService;
-import com.spmorangle.crm.taskmanagement.dto.GetTaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.enums.Status;
+import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,7 +53,7 @@ class TaskManagementControllerSecurityTest {
 
     private User testUser;
     private User anotherUser;
-    private List<GetTaskResponseDto> testTasks;
+    private List<TaskResponseDto> testTasks;
 
     @BeforeEach
     void setUp() {
@@ -75,18 +76,19 @@ class TaskManagementControllerSecurityTest {
         return user;
     }
 
-    private GetTaskResponseDto createTaskDto(Long id, Long ownerId, String title, Status status) {
-        return GetTaskResponseDto.builder()
+
+    private TaskResponseDto createTaskDto(Long id, Long ownerId, String title, Status status) {
+        return TaskResponseDto.builder()
                 .id(id)
                 .projectId(101L)
                 .ownerId(ownerId)
+                .taskType(TaskType.FEATURE)
                 .title(title)
                 .description("Description for " + title)
                 .status(status)
                 .tags(Collections.emptyList())
                 .createdBy(ownerId)
                 .createdAt(OffsetDateTime.now())
-                .assignedUserIds(Collections.emptyList())
                 .build();
     }
 
@@ -99,14 +101,14 @@ class TaskManagementControllerSecurityTest {
         @DisplayName("Should reject unauthenticated requests")
         void getTasks_UnauthenticatedUser_ReturnsUnauthorized() throws Exception {
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
                     .andExpect(status().isUnauthorized());
 
             // Verify services are never called
             verify(userContextService, never()).getRequestingUser();
-            verify(taskService, never()).getTasks(eq(123L));
+            verify(taskService, never()).getAllUserTasks(eq(123L));
         }
 
         @Test
@@ -115,19 +117,19 @@ class TaskManagementControllerSecurityTest {
         void getTasks_AuthenticatedUser_ReturnsOk() throws Exception {
             // Given
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(testTasks);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(testTasks);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$.length()").value(2));
 
             verify(userContextService).getRequestingUser();
-            verify(taskService).getTasks(eq(123L));
+            verify(taskService).getAllUserTasks(eq(123L));
         }
     }
 
@@ -141,13 +143,13 @@ class TaskManagementControllerSecurityTest {
         void getTasks_AuthenticatedUser_ReturnsOnlyOwnTasks() throws Exception {
             // Given
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(testTasks);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(testTasks);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$.length()").value(2))
@@ -155,7 +157,7 @@ class TaskManagementControllerSecurityTest {
                     .andExpect(jsonPath("$[1].ownerId").value(123L));
 
             // Verify service is called with correct user ID
-            verify(taskService).getTasks(eq(123L));
+            verify(taskService).getAllUserTasks(eq(123L));
         }
 
         @Test
@@ -163,26 +165,26 @@ class TaskManagementControllerSecurityTest {
         @DisplayName("Should call service with correct user ID based on context")
         void getTasks_DifferentAuthenticatedUser_CallsServiceWithCorrectUserId() throws Exception {
             // Given
-            List<GetTaskResponseDto> anotherUserTasks = Collections.singletonList(
+            List<TaskResponseDto> anotherUserTasks = Collections.singletonList(
                 createTaskDto(3L, 456L, "User 456 Task", Status.COMPLETED)
             );
 
             when(userContextService.getRequestingUser()).thenReturn(anotherUser);
-            when(taskService.getTasks(eq(456L))).thenReturn(anotherUserTasks);
+            when(taskService.getAllUserTasks(eq(456L))).thenReturn(anotherUserTasks);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$.length()").value(1))
                     .andExpect(jsonPath("$[0].ownerId").value(456L));
 
             // Verify service is called with the correct different user ID
-            verify(taskService).getTasks(eq(456L));
-            verify(taskService, never()).getTasks(eq(123L));
+            verify(taskService).getAllUserTasks(eq(456L));
+            verify(taskService, never()).getAllUserTasks(eq(123L));
         }
 
         @Test
@@ -191,22 +193,22 @@ class TaskManagementControllerSecurityTest {
         void getTasks_AdminUser_WorksCorrectly() throws Exception {
             // Given
             User adminUser = createUser(999L, "admin", "admin@example.com", "ADMIN");
-            List<GetTaskResponseDto> adminTasks = Collections.singletonList(
+            List<TaskResponseDto> adminTasks = Collections.singletonList(
                 createTaskDto(99L, 999L, "Admin Task", Status.TODO)
             );
 
             when(userContextService.getRequestingUser()).thenReturn(adminUser);
-            when(taskService.getTasks(eq(999L))).thenReturn(adminTasks);
+            when(taskService.getAllUserTasks(eq(999L))).thenReturn(adminTasks);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$[0].ownerId").value(999L));
 
-            verify(taskService).getTasks(eq(999L));
+            verify(taskService).getAllUserTasks(eq(999L));
         }
     }
 
@@ -220,17 +222,17 @@ class TaskManagementControllerSecurityTest {
         void getTasks_UserContextServiceReturnsUser_WorksCorrectly() throws Exception {
             // Given
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(Collections.emptyList());
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(Collections.emptyList());
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound());
+                    .andExpect(status().isOk());
 
             // Verify the flow
             verify(userContextService).getRequestingUser();
-            verify(taskService).getTasks(eq(123L));
+            verify(taskService).getAllUserTasks(eq(123L));
         }
 
         @Test
@@ -239,18 +241,18 @@ class TaskManagementControllerSecurityTest {
         void getTasks_UserWithNoTasks_ReturnsEmptyArray() throws Exception {
             // Given
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(Collections.emptyList());
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(Collections.emptyList());
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$.length()").value(0));
 
-            verify(taskService).getTasks(eq(123L));
+            verify(taskService).getAllUserTasks(eq(123L));
         }
     }
 
@@ -264,13 +266,13 @@ class TaskManagementControllerSecurityTest {
         void getTasks_WithCSRFToken_WorksCorrectly() throws Exception {
             // Given
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(testTasks);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(testTasks);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf()) // CSRF token included
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound());
+                    .andExpect(status().isOk());
         }
 
         @Test
@@ -279,13 +281,13 @@ class TaskManagementControllerSecurityTest {
         void getTasks_WithoutCSRFToken_WorksCorrectly() throws Exception {
             // Given
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(testTasks);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(testTasks);
 
             // When & Then
             // GET requests typically don't require CSRF tokens
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound());
+                    .andExpect(status().isOk());
         }
     }
 
@@ -299,13 +301,13 @@ class TaskManagementControllerSecurityTest {
         void getTasks_UserRole_AllowsAccess() throws Exception {
             // Given
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(testTasks);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(testTasks);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound());
+                    .andExpect(status().isOk());
         }
 
         @Test
@@ -314,18 +316,18 @@ class TaskManagementControllerSecurityTest {
         void getTasks_ManagerRole_AllowsAccess() throws Exception {
             // Given
             User managerUser = createUser(789L, "manager", "manager@example.com", "MANAGER");
-            List<GetTaskResponseDto> managerTasks = Collections.singletonList(
+            List<TaskResponseDto> managerTasks = Collections.singletonList(
                 createTaskDto(88L, 789L, "Manager Task", Status.IN_PROGRESS)
             );
 
             when(userContextService.getRequestingUser()).thenReturn(managerUser);
-            when(taskService.getTasks(eq(789L))).thenReturn(managerTasks);
+            when(taskService.getAllUserTasks(eq(789L))).thenReturn(managerTasks);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].ownerId").value(789L));
         }
 
@@ -336,15 +338,15 @@ class TaskManagementControllerSecurityTest {
             // Given
             User guestUser = createUser(111L, "guest", "guest@example.com", "GUEST");
             when(userContextService.getRequestingUser()).thenReturn(guestUser);
-            when(taskService.getTasks(eq(111L))).thenReturn(Collections.emptyList());
+            when(taskService.getAllUserTasks(eq(111L))).thenReturn(Collections.emptyList());
 
             // When & Then
             // Depending on your security configuration, this might be allowed or forbidden
             // Adjust the expectation based on your security requirements
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound()); // or .andExpect(status().isForbidden());
+                    .andExpect(status().isOk()); // or .andExpect(status().isForbidden());
         }
     }
 }

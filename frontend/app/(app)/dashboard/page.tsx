@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -11,21 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import {
-  demoProjects,
-  demoTasks,
-  type ProjectSummary,
-  type TaskSummary,
-} from "@/lib/mvp-data";
-
-const activeProjects = demoProjects.filter(
-  (project) => project.status !== "Completed",
-);
-const upcomingTasks = [...demoTasks]
-  .filter((task) => task.status !== "Done")
-  .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-  .slice(0, 5);
-const highPriorityTasks = demoTasks.filter((task) => task.priority === "High");
+import { projectService, ProjectResponse, TaskResponse } from "@/services/project-service";
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString(undefined, {
@@ -44,34 +31,109 @@ const statusTone = {
     "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-500/40 dark:bg-slate-500/15 dark:text-slate-200",
 };
 
-const summarizeTeamLoad = (tasks: TaskSummary[]) => {
-  const load = tasks.reduce<Record<string, number>>((acc, task) => {
-    acc[task.owner] = (acc[task.owner] ?? 0) + 1;
-    return acc;
-  }, {});
-  return Object.entries(load)
-    .sort(([, aCount], [, bCount]) => bCount - aCount)
-    .slice(0, 4);
+// Map backend task status to frontend status
+const mapTaskStatus = (status: string): string => {
+  switch (status) {
+    case 'TODO': return 'Todo';
+    case 'IN_PROGRESS': return 'In Progress';
+    case 'BLOCKED': return 'Blocked';
+    case 'COMPLETED': return 'Done';
+    default: return status;
+  }
 };
 
-const teamLoad = summarizeTeamLoad(demoTasks);
-
-const projectCompletion = (project: ProjectSummary) =>
-  project.tasksTotal
-    ? Math.round((project.tasksCompleted / project.tasksTotal) * 100)
-    : 0;
+// Map backend task type to priority (simplified mapping)
+const mapTaskTypeToPriority = (taskType: string): string => {
+  switch (taskType) {
+    case 'BUG': return 'High';
+    case 'FEATURE': return 'Medium';
+    case 'CHORE': return 'Low';
+    case 'RESEARCH': return 'Medium';
+    default: return 'Medium';
+  }
+};
 
 export default function Dashboard() {
-  const totalTasks = demoTasks.length;
-  const completedTasks = demoTasks.filter(
-    (task) => task.status === "Done",
-  ).length;
-  const blockedTasks = demoTasks.filter(
-    (task) => task.status === "Blocked",
-  ).length;
-  const onTrackProjects = activeProjects.filter(
-    (project) => project.status === "Active",
-  ).length;
+  const [projects, setProjects] = useState<ProjectResponse[]>([]);
+  const [tasks, setTasks] = useState<TaskResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true);
+        const userId = 1; // TODO: Get from auth context
+        
+        const [projectsData, tasksData] = await Promise.all([
+          projectService.getUserProjects(userId),
+          projectService.getAllUserTasks(userId)
+        ]);
+        
+        setProjects(projectsData);
+        setTasks(tasksData);
+      } catch (err) {
+        console.error('Error loading dashboard data:', err);
+        setError("Failed to load dashboard data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <SidebarInset>
+        <div className="flex flex-1 flex-col gap-8 p-6 pb-12 lg:p-10">
+          <div className="text-center py-16">
+            <div className="text-lg font-semibold">Loading dashboard...</div>
+            <div className="text-muted-foreground">Please wait while we fetch your data</div>
+          </div>
+        </div>
+      </SidebarInset>
+    );
+  }
+
+  if (error) {
+    return (
+      <SidebarInset>
+        <div className="flex flex-1 flex-col gap-8 p-6 pb-12 lg:p-10">
+          <div className="text-center py-16">
+            <div className="text-lg font-semibold text-destructive">Failed to load dashboard</div>
+            <div className="text-muted-foreground">Please try refreshing the page</div>
+          </div>
+        </div>
+      </SidebarInset>
+    );
+  }
+
+  // Calculate statistics from real data
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter(task => task.status === 'COMPLETED').length;
+  const blockedTasks = tasks.filter(task => task.status === 'BLOCKED').length;
+  const activeProjects = projects; // All projects are considered active for now
+  const onTrackProjects = projects.length; // Simplified - all projects are on track
+
+  // Get upcoming tasks (non-completed, sorted by update date)
+  const upcomingTasks = tasks
+    .filter(task => task.status !== 'COMPLETED')
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
+    .slice(0, 5);
+
+  // Get high priority tasks (BUG type tasks are considered high priority)
+  const highPriorityTasks = tasks.filter(task => task.taskType === 'BUG');
+
+  // Calculate team load based on task owners
+  const teamLoad = Object.entries(
+    tasks.reduce<Record<number, number>>((acc, task) => {
+      acc[task.ownerId] = (acc[task.ownerId] || 0) + 1;
+      return acc;
+    }, {})
+  )
+    .sort(([, aCount], [, bCount]) => bCount - aCount)
+    .slice(0, 4);
 
   return (
     <SidebarInset>
@@ -103,8 +165,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="text-muted-foreground text-sm">
-              {onTrackProjects} on track ·{" "}
-              {activeProjects.length - onTrackProjects} flagged
+              {activeProjects.length === 0 ? "No projects yet" : `${onTrackProjects} on track`}
             </CardContent>
           </Card>
           <Card>
@@ -118,7 +179,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="text-muted-foreground text-sm">
-              {completedTasks} closed • {totalTasks - completedTasks} in flight
+              {totalTasks === 0 ? "No tasks yet" : `${completedTasks} closed • ${totalTasks - completedTasks} in flight`}
             </CardContent>
           </Card>
           <Card>
@@ -129,7 +190,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="text-muted-foreground text-sm">
-              Critical items requiring updates this week
+              {highPriorityTasks.length === 0 ? "No high priority tasks" : "Critical items requiring updates this week"}
             </CardContent>
           </Card>
           <Card>
@@ -140,7 +201,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="text-muted-foreground text-sm">
-              Surface blockers quickly to keep work moving
+              {blockedTasks === 0 ? "No blocked tasks" : "Surface blockers quickly to keep work moving"}
             </CardContent>
           </Card>
         </section>
@@ -169,36 +230,48 @@ export default function Dashboard() {
             </CardHeader>
             <Separator className="mx-6" />
             <CardContent className="flex flex-col divide-y divide-border">
-              {activeProjects.map((project) => (
-                <div
-                  key={project.id}
-                  className="grid gap-3 py-4 sm:grid-cols-[1.2fr_auto_auto]"
-                >
-                  <div>
-                    <p className="font-medium">{project.name}</p>
-                    <p className="text-muted-foreground text-sm">
-                      {project.owner}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-1 text-sm">
-                    <span className="text-muted-foreground text-xs uppercase tracking-wide">
-                      Status
-                    </span>
-                    <Badge className={statusTone[project.status] ?? ""}>
-                      {project.status}
-                    </Badge>
-                  </div>
-                  <div className="flex flex-col gap-1 text-sm">
-                    <span className="text-muted-foreground text-xs uppercase tracking-wide">
-                      Completion
-                    </span>
-                    <span className="font-medium">
-                      {projectCompletion(project)}% · {project.tasksCompleted}/
-                      {project.tasksTotal} tasks
-                    </span>
-                  </div>
+              {activeProjects.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  No projects to display
                 </div>
-              ))}
+              ) : (
+                activeProjects.map((project) => {
+                  const completion = project.taskCount > 0 
+                    ? Math.round((project.completedTaskCount / project.taskCount) * 100)
+                    : 0;
+                  
+                  return (
+                    <div
+                      key={project.id}
+                      className="grid gap-3 py-4 sm:grid-cols-[1.2fr_auto_auto]"
+                    >
+                      <div>
+                        <p className="font-medium">{project.name}</p>
+                        <p className="text-muted-foreground text-sm">
+                          Owner ID: {project.ownerId}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-1 text-sm">
+                        <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                          Status
+                        </span>
+                        <Badge className={statusTone.Active}>
+                          Active
+                        </Badge>
+                      </div>
+                      <div className="flex flex-col gap-1 text-sm">
+                        <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                          Completion
+                        </span>
+                        <span className="font-medium">
+                          {completion}% · {project.completedTaskCount}/
+                          {project.taskCount} tasks
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </CardContent>
           </Card>
 
@@ -224,31 +297,37 @@ export default function Dashboard() {
             </CardHeader>
             <Separator className="mx-6" />
             <CardContent className="flex flex-col divide-y divide-border">
-              {upcomingTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="space-y-1">
-                    <p className="font-medium">{task.title}</p>
-                    <p className="text-muted-foreground text-sm">
-                      {task.project}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-sm">
-                    <Badge
-                      variant="outline"
-                      className="border-primary/40 text-primary"
-                    >
-                      {task.owner}
-                    </Badge>
-                    <Badge>{task.status}</Badge>
-                    <span className="font-medium">
-                      Due {formatDate(task.dueDate)}
-                    </span>
-                  </div>
+              {upcomingTasks.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  No upcoming tasks
                 </div>
-              ))}
+              ) : (
+                upcomingTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="space-y-1">
+                      <p className="font-medium">{task.title}</p>
+                      <p className="text-muted-foreground text-sm">
+                        {task.projectId ? `Project ${task.projectId}` : 'Personal Task'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <Badge
+                        variant="outline"
+                        className="border-primary/40 text-primary"
+                      >
+                        User {task.ownerId}
+                      </Badge>
+                      <Badge>{mapTaskStatus(task.status)}</Badge>
+                      <span className="font-medium">
+                        Updated {formatDate(task.updatedAt || task.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </section>
@@ -263,20 +342,26 @@ export default function Dashboard() {
             </CardHeader>
             <Separator className="mx-6" />
             <CardContent className="flex flex-col gap-3 py-4">
-              {teamLoad.map(([owner, count]) => (
-                <div
-                  key={owner}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 text-center font-medium leading-8 text-primary">
-                      {owner[0] ?? ""}
-                    </div>
-                    <span className="font-medium">{owner}</span>
-                  </div>
-                  <span className="text-muted-foreground">{count} tasks</span>
+              {teamLoad.length === 0 ? (
+                <div className="py-4 text-center text-muted-foreground">
+                  No team data available
                 </div>
-              ))}
+              ) : (
+                teamLoad.map(([ownerId, count]) => (
+                  <div
+                    key={ownerId}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 text-center font-medium leading-8 text-primary">
+                        U
+                      </div>
+                      <span className="font-medium">User {ownerId}</span>
+                    </div>
+                    <span className="text-muted-foreground">{count} tasks</span>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -291,26 +376,32 @@ export default function Dashboard() {
             </CardHeader>
             <Separator className="mx-6" />
             <CardContent className="flex flex-col gap-3 py-4">
-              {highPriorityTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex flex-col gap-2 rounded-lg border p-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium">{task.title}</p>
-                    <Badge className="border-red-200 bg-red-100 text-red-700 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-200">
-                      High priority
-                    </Badge>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                    <span>{task.project}</span>
-                    <span>•</span>
-                    <span>{task.owner}</span>
-                    <span>•</span>
-                    <span>Due {formatDate(task.dueDate)}</span>
-                  </div>
+              {highPriorityTasks.length === 0 ? (
+                <div className="py-4 text-center text-muted-foreground">
+                  No high priority tasks
                 </div>
-              ))}
+              ) : (
+                highPriorityTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex flex-col gap-2 rounded-lg border p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">{task.title}</p>
+                      <Badge className="border-red-200 bg-red-100 text-red-700 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-200">
+                        {task.taskType}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                      <span>{task.projectId ? `Project ${task.projectId}` : 'Personal Task'}</span>
+                      <span>•</span>
+                      <span>User {task.ownerId}</span>
+                      <span>•</span>
+                      <span>Updated {formatDate(task.updatedAt || task.createdAt)}</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </section>

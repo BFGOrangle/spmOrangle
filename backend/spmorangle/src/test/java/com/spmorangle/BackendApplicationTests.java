@@ -11,4 +11,16 @@ import org.springframework.context.annotation.Import;
 @Import(TestConfig.class)
 class BackendApplicationTests {
 
+    @Test
+    void contextLoads() {
+        // This test ensures that the Spring application context loads successfully
+        // with all beans properly configured and no circular dependencies
+    }
+
+    @Test
+    void applicationStartsSuccessfully() {
+        // This test verifies that the application can start up completely
+        // without any configuration errors or missing dependencies
+        // The fact that this test runs means the application context is healthy
+    }
 }

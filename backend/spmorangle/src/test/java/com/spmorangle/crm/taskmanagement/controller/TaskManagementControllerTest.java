@@ -5,9 +5,12 @@ import com.spmorangle.common.model.User;
 import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
-import com.spmorangle.crm.taskmanagement.dto.GetTaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
+import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.enums.Status;
+import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAlreadyExistsException;
@@ -72,7 +75,11 @@ public class TaskManagementControllerTest {
 
     @BeforeEach
     void setUp() {
-        validAddRequest = new AddCollaboratorRequestDto(1L, 2L, 3L);
+        validAddRequest = AddCollaboratorRequestDto.builder()
+                .taskId(1L)
+                .collaboratorId(2L)
+                .assignedById(3L)
+                .build();
         validRemoveRequest = new RemoveCollaboratorRequestDto(1L, 2L, 3L);
         responseDto = AddCollaboratorResponseDto.builder()
                 .taskId(1L)
@@ -97,8 +104,8 @@ public class TaskManagementControllerTest {
         @DisplayName("Should successfully return tasks for authenticated user")
         void getTasks_AuthenticatedUser_ReturnsTasksWithFound() throws Exception {
             // Given
-            List<GetTaskResponseDto> expectedTasks = Arrays.asList(
-                    GetTaskResponseDto.builder()
+            List<TaskResponseDto> expectedTasks = Arrays.asList(
+                    TaskResponseDto.builder()
                             .id(1L)
                             .projectId(101L)
                             .ownerId(123L)
@@ -108,9 +115,9 @@ public class TaskManagementControllerTest {
                             .tags(Arrays.asList("tag1", "tag2"))
                             .createdBy(123L)
                             .createdAt(OffsetDateTime.now())
-                            .assignedUserIds(Collections.emptyList())
+
                             .build(),
-                    GetTaskResponseDto.builder()
+                    TaskResponseDto.builder()
                             .id(2L)
                             .projectId(102L)
                             .ownerId(123L)
@@ -120,18 +127,18 @@ public class TaskManagementControllerTest {
                             .tags(Collections.singletonList("tag3"))
                             .createdBy(123L)
                             .createdAt(OffsetDateTime.now())
-                            .assignedUserIds(Collections.emptyList())
+
                             .build()
             );
 
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(expectedTasks);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(expectedTasks);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$.length()").value(2))
@@ -147,8 +154,6 @@ public class TaskManagementControllerTest {
                     .andExpect(jsonPath("$[0].tags[1]").value("tag2"))
                     .andExpect(jsonPath("$[0].createdBy").value(123L))
                     .andExpect(jsonPath("$[0].createdAt").exists())
-                    .andExpect(jsonPath("$[0].assignedUserIds").isArray())
-                    .andExpect(jsonPath("$[0].assignedUserIds").isEmpty())
                     .andExpect(jsonPath("$[1].id").value(2L))
                     .andExpect(jsonPath("$[1].title").value("Task 2"))
                     .andExpect(jsonPath("$[1].status").value("IN_PROGRESS"))
@@ -160,13 +165,13 @@ public class TaskManagementControllerTest {
         void getTasks_UserWithNoTasks_ReturnsEmptyArrayWithFound() throws Exception {
             // Given
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(Collections.emptyList());
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(Collections.emptyList());
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$.length()").value(0));
@@ -176,8 +181,8 @@ public class TaskManagementControllerTest {
         @DisplayName("Should handle single task correctly")
         void getTasks_SingleTask_ReturnsSingleTaskArray() throws Exception {
             // Given
-            List<GetTaskResponseDto> singleTask = Collections.singletonList(
-                    GetTaskResponseDto.builder()
+            List<TaskResponseDto> singleTask = Collections.singletonList(
+                    TaskResponseDto.builder()
                             .id(1L)
                             .projectId(101L)
                             .ownerId(123L)
@@ -187,18 +192,18 @@ public class TaskManagementControllerTest {
                             .tags(Collections.emptyList())
                             .createdBy(123L)
                             .createdAt(OffsetDateTime.now())
-                            .assignedUserIds(Collections.emptyList())
+
                             .build()
             );
 
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(singleTask);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(singleTask);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$.length()").value(1))
@@ -211,8 +216,8 @@ public class TaskManagementControllerTest {
         @DisplayName("Should handle tasks with null description correctly")
         void getTasks_TaskWithNullDescription_HandlesCorrectly() throws Exception {
             // Given
-            List<GetTaskResponseDto> taskWithNullDesc = Collections.singletonList(
-                    GetTaskResponseDto.builder()
+            List<TaskResponseDto> taskWithNullDesc = Collections.singletonList(
+                    TaskResponseDto.builder()
                             .id(1L)
                             .projectId(101L)
                             .ownerId(123L)
@@ -222,18 +227,18 @@ public class TaskManagementControllerTest {
                             .tags(Collections.emptyList())
                             .createdBy(123L)
                             .createdAt(OffsetDateTime.now())
-                            .assignedUserIds(Collections.emptyList())
+
                             .build()
             );
 
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(taskWithNullDesc);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(taskWithNullDesc);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$[0].id").value(1L))
                     .andExpect(jsonPath("$[0].title").value("Task with null desc"))
@@ -244,21 +249,21 @@ public class TaskManagementControllerTest {
         @DisplayName("Should handle tasks with all status types")
         void getTasks_TasksWithAllStatuses_HandlesCorrectly() throws Exception {
             // Given
-            List<GetTaskResponseDto> tasksWithAllStatuses = Arrays.asList(
-                    createTaskDto(1L, "TODO Task", Status.TODO),
-                    createTaskDto(2L, "In Progress Task", Status.IN_PROGRESS),
-                    createTaskDto(3L, "Completed Task", Status.COMPLETED),
-                    createTaskDto(4L, "Blocked Task", Status.BLOCKED)
+            List<TaskResponseDto> tasksWithAllStatuses = Arrays.asList(
+                    createTaskResponseDto(1L, "TODO Task", Status.TODO),
+                    createTaskResponseDto(2L, "In Progress Task", Status.IN_PROGRESS),
+                    createTaskResponseDto(3L, "Completed Task", Status.COMPLETED),
+                    createTaskResponseDto(4L, "Blocked Task", Status.BLOCKED)
             );
 
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(tasksWithAllStatuses);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(tasksWithAllStatuses);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.length()").value(4))
                     .andExpect(jsonPath("$[0].status").value("TODO"))
@@ -272,35 +277,35 @@ public class TaskManagementControllerTest {
         void getTasks_VerifyServiceCall_CallsWithCorrectUserId() throws Exception {
             // Given
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(Collections.emptyList());
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(Collections.emptyList());
 
             // When
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound());
+                    .andExpect(status().isOk());
 
             // Then
             verify(userContextService).getRequestingUser();
-            verify(taskService).getTasks(eq(123L));
+            verify(taskService).getAllUserTasks(eq(123L));
         }
 
         @Test
-        @DisplayName("Should return 302 Found status as implemented")
-        void getTasks_StatusCode_ReturnsFound() throws Exception {
+        @DisplayName("Should return 200 OK status")
+        void getTasks_StatusCode_ReturnsOk() throws Exception {
             // Given
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(Collections.emptyList());
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(Collections.emptyList());
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound()); // HTTP 302 FOUND as per implementation
+                    .andExpect(status().isOk());
         }
 
-        private GetTaskResponseDto createTaskDto(Long id, String title, Status status) {
-            return GetTaskResponseDto.builder()
+        private TaskResponseDto createTaskResponseDto(Long id, String title, Status status) {
+            return TaskResponseDto.builder()
                     .id(id)
                     .projectId(101L)
                     .ownerId(123L)
@@ -310,7 +315,6 @@ public class TaskManagementControllerTest {
                     .tags(Collections.emptyList())
                     .createdBy(123L)
                     .createdAt(OffsetDateTime.now())
-                    .assignedUserIds(Collections.emptyList())
                     .build();
         }
     }
@@ -326,8 +330,8 @@ public class TaskManagementControllerTest {
             String titleWithSpecialChars = "Task with \"quotes\" and \\backslashes\\ and /slashes/ and \n newlines";
             String descriptionWithUnicode = "Description with émojis 🚀 and unicode characters: 你好世界";
 
-            List<GetTaskResponseDto> tasksWithSpecialContent = Collections.singletonList(
-                    GetTaskResponseDto.builder()
+            List<TaskResponseDto> tasksWithSpecialContent = Collections.singletonList(
+                    TaskResponseDto.builder()
                             .id(1L)
                             .projectId(101L)
                             .ownerId(123L)
@@ -337,18 +341,18 @@ public class TaskManagementControllerTest {
                             .tags(Arrays.asList("tag with spaces", "tag\"with\"quotes", "tag\\with\\backslashes"))
                             .createdBy(123L)
                             .createdAt(OffsetDateTime.now())
-                            .assignedUserIds(Collections.emptyList())
+
                             .build()
             );
 
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(tasksWithSpecialContent);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(tasksWithSpecialContent);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$[0].title").value(titleWithSpecialChars))
                     .andExpect(jsonPath("$[0].description").value(descriptionWithUnicode))
@@ -361,8 +365,8 @@ public class TaskManagementControllerTest {
         @DisplayName("Should handle empty string values correctly")
         void getTasks_TasksWithEmptyStringValues_HandlesCorrectly() throws Exception {
             // Given
-            List<GetTaskResponseDto> tasksWithEmptyStrings = Collections.singletonList(
-                    GetTaskResponseDto.builder()
+            List<TaskResponseDto> tasksWithEmptyStrings = Collections.singletonList(
+                    TaskResponseDto.builder()
                             .id(1L)
                             .projectId(101L)
                             .ownerId(123L)
@@ -372,18 +376,18 @@ public class TaskManagementControllerTest {
                             .tags(Arrays.asList("", "valid", ""))
                             .createdBy(123L)
                             .createdAt(OffsetDateTime.now())
-                            .assignedUserIds(Collections.emptyList())
+
                             .build()
             );
 
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(tasksWithEmptyStrings);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(tasksWithEmptyStrings);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].title").value(""))
                     .andExpect(jsonPath("$[0].description").value(""))
                     .andExpect(jsonPath("$[0].tags[0]").value(""))
@@ -396,8 +400,8 @@ public class TaskManagementControllerTest {
         void getTasks_ResponseStructure_MatchesDtoContract() throws Exception {
             // Given
             OffsetDateTime fixedTime = OffsetDateTime.now();
-            List<GetTaskResponseDto> validTask = Collections.singletonList(
-                    GetTaskResponseDto.builder()
+            List<TaskResponseDto> validTask = Collections.singletonList(
+                    TaskResponseDto.builder()
                             .id(1L)
                             .projectId(101L)
                             .ownerId(123L)
@@ -407,18 +411,17 @@ public class TaskManagementControllerTest {
                             .tags(Arrays.asList("tag1", "tag2"))
                             .createdBy(123L)
                             .createdAt(fixedTime)
-                            .assignedUserIds(Arrays.asList(456L, 789L))
                             .build()
             );
 
             when(userContextService.getRequestingUser()).thenReturn(testUser);
-            when(taskService.getTasks(eq(123L))).thenReturn(validTask);
+            when(taskService.getAllUserTasks(eq(123L))).thenReturn(validTask);
 
             // When & Then
-            mockMvc.perform(get("/api/tasks")
+            mockMvc.perform(get("/api/tasks/user")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$[0]").exists())
                     .andExpect(jsonPath("$[0].id").isNumber())
@@ -430,9 +433,184 @@ public class TaskManagementControllerTest {
                     .andExpect(jsonPath("$[0].tags").isArray())
                     .andExpect(jsonPath("$[0].createdBy").isNumber())
                     .andExpect(jsonPath("$[0].createdAt").isString())
-                    .andExpect(jsonPath("$[0].assignedUserIds").isArray())
-                    .andExpect(jsonPath("$[0].assignedUserIds[0]").value(456L))
-                    .andExpect(jsonPath("$[0].assignedUserIds[1]").value(789L));
+;
+        }
+    }
+
+    @Nested
+    @DisplayName("Create Task Tests")
+    class CreateTaskTests {
+
+        @Test
+        @DisplayName("Should successfully create task and return 201 with response")
+        void createTask_ValidRequest_ReturnsCreatedWithResponse() throws Exception {
+            // Given
+            CreateTaskDto createTaskDto = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .ownerId(123L)
+                    .title("New Task")
+                    .description("Task description")
+                    .taskType(TaskType.FEATURE)
+                    .status(Status.TODO)
+                    .tags(Arrays.asList("tag1", "tag2"))
+                    .build();
+
+            CreateTaskResponseDto responseDto = CreateTaskResponseDto.builder()
+                    .id(1L)
+                    .projectId(101L)
+                    .ownerId(123L)
+                    .title("New Task")
+                    .description("Task description")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .createdBy(123L)
+                    .createdAt(OffsetDateTime.now())
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.createTask(any(CreateTaskDto.class), eq(123L))).thenReturn(responseDto);
+
+            // When & Then
+            mockMvc.perform(post("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createTaskDto)))
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(1L))
+                    .andExpect(jsonPath("$.projectId").value(101L))
+                    .andExpect(jsonPath("$.title").value("New Task"))
+                    .andExpect(jsonPath("$.description").value("Task description"))
+                    .andExpect(jsonPath("$.status").value("TODO"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when task title is null")
+        void createTask_NullTitle_ReturnsBadRequest() throws Exception {
+            // Given
+            CreateTaskDto invalidRequest = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .ownerId(123L)
+                    .title(null)
+                    .description("Description")
+                    .taskType(TaskType.FEATURE)
+                    .status(Status.TODO)
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+
+            // When & Then
+            mockMvc.perform(post("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(invalidRequest)))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Nested
+    @DisplayName("Get Project Tasks Tests")
+    class GetProjectTasksTests {
+
+        private TaskResponseDto createTaskResponseDto(Long id, String title, Status status) {
+            return TaskResponseDto.builder()
+                    .id(id)
+                    .projectId(101L)
+                    .ownerId(123L)
+                    .title(title)
+                    .description("Description for " + title)
+                    .status(status)
+                    .tags(Collections.emptyList())
+                    .createdBy(123L)
+                    .createdAt(OffsetDateTime.now())
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Should return tasks for valid project ID")
+        void getProjectTasks_ValidProjectId_ReturnsTaskList() throws Exception {
+            // Given
+            Long projectId = 101L;
+            List<TaskResponseDto> projectTasks = Arrays.asList(
+                    createTaskResponseDto(1L, "Project Task 1", Status.TODO),
+                    createTaskResponseDto(2L, "Project Task 2", Status.IN_PROGRESS)
+            );
+
+            when(taskService.getProjectTasks(eq(projectId))).thenReturn(projectTasks);
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks/project/{projectId}", projectId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].title").value("Project Task 1"))
+                    .andExpect(jsonPath("$[1].title").value("Project Task 2"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Get Personal Tasks Tests")
+    class GetPersonalTasksTests {
+
+        private TaskResponseDto createTaskResponseDto(Long id, String title, Status status) {
+            return TaskResponseDto.builder()
+                    .id(id)
+                    .projectId(101L)
+                    .ownerId(123L)
+                    .title(title)
+                    .description("Description for " + title)
+                    .status(status)
+                    .tags(Collections.emptyList())
+                    .createdBy(123L)
+                    .createdAt(OffsetDateTime.now())
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Should return personal tasks for authenticated user")
+        void getPersonalTasks_AuthenticatedUser_ReturnsPersonalTasks() throws Exception {
+            // Given
+            List<TaskResponseDto> personalTasks = Arrays.asList(
+                    createTaskResponseDto(1L, "Personal Task 1", Status.TODO)
+            );
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getPersonalTasks(eq(123L))).thenReturn(personalTasks);
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks/personal")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(1))
+                    .andExpect(jsonPath("$[0].title").value("Personal Task 1"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Delete Task Tests")
+    class DeleteTaskTests {
+
+        @Test
+        @DisplayName("Should successfully delete task and return 204")
+        void deleteTask_ValidTaskId_ReturnsNoContent() throws Exception {
+            // Given
+            Long taskId = 1L;
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            doNothing().when(taskService).deleteTask(eq(taskId), eq(123L));
+
+            // When & Then
+            mockMvc.perform(delete("/api/tasks/{taskId}", taskId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isNoContent());
+
+            verify(taskService).deleteTask(eq(taskId), eq(123L));
         }
     }
 
@@ -478,7 +656,11 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 400 when task ID is null")
         void addCollaborator_NullTaskId_ReturnsBadRequest() throws Exception {
             // Given
-            AddCollaboratorRequestDto invalidRequest = new AddCollaboratorRequestDto(null, 2L, 3L);
+            AddCollaboratorRequestDto invalidRequest = AddCollaboratorRequestDto.builder()
+                    .taskId(null)
+                    .collaboratorId(2L)
+                    .assignedById(3L)
+                    .build();
 
             // When & Then
             mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
@@ -491,7 +673,11 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 400 when collaborator ID is null")
         void addCollaborator_NullCollaboratorId_ReturnsBadRequest() throws Exception {
             // Given
-            AddCollaboratorRequestDto invalidRequest = new AddCollaboratorRequestDto(1L, null, 3L);
+            AddCollaboratorRequestDto invalidRequest = AddCollaboratorRequestDto.builder()
+                    .taskId(1L)
+                    .collaboratorId(null)
+                    .assignedById(3L)
+                    .build();
 
             // When & Then
             mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
@@ -504,7 +690,11 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 400 when assigned by ID is null")
         void addCollaborator_NullAssignedById_ReturnsBadRequest() throws Exception {
             // Given
-            AddCollaboratorRequestDto invalidRequest = new AddCollaboratorRequestDto(1L, 2L, null);
+            AddCollaboratorRequestDto invalidRequest = AddCollaboratorRequestDto.builder()
+                    .taskId(1L)
+                    .collaboratorId(2L)
+                    .assignedById(null)
+                    .build();
 
             // When & Then
             mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
@@ -517,7 +707,11 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 400 when task ID is zero")
         void addCollaborator_ZeroTaskId_ReturnsBadRequest() throws Exception {
             // Given
-            AddCollaboratorRequestDto invalidRequest = new AddCollaboratorRequestDto(0L, 2L, 3L);
+            AddCollaboratorRequestDto invalidRequest = AddCollaboratorRequestDto.builder()
+                    .taskId(0L)
+                    .collaboratorId(2L)
+                    .assignedById(3L)
+                    .build();
 
             // When & Then
             mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
@@ -582,7 +776,10 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 400 when task ID is null")
         void removeCollaborator_NullTaskId_ReturnsBadRequest() throws Exception {
             // Given
-            RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto(null, 2L, 3L);
+            RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto();
+            invalidRequest.setTaskId(null);
+            invalidRequest.setCollaboratorId(2L);
+            invalidRequest.setAssignedById(3L);
 
             // When & Then
             mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
@@ -595,7 +792,10 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 400 when collaborator ID is null")
         void removeCollaborator_NullCollaboratorId_ReturnsBadRequest() throws Exception {
             // Given
-            RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto(1L, null, 3L);
+            RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto();
+            invalidRequest.setTaskId(1L);
+            invalidRequest.setCollaboratorId(null);
+            invalidRequest.setAssignedById(3L);
 
             // When & Then
             mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
@@ -608,7 +808,10 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 400 when assigned by ID is null")
         void removeCollaborator_NullAssignedById_ReturnsBadRequest() throws Exception {
             // Given
-            RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto(1L, 2L, null);
+            RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto();
+            invalidRequest.setTaskId(1L);
+            invalidRequest.setCollaboratorId(2L);
+            invalidRequest.setAssignedById(null);
 
             // When & Then
             mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
@@ -621,7 +824,10 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 400 when collaborator ID is zero")
         void removeCollaborator_ZeroCollaboratorId_ReturnsBadRequest() throws Exception {
             // Given
-            RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto(1L, 0L, 3L);
+            RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto();
+            invalidRequest.setTaskId(1L);
+            invalidRequest.setCollaboratorId(0L);
+            invalidRequest.setAssignedById(3L);
 
             // When & Then
             mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())

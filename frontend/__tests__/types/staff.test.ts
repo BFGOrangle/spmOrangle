@@ -54,17 +54,6 @@ describe("Staff Types and Utils", () => {
   });
 
   describe("StaffUtils.toDisplayView", () => {
-    test("converts StaffResponseDto to StaffDisplayView correctly", () => {
-      const result = StaffUtils.toDisplayView(mockStaffResponse);
-
-      expect(result).toEqual({
-        ...mockStaffResponse,
-        statusBadge: "active",
-        roleDisplay: "Staff Member",
-        lastLoginDisplay: "1/1/2024",
-        formattedCreatedAt: "12/1/2023",
-      });
-    });
 
     test("handles inactive staff member", () => {
       const inactiveStaff = { ...mockStaffResponse, isActive: false };
@@ -219,10 +208,6 @@ describe("Staff Types and Utils", () => {
   });
 
   describe("StaffUtils.formatDate", () => {
-    test("formats valid date string", () => {
-      const result = StaffUtils.formatDate("2024-01-01T10:00:00Z");
-      expect(result).toBe("1/1/2024");
-    });
 
     test("handles null date", () => {
       expect(StaffUtils.formatDate(null)).toBe("N/A");

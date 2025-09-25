@@ -1,15 +1,23 @@
 package com.spmorangle.crm.taskmanagement.model;
 
+import java.time.OffsetDateTime;
+import java.util.List;
+
+import org.hibernate.annotations.ColumnDefault;
+
 import com.spmorangle.crm.taskmanagement.enums.Status;
+import com.spmorangle.crm.taskmanagement.enums.TaskType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.*;
+import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
-
-import java.time.OffsetDateTime;
-import java.util.List;
 
 @Getter
 @Setter
@@ -21,16 +29,16 @@ public class Task {
     @Column(name = "id", nullable = false)
     private long id;
 
-    @NotNull
-    @Column(name = "project_id", nullable = false)
-    private long projectId;
+    @Column(name = "project_id", nullable = true)
+    private Long projectId;
 
     @NotNull
     @Column(name = "owner_id", nullable = false)
-    private long ownerId;
+    private Long ownerId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "task_type", nullable = false)
-    private int taskType;
+    private TaskType taskType;
 
     @Column(name = "title", nullable = false)
     private String title;
@@ -49,15 +57,15 @@ public class Task {
     @ColumnDefault("now()")
     private OffsetDateTime createdAt;
 
-    @Column(name = "updated_at", nullable = false)
+    @Column(name = "updated_at", nullable = true)
     @ColumnDefault("now()")
     private OffsetDateTime updatedAt;
 
     @Column(name = "created_by", nullable = false, updatable = false)
     private long createdBy;
 
-    @Column(name = "updated_by", nullable = false)
-    private long updatedBy;
+    @Column(name = "updated_by", nullable = true)
+    private Long updatedBy;
 
     @Column(name = "tags", nullable = true)
     private List<String> tags;

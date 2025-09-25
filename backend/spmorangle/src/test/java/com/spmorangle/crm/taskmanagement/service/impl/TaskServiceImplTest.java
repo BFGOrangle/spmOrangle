@@ -1,10 +1,13 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
-import com.spmorangle.crm.taskmanagement.dto.GetTaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.SubtaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.enums.Status;
+import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
+import com.spmorangle.crm.taskmanagement.service.SubtaskService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -21,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,6 +37,9 @@ class TaskServiceImplTest {
 
     @Mock
     private CollaboratorService collaboratorService;
+
+    @Mock
+    private SubtaskService subtaskService;
 
     @InjectMocks
     private TaskServiceImpl taskService;
@@ -54,6 +61,9 @@ class TaskServiceImplTest {
 
         testTask3 = createTestTask(3L, 103L, 201L, "Task 3", null,
                                   Status.COMPLETED, Collections.emptyList());
+
+        // Mock subtaskService to return empty lists for all task IDs
+//        when(subtaskService.getSubtasksByTaskId(anyLong())).thenReturn(Collections.emptyList());
     }
 
     private Task createTestTask(Long id, Long projectId, Long ownerId, String title,
@@ -62,7 +72,7 @@ class TaskServiceImplTest {
         task.setId(id);
         task.setProjectId(projectId);
         task.setOwnerId(ownerId);
-        task.setTaskType(1);
+        task.setTaskType(TaskType.FEATURE);
         task.setTitle(title);
         task.setDescription(description);
         task.setStatus(status);
@@ -84,17 +94,17 @@ class TaskServiceImplTest {
             // Given
             Long userId = 201L;
             List<Task> expectedTasks = Arrays.asList(testTask1, testTask2, testTask3);
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(expectedTasks);
+            when(taskRepository.findUserTasks(userId)).thenReturn(expectedTasks);
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).isNotNull();
             assertThat(result).hasSize(3);
 
             // Verify first task
-            GetTaskResponseDto firstTask = result.get(0);
+            TaskResponseDto firstTask = result.get(0);
             assertThat(firstTask.getId()).isEqualTo(1L);
             assertThat(firstTask.getProjectId()).isEqualTo(101L);
             assertThat(firstTask.getOwnerId()).isEqualTo(201L);
@@ -104,23 +114,22 @@ class TaskServiceImplTest {
             assertThat(firstTask.getTags()).containsExactly("tag1", "tag2");
             assertThat(firstTask.getCreatedBy()).isEqualTo(201L);
             assertThat(firstTask.getCreatedAt()).isEqualTo(fixedDateTime);
-            assertThat(firstTask.getAssignedUserIds()).isNotNull().isEmpty();
 
             // Verify second task
-            GetTaskResponseDto secondTask = result.get(1);
+            TaskResponseDto secondTask = result.get(1);
             assertThat(secondTask.getId()).isEqualTo(2L);
             assertThat(secondTask.getProjectId()).isEqualTo(102L);
             assertThat(secondTask.getStatus()).isEqualTo(Status.IN_PROGRESS);
             assertThat(secondTask.getTags()).containsExactly("tag3");
 
             // Verify third task
-            GetTaskResponseDto thirdTask = result.get(2);
+            TaskResponseDto thirdTask = result.get(2);
             assertThat(thirdTask.getId()).isEqualTo(3L);
             assertThat(thirdTask.getDescription()).isNull();
             assertThat(thirdTask.getStatus()).isEqualTo(Status.COMPLETED);
             assertThat(thirdTask.getTags()).isEmpty();
 
-            verify(taskRepository).getTasksByOwnerId(userId);
+            verify(taskRepository).findUserTasks(userId);
         }
 
         @Test
@@ -128,15 +137,15 @@ class TaskServiceImplTest {
         void getTasks_UserWithNoTasks_ReturnsEmptyList() {
             // Given
             Long userId = 999L;
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Collections.emptyList());
+            when(taskRepository.findUserTasks(userId)).thenReturn(Collections.emptyList());
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).isNotNull();
             assertThat(result).isEmpty();
-            verify(taskRepository).getTasksByOwnerId(userId);
+            verify(taskRepository).findUserTasks(userId);
         }
 
         @Test
@@ -145,18 +154,18 @@ class TaskServiceImplTest {
             // Given
             Long userId = 201L;
             List<Task> singleTaskList = Collections.singletonList(testTask1);
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(singleTaskList);
+            when(taskRepository.findUserTasks(userId)).thenReturn(singleTaskList);
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(1);
-            GetTaskResponseDto task = result.get(0);
+            TaskResponseDto task = result.get(0);
             assertThat(task.getId()).isEqualTo(1L);
             assertThat(task.getTitle()).isEqualTo("Task 1");
             assertThat(task.getOwnerId()).isEqualTo(userId);
-            verify(taskRepository).getTasksByOwnerId(userId);
+            verify(taskRepository).findUserTasks(userId);
         }
 
         @Test
@@ -166,14 +175,14 @@ class TaskServiceImplTest {
             Long userId = 201L;
             Task taskWithNullDescription = createTestTask(4L, 104L, 201L, "Task with null desc",
                                                          null, Status.TODO, Collections.emptyList());
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Collections.singletonList(taskWithNullDescription));
+            when(taskRepository.findUserTasks(userId)).thenReturn(Collections.singletonList(taskWithNullDescription));
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(1);
-            GetTaskResponseDto task = result.get(0);
+            TaskResponseDto task = result.get(0);
             assertThat(task.getDescription()).isNull();
             assertThat(task.getTitle()).isEqualTo("Task with null desc");
         }
@@ -185,14 +194,14 @@ class TaskServiceImplTest {
             Long userId = 201L;
             Task taskWithEmptyTags = createTestTask(5L, 105L, 201L, "Task with empty tags",
                                                    "Description", Status.BLOCKED, Collections.emptyList());
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Collections.singletonList(taskWithEmptyTags));
+            when(taskRepository.findUserTasks(userId)).thenReturn(Collections.singletonList(taskWithEmptyTags));
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(1);
-            GetTaskResponseDto task = result.get(0);
+            TaskResponseDto task = result.get(0);
             assertThat(task.getTags()).isNotNull().isEmpty();
             assertThat(task.getStatus()).isEqualTo(Status.BLOCKED);
         }
@@ -204,14 +213,14 @@ class TaskServiceImplTest {
             Long userId = 201L;
             Task taskWithNullTags = createTestTask(6L, 106L, 201L, "Task with null tags",
                                                   "Description", Status.TODO, null);
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Collections.singletonList(taskWithNullTags));
+            when(taskRepository.findUserTasks(userId)).thenReturn(Collections.singletonList(taskWithNullTags));
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(1);
-            GetTaskResponseDto task = result.get(0);
+            TaskResponseDto task = result.get(0);
             assertThat(task.getTags()).isNull();
         }
 
@@ -226,10 +235,10 @@ class TaskServiceImplTest {
             Task blockedTask = createTestTask(4L, 104L, userId, "Blocked Task", "Desc", Status.BLOCKED, null);
 
             List<Task> allStatusTasks = Arrays.asList(todoTask, inProgressTask, completedTask, blockedTask);
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(allStatusTasks);
+            when(taskRepository.findUserTasks(userId)).thenReturn(allStatusTasks);
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(4);
@@ -240,36 +249,18 @@ class TaskServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should always initialize assignedUserIds as empty list")
-        void getTasks_AllTasks_InitializesAssignedUserIdsAsEmptyList() {
-            // Given
-            Long userId = 201L;
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Arrays.asList(testTask1, testTask2));
-
-            // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
-
-            // Then
-            assertThat(result).hasSize(2);
-            result.forEach(task -> {
-                assertThat(task.getAssignedUserIds()).isNotNull();
-                assertThat(task.getAssignedUserIds()).isEmpty();
-            });
-        }
-
-        @Test
         @DisplayName("Should handle edge case with user ID 0")
         void getTasks_UserIdZero_CallsRepositoryCorrectly() {
             // Given
             Long userId = 0L;
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Collections.emptyList());
+            when(taskRepository.findUserTasks(userId)).thenReturn(Collections.emptyList());
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).isNotNull().isEmpty();
-            verify(taskRepository).getTasksByOwnerId(userId);
+            verify(taskRepository).findUserTasks(userId);
         }
 
         @Test
@@ -278,10 +269,10 @@ class TaskServiceImplTest {
             // Given
             Long userId = 201L;
             List<Task> largeTasks = Collections.nCopies(100, testTask1);
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(largeTasks);
+            when(taskRepository.findUserTasks(userId)).thenReturn(largeTasks);
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(100);
@@ -289,7 +280,7 @@ class TaskServiceImplTest {
                 assertThat(task.getId()).isEqualTo(1L);
                 assertThat(task.getTitle()).isEqualTo("Task 1");
             });
-            verify(taskRepository).getTasksByOwnerId(userId);
+            verify(taskRepository).findUserTasks(userId);
         }
 
         @Test
@@ -297,14 +288,14 @@ class TaskServiceImplTest {
         void getTasks_NegativeUserId_CallsRepositoryCorrectly() {
             // Given
             Long userId = -1L;
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Collections.emptyList());
+            when(taskRepository.findUserTasks(userId)).thenReturn(Collections.emptyList());
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).isNotNull().isEmpty();
-            verify(taskRepository).getTasksByOwnerId(userId);
+            verify(taskRepository).findUserTasks(userId);
         }
 
         @Test
@@ -312,14 +303,14 @@ class TaskServiceImplTest {
         void getTasks_MaxLongUserId_CallsRepositoryCorrectly() {
             // Given
             Long userId = Long.MAX_VALUE;
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Collections.emptyList());
+            when(taskRepository.findUserTasks(userId)).thenReturn(Collections.emptyList());
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).isNotNull().isEmpty();
-            verify(taskRepository).getTasksByOwnerId(userId);
+            verify(taskRepository).findUserTasks(userId);
         }
 
         @Test
@@ -328,17 +319,17 @@ class TaskServiceImplTest {
             // Given
             Long userId = 201L;
             List<Task> orderedTasks = Arrays.asList(testTask3, testTask1, testTask2); // Different order
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(orderedTasks);
+            when(taskRepository.findUserTasks(userId)).thenReturn(orderedTasks);
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(3);
             assertThat(result.get(0).getId()).isEqualTo(3L);
             assertThat(result.get(1).getId()).isEqualTo(1L);
             assertThat(result.get(2).getId()).isEqualTo(2L);
-            verify(taskRepository).getTasksByOwnerId(userId);
+            verify(taskRepository).findUserTasks(userId);
         }
 
         @Test
@@ -349,14 +340,14 @@ class TaskServiceImplTest {
             String longTitle = "A".repeat(500);
             String longDescription = "B".repeat(2000);
             Task taskWithLongContent = createTestTask(7L, 107L, 201L, longTitle, longDescription, Status.TODO, null);
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Collections.singletonList(taskWithLongContent));
+            when(taskRepository.findUserTasks(userId)).thenReturn(Collections.singletonList(taskWithLongContent));
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(1);
-            GetTaskResponseDto task = result.get(0);
+            TaskResponseDto task = result.get(0);
             assertThat(task.getTitle()).isEqualTo(longTitle);
             assertThat(task.getDescription()).isEqualTo(longDescription);
         }
@@ -369,14 +360,14 @@ class TaskServiceImplTest {
             String specialTitle = "Task with special chars: @#$%^&*()_+-=[]{}|;':\",./<>?`~";
             String specialDescription = "Description with unicode: 你好世界 🚀💯 ñáéíóú";
             Task taskWithSpecialChars = createTestTask(8L, 108L, 201L, specialTitle, specialDescription, Status.IN_PROGRESS, null);
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Collections.singletonList(taskWithSpecialChars));
+            when(taskRepository.findUserTasks(userId)).thenReturn(Collections.singletonList(taskWithSpecialChars));
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(1);
-            GetTaskResponseDto task = result.get(0);
+            TaskResponseDto task = result.get(0);
             assertThat(task.getTitle()).isEqualTo(specialTitle);
             assertThat(task.getDescription()).isEqualTo(specialDescription);
         }
@@ -391,14 +382,14 @@ class TaskServiceImplTest {
                 manyTags.add("tag" + i);
             }
             Task taskWithManyTags = createTestTask(9L, 109L, 201L, "Task with many tags", "Description", Status.BLOCKED, manyTags);
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Collections.singletonList(taskWithManyTags));
+            when(taskRepository.findUserTasks(userId)).thenReturn(Collections.singletonList(taskWithManyTags));
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(1);
-            GetTaskResponseDto task = result.get(0);
+            TaskResponseDto task = result.get(0);
             assertThat(task.getTags()).hasSize(50);
             assertThat(task.getTags()).containsExactlyElementsOf(manyTags);
         }
@@ -410,14 +401,14 @@ class TaskServiceImplTest {
             Long userId = 201L;
             List<String> duplicateTags = Arrays.asList("duplicate", "unique", "duplicate", "another", "duplicate");
             Task taskWithDuplicates = createTestTask(10L, 110L, 201L, "Task with duplicates", "Description", Status.TODO, duplicateTags);
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Collections.singletonList(taskWithDuplicates));
+            when(taskRepository.findUserTasks(userId)).thenReturn(Collections.singletonList(taskWithDuplicates));
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(1);
-            GetTaskResponseDto task = result.get(0);
+            TaskResponseDto task = result.get(0);
             assertThat(task.getTags()).containsExactlyElementsOf(duplicateTags);
         }
 
@@ -432,10 +423,10 @@ class TaskServiceImplTest {
                 createTestTask(11L, 111L, 201L, "", "Empty title task", Status.COMPLETED, null), // Empty title
                 createTestTask(12L, 112L, 201L, "Whitespace task", "   ", Status.IN_PROGRESS, Arrays.asList("", "   ", "valid")) // Whitespace and empty tags
             );
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(mixedTasks);
+            when(taskRepository.findUserTasks(userId)).thenReturn(mixedTasks);
 
             // When
-            List<GetTaskResponseDto> result = taskService.getTasks(userId);
+            List<TaskResponseDto> result = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result).hasSize(4);
@@ -460,13 +451,13 @@ class TaskServiceImplTest {
         void getTasks_AnyValidUserId_CallsRepositoryExactlyOnce() {
             // Given
             Long userId = 201L;
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Arrays.asList(testTask1));
+            when(taskRepository.findUserTasks(userId)).thenReturn(Arrays.asList(testTask1));
 
             // When
-            taskService.getTasks(userId);
+            taskService.getAllUserTasks(userId);
 
             // Then
-            verify(taskRepository, org.mockito.Mockito.times(1)).getTasksByOwnerId(userId);
+            verify(taskRepository, org.mockito.Mockito.times(1)).findUserTasks(userId);
         }
 
         @Test
@@ -474,17 +465,17 @@ class TaskServiceImplTest {
         void getTasks_ConcurrentAccess_ThreadSafe() {
             // Given
             Long userId = 201L;
-            when(taskRepository.getTasksByOwnerId(userId)).thenReturn(Arrays.asList(testTask1, testTask2));
+            when(taskRepository.findUserTasks(userId)).thenReturn(Arrays.asList(testTask1, testTask2));
 
             // When - Simulate multiple calls (in real scenario these would be from different threads)
-            List<GetTaskResponseDto> result1 = taskService.getTasks(userId);
-            List<GetTaskResponseDto> result2 = taskService.getTasks(userId);
+            List<TaskResponseDto> result1 = taskService.getAllUserTasks(userId);
+            List<TaskResponseDto> result2 = taskService.getAllUserTasks(userId);
 
             // Then
             assertThat(result1).hasSize(2);
             assertThat(result2).hasSize(2);
             assertThat(result1.get(0).getId()).isEqualTo(result2.get(0).getId());
-            verify(taskRepository, org.mockito.Mockito.times(2)).getTasksByOwnerId(userId);
+            verify(taskRepository, org.mockito.Mockito.times(2)).findUserTasks(userId);
         }
     }
 }
