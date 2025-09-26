@@ -164,7 +164,7 @@ const getSubtaskSummary = (task: TaskSummary | TaskResponse) => {
   const done = subtasks.filter((subtask) => {
     if ('details' in subtask) {
       // TaskResponse subtask (SubtaskResponse)
-      const mappedStatus = mapBackendStatus(subtask.status as any);
+      const mappedStatus = mapBackendStatus(subtask.status as string);
       return mappedStatus === "Done";
     } else {
       // TaskSummary subtask
@@ -276,7 +276,7 @@ const TaskTableRow = ({ task }: TaskTableRowProps) => {
 
   return (
     <div
-      className="grid gap-3 py-4 transition hover:bg-accent/50 hover:text-accent-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)] sm:py-5"
+      className="grid gap-3 py-4 transition hover:bg-accent/50 hover:text-accent-foreground sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)] sm:py-5"
       data-testid="table-row"
     >
       <div className="space-y-2">
@@ -598,7 +598,7 @@ export default function TasksPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto flex-1">
+          <div className="flex-1">
             {loading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center space-y-2">
@@ -625,49 +625,51 @@ export default function TasksPage() {
                 </div>
               </div>
             ) : (
-              <div className="grid auto-cols-[240px] grid-flow-col gap-3 h-full min-h-[calc(100vh-400px)]">
-                {boardStatuses.map((status) => {
-                  const tasks = tasksByStatus[status];
+              <div className="w-full overflow-x-auto">
+                <div className="flex gap-3 h-full min-h-[calc(100vh-400px)] pb-4" style={{ minWidth: `${boardStatuses.length * 280}px` }}>
+                  {boardStatuses.map((status) => {
+                    const tasks = tasksByStatus[status];
 
-                return (
-                  <div
-                    key={status}
-                    className="flex flex-col rounded-lg border bg-card h-full"
-                    data-testid={`board-column-${status.toLowerCase().replace(/\s+/g, "-")}`}
-                  >
-                    <div className="flex items-center justify-between border-b px-3 py-2.5">
-                      <div>
-                        <p className="text-sm font-semibold">{status}</p>
-                        <p className="text-muted-foreground text-xs">
-                          {tasks.length} card{tasks.length === 1 ? "" : "s"}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground"
-                        aria-label={`Column actions for ${status}`}
-                      >
-                        <MoreHorizontal
-                          className="h-4 w-4"
-                          aria-hidden="true"
-                        />
-                      </Button>
-                    </div>
-                    <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-2.5 py-2.5">
-                      {tasks.length ? (
-                        tasks.map((task) => (
-                          <TaskCard key={task.id} task={task} variant="board" />
-                        ))
-                      ) : (
-                        <div className="rounded-lg border border-dashed border-border/70 p-3 text-center text-xs text-muted-foreground">
-                          No cards in this column yet.
+                  return (
+                    <div
+                      key={status}
+                      className="flex flex-col rounded-lg border bg-card h-full w-72 flex-shrink-0"
+                      data-testid={`board-column-${status.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
+                      <div className="flex items-center justify-between border-b px-3 py-2.5">
+                        <div>
+                          <p className="text-sm font-semibold">{status}</p>
+                          <p className="text-muted-foreground text-xs">
+                            {tasks.length} card{tasks.length === 1 ? "" : "s"}
+                          </p>
                         </div>
-                      )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground"
+                          aria-label={`Column actions for ${status}`}
+                        >
+                          <MoreHorizontal
+                            className="h-4 w-4"
+                            aria-hidden="true"
+                          />
+                        </Button>
+                      </div>
+                      <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-2.5 py-2.5">
+                        {tasks.length ? (
+                          tasks.map((task) => (
+                            <TaskCard key={task.id} task={task} variant="board" />
+                          ))
+                        ) : (
+                          <div className="rounded-lg border border-dashed border-border/70 p-3 text-center text-xs text-muted-foreground">
+                            No cards in this column yet.
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+                </div>
               </div>
             )}
           </div>
@@ -683,7 +685,7 @@ export default function TasksPage() {
 
           <Card>
             <CardHeader className="pb-4">
-              <div className="grid gap-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)]">
+              <div className="hidden sm:grid gap-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]">
                 <span>Task</span>
                 <span>Owner</span>
                 <span>Collaborators</span>

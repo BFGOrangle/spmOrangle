@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -17,10 +16,8 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import {
   ArrowLeft,
-  CalendarDays,
   Clock4,
   MoreHorizontal,
-  Paperclip,
   Plus,
   Users as UsersIcon,
 } from "lucide-react";
@@ -109,7 +106,7 @@ const TaskTableRow = ({ task }: { task: TaskResponse }) => {
   const mappedStatus = mapBackendStatus(task.status) as TaskStatus;
   
   return (
-    <div className="grid gap-3 py-4 text-sm sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)]">
+    <div className="grid gap-3 py-4 text-sm sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]">
       <div className="space-y-1">
         <div className="font-medium">{task.title}</div>
         {task.description && (
@@ -391,8 +388,8 @@ export default function ProjectTasksPage() {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <div className="flex gap-4 pb-4" style={{ minWidth: "800px" }}>
+          <div className="w-full overflow-x-auto">
+            <div className="flex gap-4 pb-4" style={{ minWidth: `${boardStatuses.length * 280}px` }}>
               {boardStatuses.map((status) => {
                 const tasks = tasksByStatus[status];
                 const count = tasks.length;
@@ -400,7 +397,7 @@ export default function ProjectTasksPage() {
                 return (
                   <div
                     key={status}
-                    className="flex min-h-[400px] w-80 flex-col rounded-lg border bg-muted/50"
+                    className="flex min-h-[400px] w-72 flex-shrink-0 flex-col rounded-lg border bg-muted/50"
                   >
                     <div className="flex items-center justify-between p-4 pb-2">
                       <div className="flex items-center gap-2">
@@ -440,7 +437,7 @@ export default function ProjectTasksPage() {
 
           <Card>
             <CardHeader className="pb-4">
-              <div className="grid gap-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)]">
+              <div className="hidden sm:grid gap-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]">
                 <span>Task</span>
                 <span>Owner</span>
                 <span>Collaborators</span>

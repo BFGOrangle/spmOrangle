@@ -4,7 +4,7 @@ import { useCurrentUser } from "@/contexts/user-context";
 import { useRouter } from "next/navigation";
 import { Route } from "@/enums/Route";
 import FullPageSpinnerLoader from "@/components/full-page-spinner-loader";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -28,7 +28,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {!isUserLoading && currentUser && (
           <>
             <AppSidebar />
-            <SidebarTrigger />
           </>
         )}
         {children}
