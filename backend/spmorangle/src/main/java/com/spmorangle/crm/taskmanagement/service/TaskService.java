@@ -5,7 +5,6 @@ import java.util.List;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
-import com.spmorangle.crm.taskmanagement.dto.GetTaskResponseDto;
 
 public interface TaskService {
 
