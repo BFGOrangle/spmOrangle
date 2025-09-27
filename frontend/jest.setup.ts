@@ -1,21 +1,6 @@
 // Jest setup file
 import "@testing-library/jest-dom";
 
-// Configure React testing environment for React 18
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-
-// Suppress act warnings for Radix UI components that manage their own state
-const originalError = console.error;
-console.error = (...args: any[]) => {
-  if (
-    args[0]?.includes?.('Warning: An update to') ||
-    args[0]?.includes?.('act(...)')
-  ) {
-    return;
-  }
-  originalError.call(console, ...args);
-};
-
 // Mock Next.js router
 jest.mock("next/navigation", () => ({
   useRouter() {
