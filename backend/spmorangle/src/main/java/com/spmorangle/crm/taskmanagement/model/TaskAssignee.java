@@ -26,7 +26,7 @@ public class TaskAssignee {
     private OffsetDateTime assignedAt;
 
     @Id
-    @Column(name = "assigned_id", nullable = false)
+    @Column(name = "assigned_by", nullable = false)
     private long assignedId;
 
     @PrePersist

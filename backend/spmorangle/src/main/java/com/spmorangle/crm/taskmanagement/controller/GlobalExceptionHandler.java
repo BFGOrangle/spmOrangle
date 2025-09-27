@@ -30,4 +30,10 @@ public class GlobalExceptionHandler {
         log.warn("Collaborator assignment not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Void> handleIllegalArgumentException(IllegalArgumentException ex) {
+        log.warn("Invalid argument provided: {}", ex.getMessage());
+        return ResponseEntity.badRequest().build(); // 400 Bad Request
+    }
 }
