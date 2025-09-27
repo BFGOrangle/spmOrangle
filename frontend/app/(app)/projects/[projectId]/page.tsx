@@ -6,10 +6,11 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -17,10 +18,8 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import {
   ArrowLeft,
-  CalendarDays,
   Clock4,
   MoreHorizontal,
-  Paperclip,
   Plus,
   Users as UsersIcon,
 } from "lucide-react";
@@ -109,7 +108,7 @@ const TaskTableRow = ({ task }: { task: TaskResponse }) => {
   const mappedStatus = mapBackendStatus(task.status) as TaskStatus;
   
   return (
-    <div className="grid gap-3 py-4 text-sm sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)]">
+    <div className="grid gap-3 py-4 text-sm sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]">
       <div className="space-y-1">
         <div className="font-medium">{task.title}</div>
         {task.description && (
@@ -174,6 +173,7 @@ export default function ProjectTasksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | "All">("All");
+  const [selectedAssignee, setSelectedAssignee] = useState<string>("all"); // "all" or ownerId as string
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   useEffect(() => {
@@ -232,6 +232,20 @@ export default function ProjectTasksPage() {
     };
   }, [tasks]);
 
+  // Build unique assignee list from tasks
+  const assignees = useMemo(() => {
+    const unique = Array.from(new Set(tasks.map(t => t.ownerId)));
+    return unique.sort((a, b) => a - b);
+  }, [tasks]);
+
+  // Assignee-first filtering for shared board/list
+  const assigneeFilteredTasks = useMemo(() => {
+    if (selectedAssignee === "all") return tasks;
+    const ownerId = Number(selectedAssignee);
+    if (Number.isNaN(ownerId)) return tasks;
+    return tasks.filter(t => t.ownerId === ownerId);
+  }, [tasks, selectedAssignee]);
+
   const tasksByStatus = useMemo(() => {
     const grouped = statusOrder.reduce<Record<TaskStatus, TaskResponse[]>>(
       (acc, status) => {
@@ -241,7 +255,7 @@ export default function ProjectTasksPage() {
       {} as Record<TaskStatus, TaskResponse[]>,
     );
 
-    tasks.forEach((task) => {
+    assigneeFilteredTasks.forEach((task) => {
       const mappedStatus = mapBackendStatus(task.status) as TaskStatus;
       if (grouped[mappedStatus]) {
         grouped[mappedStatus].push(task);
@@ -249,23 +263,22 @@ export default function ProjectTasksPage() {
     });
 
     return grouped;
-  }, [tasks]);
+  }, [assigneeFilteredTasks]);
 
   const boardStatuses: TaskStatus[] =
     selectedStatus === "All" ? statusOrder : [selectedStatus as TaskStatus];
 
   const filteredTasks = useMemo(() => {
+    const base = assigneeFilteredTasks;
     if (selectedStatus === "All") {
-      return tasks;
+      return base;
     }
-
     const backendStatus = selectedStatus === "Todo" ? "TODO" :
                          selectedStatus === "In Progress" ? "IN_PROGRESS" :
                          selectedStatus === "Done" ? "COMPLETED" :
                          selectedStatus === "Blocked" ? "BLOCKED" : "TODO";
-    
-    return tasks.filter(task => task.status === backendStatus);
-  }, [selectedStatus, tasks]);
+    return base.filter(task => task.status === backendStatus);
+  }, [selectedStatus, assigneeFilteredTasks]);
 
   if (loading) {
     return (
@@ -353,7 +366,7 @@ export default function ProjectTasksPage() {
           </Card>
         </section>
 
-        {/* Status Filter */}
+        {/* Filters */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -368,17 +381,33 @@ export default function ProjectTasksPage() {
             </Button>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {STATUS_FILTERS.map((status) => (
-              <Button
-                key={status}
-                variant={selectedStatus === status ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedStatus(status)}
-              >
-                {status}
-              </Button>
-            ))}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+            <div className="flex flex-wrap gap-2">
+              {STATUS_FILTERS.map((status) => (
+                <Button
+                  key={status}
+                  variant={selectedStatus === status ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedStatus(status)}
+                >
+                  {status}
+                </Button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Assignee</Label>
+              <Select value={selectedAssignee} onValueChange={setSelectedAssignee}>
+                <SelectTrigger className="h-8 w-[200px]">
+                  <SelectValue placeholder="All assignees" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All assignees</SelectItem>
+                  {assignees.map(id => (
+                    <SelectItem key={id} value={String(id)}>User {id}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </section>
 
@@ -391,8 +420,8 @@ export default function ProjectTasksPage() {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <div className="flex gap-4 pb-4" style={{ minWidth: "800px" }}>
+          <div className="w-full overflow-x-auto">
+            <div className="flex gap-4 pb-4" style={{ minWidth: `${boardStatuses.length * 280}px` }}>
               {boardStatuses.map((status) => {
                 const tasks = tasksByStatus[status];
                 const count = tasks.length;
@@ -400,7 +429,7 @@ export default function ProjectTasksPage() {
                 return (
                   <div
                     key={status}
-                    className="flex min-h-[400px] w-80 flex-col rounded-lg border bg-muted/50"
+                    className="flex min-h-[400px] w-72 flex-shrink-0 flex-col rounded-lg border bg-muted/50"
                   >
                     <div className="flex items-center justify-between p-4 pb-2">
                       <div className="flex items-center gap-2">
@@ -440,7 +469,7 @@ export default function ProjectTasksPage() {
 
           <Card>
             <CardHeader className="pb-4">
-              <div className="grid gap-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)]">
+              <div className="hidden sm:grid gap-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]">
                 <span>Task</span>
                 <span>Owner</span>
                 <span>Collaborators</span>

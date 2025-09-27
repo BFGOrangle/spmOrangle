@@ -4,6 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -26,7 +35,7 @@ import {
   Plus,
   Users as UsersIcon,
 } from "lucide-react";
-import { projectService, TaskResponse } from "@/services/project-service";
+import { projectService, TaskResponse, ProjectResponse } from "@/services/project-service";
 import { TaskCreationDialog } from "@/components/task-creation-dialog";
 import { TaskCard } from "@/components/task-card";
 
@@ -164,7 +173,7 @@ const getSubtaskSummary = (task: TaskSummary | TaskResponse) => {
   const done = subtasks.filter((subtask) => {
     if ('details' in subtask) {
       // TaskResponse subtask (SubtaskResponse)
-      const mappedStatus = mapBackendStatus(subtask.status as any);
+      const mappedStatus = mapBackendStatus(subtask.status as string);
       return mappedStatus === "Done";
     } else {
       // TaskSummary subtask
@@ -276,7 +285,7 @@ const TaskTableRow = ({ task }: TaskTableRowProps) => {
 
   return (
     <div
-      className="grid gap-3 py-4 transition hover:bg-accent/50 hover:text-accent-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)] sm:py-5"
+      className="grid gap-3 py-4 transition hover:bg-accent/50 hover:text-accent-foreground sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)] sm:py-5"
       data-testid="table-row"
     >
       <div className="space-y-2">
@@ -377,6 +386,13 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [projects, setProjects] = useState<ProjectResponse[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string>("all"); // "all" | "personal" | projectId string
+  const [dateFrom, setDateFrom] = useState<string>(""); // yyyy-MM-dd
+  const [dateTo, setDateTo] = useState<string>("");
+
+  type SortBy = "due" | "status" | "updated";
+  const [sortBy, setSortBy] = useState<SortBy>("due");
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -411,6 +427,21 @@ export default function TasksPage() {
     loadTasks();
   }, [selectedTaskType]);
 
+  // Load project list for project filter
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const userId = 1; // from auth context in real app
+        const data = await projectService.getUserProjects(userId);
+        setProjects(data);
+      } catch (e) {
+        // Non-fatal: project filter will just show Personal/All
+        setProjects([]);
+      }
+    };
+    loadProjects();
+  }, []);
+
   const handleTaskCreated = (newTask: TaskResponse) => {
     // Add the new task to the current tasks list
     setTasks(prevTasks => [newTask, ...prevTasks]);
@@ -444,11 +475,53 @@ export default function TasksPage() {
     };
   }, [tasks]);
 
+  // Apply project and due-date range filters first
+  const baseFilteredTasks = useMemo(() => {
+    const fromDate = dateFrom ? new Date(dateFrom) : null;
+    const toDate = dateTo ? new Date(dateTo) : null;
+
+    return tasks.filter((t) => {
+      // Project filter
+      if (selectedProject === "personal" && t.projectId) return false;
+      if (selectedProject !== "all" && selectedProject !== "personal") {
+        const pid = Number(selectedProject);
+        if (!Number.isNaN(pid) && t.projectId !== pid) return false;
+      }
+
+      // Due date range (using createdAt as due date placeholder)
+      const due = new Date(t.createdAt);
+      if (fromDate && due < fromDate) return false;
+      if (toDate) {
+        const endOfTo = new Date(toDate);
+        endOfTo.setHours(23, 59, 59, 999);
+        if (due > endOfTo) return false;
+      }
+      return true;
+    });
+  }, [tasks, selectedProject, dateFrom, dateTo]);
+
+  // Sorting according to selection
   const sortedTasks = useMemo(() => {
-    return [...tasks].sort(
+    const copy = [...baseFilteredTasks];
+    if (sortBy === "status") {
+      return copy.sort((a, b) => {
+        const sa = statusOrder.indexOf(mapBackendStatus(a.status));
+        const sb = statusOrder.indexOf(mapBackendStatus(b.status));
+        return sa - sb;
+      });
+    }
+    if (sortBy === "updated") {
+      return copy.sort((a, b) => {
+        const au = new Date(a.updatedAt || a.createdAt).getTime();
+        const bu = new Date(b.updatedAt || b.createdAt).getTime();
+        return au - bu;
+      });
+    }
+    // default: due date (using createdAt as placeholder)
+    return copy.sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
-  }, [tasks]);
+  }, [baseFilteredTasks, sortBy]);
 
   const tasksByStatus = useMemo(() => {
     const grouped = statusOrder.reduce<Record<TaskStatus, (TaskResponse | TaskSummary)[]>>(
@@ -474,11 +547,9 @@ export default function TasksPage() {
 
   const filteredTasks = useMemo(() => {
     let tasksToFilter: (TaskSummary | TaskResponse)[] = sortedTasks;
-    
     if (selectedStatus !== "All") {
       tasksToFilter = [...tasksByStatus[selectedStatus as TaskStatus]];
     }
-
     return tasksToFilter;
   }, [selectedStatus, sortedTasks, tasksByStatus]);
 
@@ -572,7 +643,7 @@ export default function TasksPage() {
             </div>
           </div>
 
-          {/* Status Filter */}
+          {/* Status + Additional Filters */}
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold">Board view</h3>
@@ -584,21 +655,57 @@ export default function TasksPage() {
                   : "All your tasks organized by status."}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {STATUS_FILTERS.map((status) => (
-                <Button
-                  key={status}
-                  size="sm"
-                  variant={selectedStatus === status ? "default" : "outline"}
-                  onClick={() => setSelectedStatus(status)}
-                >
-                  {status}
-                </Button>
-              ))}
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {STATUS_FILTERS.map((status) => (
+                  <Button
+                    key={status}
+                    size="sm"
+                    variant={selectedStatus === status ? "default" : "outline"}
+                    onClick={() => setSelectedStatus(status)}
+                  >
+                    {status}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Project</Label>
+                <Select value={selectedProject} onValueChange={setSelectedProject}>
+                  <SelectTrigger className="h-8 w-[180px]">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="personal">Personal</SelectItem>
+                    {projects.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="from" className="text-xs text-muted-foreground">Due from</Label>
+                <Input id="from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-8 w-[150px]" />
+                <Label htmlFor="to" className="text-xs text-muted-foreground">to</Label>
+                <Input id="to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-8 w-[150px]" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Sort</Label>
+                <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
+                  <SelectTrigger className="h-8 w-[170px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="due">Due date (default)</SelectItem>
+                    <SelectItem value="status">Status</SelectItem>
+                    <SelectItem value="updated">Last updated</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto flex-1">
+          <div className="flex-1">
             {loading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center space-y-2">
@@ -625,49 +732,51 @@ export default function TasksPage() {
                 </div>
               </div>
             ) : (
-              <div className="grid auto-cols-[240px] grid-flow-col gap-3 h-full min-h-[calc(100vh-400px)]">
-                {boardStatuses.map((status) => {
-                  const tasks = tasksByStatus[status];
+              <div className="w-full overflow-x-auto">
+                <div className="flex gap-3 h-full min-h-[calc(100vh-400px)] pb-4" style={{ minWidth: `${boardStatuses.length * 280}px` }}>
+                  {boardStatuses.map((status) => {
+                    const tasks = tasksByStatus[status];
 
-                return (
-                  <div
-                    key={status}
-                    className="flex flex-col rounded-lg border bg-card h-full"
-                    data-testid={`board-column-${status.toLowerCase().replace(/\s+/g, "-")}`}
-                  >
-                    <div className="flex items-center justify-between border-b px-3 py-2.5">
-                      <div>
-                        <p className="text-sm font-semibold">{status}</p>
-                        <p className="text-muted-foreground text-xs">
-                          {tasks.length} card{tasks.length === 1 ? "" : "s"}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground"
-                        aria-label={`Column actions for ${status}`}
-                      >
-                        <MoreHorizontal
-                          className="h-4 w-4"
-                          aria-hidden="true"
-                        />
-                      </Button>
-                    </div>
-                    <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-2.5 py-2.5">
-                      {tasks.length ? (
-                        tasks.map((task) => (
-                          <TaskCard key={task.id} task={task} variant="board" />
-                        ))
-                      ) : (
-                        <div className="rounded-lg border border-dashed border-border/70 p-3 text-center text-xs text-muted-foreground">
-                          No cards in this column yet.
+                  return (
+                    <div
+                      key={status}
+                      className="flex flex-col rounded-lg border bg-card h-full w-72 flex-shrink-0"
+                      data-testid={`board-column-${status.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
+                      <div className="flex items-center justify-between border-b px-3 py-2.5">
+                        <div>
+                          <p className="text-sm font-semibold">{status}</p>
+                          <p className="text-muted-foreground text-xs">
+                            {tasks.length} card{tasks.length === 1 ? "" : "s"}
+                          </p>
                         </div>
-                      )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground"
+                          aria-label={`Column actions for ${status}`}
+                        >
+                          <MoreHorizontal
+                            className="h-4 w-4"
+                            aria-hidden="true"
+                          />
+                        </Button>
+                      </div>
+                      <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-2.5 py-2.5">
+                        {tasks.length ? (
+                          tasks.map((task) => (
+                            <TaskCard key={task.id} task={task} variant="board" />
+                          ))
+                        ) : (
+                          <div className="rounded-lg border border-dashed border-border/70 p-3 text-center text-xs text-muted-foreground">
+                            No cards in this column yet.
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+                </div>
               </div>
             )}
           </div>
@@ -683,7 +792,7 @@ export default function TasksPage() {
 
           <Card>
             <CardHeader className="pb-4">
-              <div className="grid gap-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)]">
+              <div className="hidden sm:grid gap-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]">
                 <span>Task</span>
                 <span>Owner</span>
                 <span>Collaborators</span>
