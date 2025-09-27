@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -22,6 +22,8 @@ import {
 import { TaskSummary, TaskPriority, TaskStatus } from "@/lib/mvp-data";
 import { TaskResponse, SubtaskResponse } from "@/services/project-service";
 import { SubtaskList } from "./subtask-list";
+import { fileService, FileResponse } from "@/services/file-service";
+import { FileList } from "./file-icon";
 
 // Status and priority styles (moved from tasks page)
 const statusStyles: Record<TaskStatus, string> = {
@@ -113,6 +115,56 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
   const taskProps = getTaskProperties(task);
   const [showDetails, setShowDetails] = useState(false);
   const [subtasks, setSubtasks] = useState<SubtaskResponse[]>(taskProps.subtasks as SubtaskResponse[]);
+  const [files, setFiles] = useState<FileResponse[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+
+  useEffect(() => {
+    const fetchFiles = async () => {
+      const updatedProjectId = taskProps.projectId || 0;
+      console.log(`[TaskCard] Starting file fetch for task ${taskProps.id}, project ${taskProps.projectId}`);
+      setIsLoadingFiles(true);
+
+      try {
+        // Test with a direct fetch first to see if it reaches the backend
+        const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+        const testUrl = `${baseUrl}/api/files/project/${updatedProjectId}/task/${taskProps.id}`;
+        console.log(`[TaskCard] Making direct fetch to: ${testUrl}`);
+
+        const directResponse = await fetch(testUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        console.log(`[TaskCard] Direct fetch response status: ${directResponse.status}`);
+
+        if (directResponse.ok) {
+          const directResult = await directResponse.json();
+          console.log(`[TaskCard] Direct fetch successful, got ${directResult.length} files`);
+          setFiles(directResult);
+        } else {
+          const errorText = await directResponse.text();
+          console.error(`[TaskCard] Direct fetch failed: ${directResponse.status} ${directResponse.statusText}`, errorText);
+
+          // Fallback to the authenticated service
+          console.log(`[TaskCard] Trying authenticated service as fallback`);
+          const fetchedFiles = await fileService.getFilesByTaskAndProject(
+            Number(taskProps.id),
+            updatedProjectId
+          );
+          setFiles(fetchedFiles);
+        }
+      } catch (error) {
+        console.error(`[TaskCard] Error fetching files for task ${taskProps.id}, project ${taskProps.projectId}:`, error);
+        setFiles([]); // Set empty array on error
+      } finally {
+        setIsLoadingFiles(false);
+      }
+    };
+
+    fetchFiles();
+  }, [taskProps.id, taskProps.projectId, taskProps.isTaskSummary]);
 
   const handleSubtaskCreated = (newSubtask: SubtaskResponse) => {
     const updatedSubtasks = [...subtasks, newSubtask];
@@ -212,7 +264,23 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
         )}
 
         <div className="flex items-center justify-between">
-          {taskProps.attachments > 0 && (
+          {/* Show file icons instead of just attachment count */}
+          {!isLoadingFiles && files.length > 0 && (
+            <div className="flex items-center gap-2">
+              <FileList files={files} maxDisplay={3} size="sm" />
+            </div>
+          )}
+
+          {/* Show loading state for files */}
+          {isLoadingFiles && !taskProps.isTaskSummary && (
+            <div className="flex items-center gap-1">
+              <div className="animate-pulse h-4 w-4 bg-muted rounded"></div>
+              <div className="animate-pulse h-4 w-8 bg-muted rounded"></div>
+            </div>
+          )}
+
+          {/* Fallback to old attachment count for TaskSummary */}
+          {taskProps.isTaskSummary && taskProps.attachments > 0 && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Paperclip className="h-3 w-3" aria-hidden="true" />
               <span>{taskProps.attachments}</span>
@@ -275,6 +343,21 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
                     />
                   </div>
                 )}
+
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium mb-2">Files ({files.length})</h4>
+                  {isLoadingFiles ? (
+                    <div className="animate-pulse flex gap-2">
+                      <div className="h-8 w-8 bg-muted rounded" />
+                      <div className="h-8 w-8 bg-muted rounded" />
+                      <div className="h-8 w-8 bg-muted rounded" />
+                    </div>
+                  ) : files.length > 0 ? (
+                    <FileList files={files} size="lg" showDownload={true} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No files attached to this task.</p>
+                  )}
+                </div>
               </div>
             </DialogContent>
           </Dialog>
@@ -292,6 +375,35 @@ function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
   const done = subtasks.filter((subtask) => subtask.status === 'COMPLETED').length;
   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
   const collaboratorOverflow = Math.max(taskProps.collaborators.length - 3, 0);
+
+  // Add file state for table variant
+  const [files, setFiles] = useState<FileResponse[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+
+  useEffect(() => {
+    const fetchFiles = async () => {
+      // Only fetch files for real tasks (TaskResponse), not TaskSummary
+      if (taskProps.isTaskSummary || !taskProps.projectId) {
+        return;
+      }
+
+      setIsLoadingFiles(true);
+      try {
+        const fetchedFiles = await fileService.getFilesByTaskAndProject(
+          Number(taskProps.id),
+          taskProps.projectId
+        );
+        setFiles(fetchedFiles);
+      } catch (error) {
+        console.error("Error fetching files:", error);
+        setFiles([]);
+      } finally {
+        setIsLoadingFiles(false);
+      }
+    };
+
+    fetchFiles();
+  }, [taskProps.id, taskProps.projectId, taskProps.isTaskSummary]);
 
   return (
     <div
@@ -377,12 +489,29 @@ function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
           <Clock4 className="h-3.5 w-3.5" aria-hidden="true" />
           {formatDate(taskProps.lastUpdated)}
         </span>
-        {taskProps.attachments > 0 ? (
+
+        {/* Show file icons instead of just attachment count */}
+        {!isLoadingFiles && files.length > 0 && (
+          <div className="flex items-center gap-1">
+            <FileList files={files} maxDisplay={2} size="sm" />
+          </div>
+        )}
+
+        {/* Show loading state for files */}
+        {isLoadingFiles && !taskProps.isTaskSummary && (
+          <div className="flex items-center gap-1">
+            <div className="animate-pulse h-3 w-3 bg-muted rounded"></div>
+            <div className="animate-pulse h-3 w-6 bg-muted rounded"></div>
+          </div>
+        )}
+
+        {/* Fallback to old attachment count for TaskSummary */}
+        {taskProps.isTaskSummary && taskProps.attachments > 0 && (
           <span className="flex items-center gap-1">
             <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
             {taskProps.attachments} attachment{taskProps.attachments > 1 ? "s" : ""}
           </span>
-        ) : null}
+        )}
       </div>
     </div>
   );
