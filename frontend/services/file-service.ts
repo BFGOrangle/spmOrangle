@@ -1,8 +1,5 @@
-/**
- * File management service for handling file uploads and retrieval
- */
 
-import { AuthenticatedApiClient } from "./authenticated-api-client";
+import { AuthenticatedApiClient } from './authenticated-api-client';
 
 export interface FileResponse {
   id: number;
@@ -20,39 +17,29 @@ export interface UploadFileRequest {
   bucket?: string;
 }
 
-export class FileService extends AuthenticatedApiClient {
+export class FileService {
+  private authenticatedClient: AuthenticatedApiClient;
+
+  constructor() {
+    this.authenticatedClient = new AuthenticatedApiClient();
+  }
+
   /**
    * Get files for a specific task and project
    */
   async getFilesByTaskAndProject(taskId: number, projectId: number): Promise<FileResponse[]> {
-    console.log(`[FileService] Fetching files for taskId: ${taskId}, projectId: ${projectId}`);
-    try {
-      const result = await this.request<FileResponse[]>(`/api/files/project/${projectId}/task/${taskId}`);
-      console.log(`[FileService] Successfully fetched ${result.length} files`);
-      return result;
-    } catch (error) {
-      console.error(`[FileService] Error fetching files for taskId ${taskId}, projectId ${projectId}:`, error);
-      throw error;
-    }
+    return this.authenticatedClient.get(`/api/files/project/${projectId}/task/${taskId}`);
   }
 
   /**
    * Get all files for a project
    */
   async getFilesByProject(projectId: number): Promise<FileResponse[]> {
-    console.log(`[FileService] Fetching files for projectId: ${projectId}`);
-    try {
-      const result = await this.request<FileResponse[]>(`/api/files/project/${projectId}`);
-      console.log(`[FileService] Successfully fetched ${result.length} files for project`);
-      return result;
-    } catch (error) {
-      console.error(`[FileService] Error fetching files for projectId ${projectId}:`, error);
-      throw error;
-    }
+    return this.authenticatedClient.get(`/api/files/project/${projectId}`);
   }
 
   /**
-   * Upload a file for a task - bypasses the authenticated client for multipart uploads
+   * Upload a file for a task
    */
   async uploadFile({ file, taskId, projectId, bucket }: UploadFileRequest): Promise<FileResponse> {
     const formData = new FormData();
@@ -62,27 +49,7 @@ export class FileService extends AuthenticatedApiClient {
     if (bucket) {
       formData.append('bucket', bucket);
     }
-
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-    console.log(`[FileService] Uploading file to: ${baseUrl}/api/files/upload`);
-
-    const response = await fetch(`${baseUrl}/api/files/upload`, {
-      method: 'POST',
-      headers: {
-        ...(typeof this.getAuthHeaders === 'function' ? await this.getAuthHeaders() : {}),
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[FileService] Upload failed:`, errorText);
-      throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log(`[FileService] File uploaded successfully:`, result);
-    return result;
+    return this.authenticatedClient.postMultipart('/api/files/upload', formData);
   }
 
   /**
@@ -117,5 +84,4 @@ export class FileService extends AuthenticatedApiClient {
   }
 }
 
-// Export singleton instance
 export const fileService = new FileService();

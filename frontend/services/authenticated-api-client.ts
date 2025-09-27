@@ -66,8 +66,24 @@ export class AuthenticatedApiClient {
     // Use existing auth-utils function for authentication
     const method =
       (options.method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH") || "GET";
-    const body = options.body ? JSON.parse(options.body as string) : undefined;
-    const config = await createAuthenticatedRequestConfig(method, body);
+
+    // Only parse JSON if body is a string and Content-Type is application/json
+    let config: RequestInit;
+    if (
+      options.body &&
+      typeof options.body === "string" &&
+      (!options.headers || (options.headers && (options.headers as any)["Content-Type"] === "application/json"))
+    ) {
+      const body = JSON.parse(options.body as string);
+      config = await createAuthenticatedRequestConfig(method, body);
+    } else {
+      config = {
+        method,
+        headers: {
+          Authorization: await import("@/lib/auth-utils").then(m => m.getBearerToken()),
+        },
+      };
+    }
 
     // Merge with any additional options (preserving custom headers)
     const finalConfig: RequestInit = {

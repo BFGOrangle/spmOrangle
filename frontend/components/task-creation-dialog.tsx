@@ -30,8 +30,8 @@ async function uploadFiles({ files, taskId, projectId }: { files: FileList | Fil
   const uploads = Array.from(files).map(async (file, index) => {
     console.log(`Uploading file ${index + 1}/${files.length}:`, file.name);
     try {
-      // Assuming fileService.uploadFile returns a promise and accepts (file, taskId, projectId)
-      const result = await fileService.uploadFile(file, taskId, projectId);
+      // Use correct argument object for uploadFile
+      const result = await fileService.uploadFile({ file, taskId, projectId });
       console.log(`File ${file.name} uploaded successfully:`, result);
       return result;
     } catch (error) {
@@ -160,6 +160,7 @@ export function TaskCreationDialog({
         projectId,
       });
       setSelectedFiles(null);
+      setError(null);
     } catch (err) {
       console.error('Error creating task:', err);
       setError('Failed to create task. Please try again.');
