@@ -68,6 +68,9 @@ export class FileService extends AuthenticatedApiClient {
 
     const response = await fetch(`${baseUrl}/api/files/upload`, {
       method: 'POST',
+      headers: {
+        ...(typeof this.getAuthHeaders === 'function' ? await this.getAuthHeaders() : {}),
+      },
       body: formData,
     });
 
