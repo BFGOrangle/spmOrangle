@@ -50,3 +50,9 @@ jest.mock("next/font/google", () => ({
     variable: "--font-geist-mono",
   }),
 }));
+
+jest.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: jest.fn().mockResolvedValue({
+    tokens: { accessToken: 'mocked-access-token' }
+  }),
+}));
