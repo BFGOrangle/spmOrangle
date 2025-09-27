@@ -22,7 +22,15 @@ jest.mock("next/navigation", () => ({
 }));
 
 // Mock fetch globally
-global.fetch = jest.fn();
+global.fetch = jest.fn((input, init) => {
+  // Simulate a successful JSON response for all requests
+  return Promise.resolve(
+    new Response(JSON.stringify({}), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  );
+});
 
 // Mock window.matchMedia
 Object.defineProperty(window, "matchMedia", {
