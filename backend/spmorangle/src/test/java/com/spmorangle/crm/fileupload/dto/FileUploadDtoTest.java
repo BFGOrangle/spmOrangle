@@ -9,8 +9,11 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
+import org.springframework.test.context.ActiveProfiles;
+
 import java.util.Set;
 
+@ActiveProfiles("test")
 @DisplayName("File Upload DTO Test Cases")
 class FileUploadDtoTest {
 

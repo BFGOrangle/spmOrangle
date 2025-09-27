@@ -3,10 +3,13 @@ package com.spmorangle.crm.fileupload.model;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.test.context.ActiveProfiles;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.OffsetDateTime;
 
+@ActiveProfiles("test")
 @DisplayName("Attachment Model Test Cases")
 class AttachmentModelTest {
 
