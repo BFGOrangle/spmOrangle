@@ -1,0 +1,7 @@
+supabase:
+  storage:
+    url: https://dummy.supabase.co/storage/v1/s3
+    s3_aws_access_key_id: dummy-access-key
+    s3_aws_secret_access_key: dummy-secret-key
+    region: us-east-1
+    bucket: dummy-bucket

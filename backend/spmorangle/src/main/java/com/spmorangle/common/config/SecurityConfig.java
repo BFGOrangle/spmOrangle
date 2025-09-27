@@ -54,7 +54,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll() // Public auth endpoints
                         .requestMatchers("/api/test/**").permitAll() // Test endpoints
                         .requestMatchers("/api/vendor-applications").permitAll()
-                        .requestMatchers("/api/files/**").permitAll() // File upload endpoint for testing
                         .requestMatchers("/swagger", "/swagger-ui/**", "/api-docs/**").permitAll() // Swagger UI
                         .anyRequest().authenticated()
                 )
