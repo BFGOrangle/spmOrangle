@@ -125,36 +125,11 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
       setIsLoadingFiles(true);
 
       try {
-        // Test with a direct fetch first to see if it reaches the backend
-        const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-        const testUrl = `${baseUrl}/api/files/project/${updatedProjectId}/task/${taskProps.id}`;
-        console.log(`[TaskCard] Making direct fetch to: ${testUrl}`);
-
-        const directResponse = await fetch(testUrl, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        console.log(`[TaskCard] Direct fetch response status: ${directResponse.status}`);
-
-        if (directResponse.ok) {
-          const directResult = await directResponse.json();
-          console.log(`[TaskCard] Direct fetch successful, got ${directResult.length} files`);
-          setFiles(directResult);
-        } else {
-          const errorText = await directResponse.text();
-          console.error(`[TaskCard] Direct fetch failed: ${directResponse.status} ${directResponse.statusText}`, errorText);
-
-          // Fallback to the authenticated service
-          console.log(`[TaskCard] Trying authenticated service as fallback`);
-          const fetchedFiles = await fileService.getFilesByTaskAndProject(
-            Number(taskProps.id),
-            updatedProjectId
-          );
-          setFiles(fetchedFiles);
-        }
+        const fetchedFiles = await fileService.getFilesByTaskAndProject(
+          Number(taskProps.id),
+          updatedProjectId
+        );
+        setFiles(fetchedFiles);
       } catch (error) {
         console.error(`[TaskCard] Error fetching files for task ${taskProps.id}, project ${taskProps.projectId}:`, error);
         setFiles([]); // Set empty array on error
