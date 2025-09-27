@@ -22,6 +22,7 @@ import {
 import { TaskSummary, TaskPriority, TaskStatus } from "@/lib/mvp-data";
 import { TaskResponse, SubtaskResponse } from "@/services/project-service";
 import { SubtaskList } from "./subtask-list";
+import { TaskCollaboratorManagement } from "./task-collaborator-management";
 
 // Status and priority styles (moved from tasks page)
 const statusStyles: Record<TaskStatus, string> = {
@@ -107,12 +108,18 @@ interface TaskCardProps {
   task: TaskSummary | TaskResponse;
   variant?: 'board' | 'table';
   onSubtaskUpdated?: (taskId: number | string, subtasks: SubtaskResponse[]) => void;
+  currentUserId?: number;
 }
 
-export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCardProps) {
+export function TaskCard({ task, variant = 'board', onSubtaskUpdated, currentUserId = 1 }: TaskCardProps) {
   const taskProps = getTaskProperties(task);
   const [showDetails, setShowDetails] = useState(false);
   const [subtasks, setSubtasks] = useState<SubtaskResponse[]>(taskProps.subtasks as SubtaskResponse[]);
+  // For now, convert collaborator names to IDs (mock mapping)
+  const [collaboratorIds, setCollaboratorIds] = useState<number[]>(() => {
+    // Convert existing collaborator names to mock IDs for demo
+    return taskProps.collaborators.map((_, index) => index + 2); // Start from ID 2
+  });
 
   const handleSubtaskCreated = (newSubtask: SubtaskResponse) => {
     const updatedSubtasks = [...subtasks, newSubtask];
@@ -140,7 +147,7 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
   }
 
   const { total, done, progress } = getSubtaskSummary();
-  const collaboratorOverflow = Math.max(taskProps.collaborators.length - 2, 0);
+  const collaboratorOverflow = Math.max(collaboratorIds.length - 2, 0);
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -170,16 +177,16 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
           <span className="text-xs font-medium truncate">{taskProps.owner}</span>
         </div>
 
-        {taskProps.collaborators.length > 0 && (
+        {collaboratorIds.length > 0 && (
           <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
             <UsersIcon className="h-3 w-3" aria-hidden="true" />
             <div className="flex items-center -space-x-1">
-              {taskProps.collaborators.slice(0, 2).map((name) => (
+              {collaboratorIds.slice(0, 2).map((id) => (
                 <span
-                  key={name}
+                  key={id}
                   className="flex h-5 w-5 items-center justify-center rounded-full border border-background bg-secondary text-[0.6rem] font-semibold text-secondary-foreground shadow-sm"
                 >
-                  {getInitials(name)}
+                  {id}
                 </span>
               ))}
               {collaboratorOverflow > 0 ? (
@@ -262,6 +269,33 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
                     <span className="font-medium">Due:</span>
                     <span className="ml-2">{formatDate(taskProps.dueDate)}</span>
                   </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium">Collaborators</h4>
+                    <TaskCollaboratorManagement
+                      taskId={Number(taskProps.id)}
+                      currentCollaboratorIds={collaboratorIds}
+                      currentUserId={currentUserId}
+                      onCollaboratorsChange={setCollaboratorIds}
+                    />
+                  </div>
+
+                  {collaboratorIds.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {collaboratorIds.map((collaboratorId) => (
+                        <div key={collaboratorId} className="flex items-center gap-2 px-3 py-1 bg-secondary rounded-full">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                            {collaboratorId}
+                          </div>
+                          <span className="text-sm">User ID: {collaboratorId}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No collaborators assigned</p>
+                  )}
                 </div>
 
                 {!taskProps.isTaskSummary && taskProps.projectId && (
