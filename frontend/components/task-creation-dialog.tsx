@@ -21,37 +21,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { projectService, CreateTaskRequest, TaskResponse } from "@/services/project-service";
+import { fileService } from "@/services/file-service";
 
 // Helper for file upload
 async function uploadFiles({ files, taskId, projectId }: { files: FileList | File[], taskId: number, projectId: number }) {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-
   console.log('uploadFiles called with:', { taskId, projectId, filesCount: files.length });
-  console.log('Using baseUrl:', baseUrl);
 
   const uploads = Array.from(files).map(async (file, index) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('taskId', String(taskId));
-    formData.append('projectId', String(projectId));
-
     console.log(`Uploading file ${index + 1}/${files.length}:`, file.name);
-
     try {
-      const response = await fetch(`${baseUrl}/api/files/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      console.log(`File ${file.name} upload response:`, response.status, response.statusText);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`File upload failed for ${file.name}:`, errorText);
-        throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
-      }
-
-      const result = await response.json();
+      // Assuming fileService.uploadFile returns a promise and accepts (file, taskId, projectId)
+      const result = await fileService.uploadFile(file, taskId, projectId);
       console.log(`File ${file.name} uploaded successfully:`, result);
       return result;
     } catch (error) {
