@@ -1,6 +1,7 @@
 export enum Route {
-  Signin = "/auth/signin",
+  SignIn = "/auth/signin",
   Dashboard = "/dashboard",
+  Profile = "/profile",
   Unauthorized = "/unauthorized",
   ConfirmSignUp = "/auth/confirm-signup",
   NewPassword = "/auth/new-password",

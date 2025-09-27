@@ -62,7 +62,7 @@ export async function handleSignOut() {
     console.log(getErrorMessage(error));
   }
   console.debug("User logged out");
-  redirect(Route.Signin);
+  redirect(Route.SignIn);
 }
 
 export async function handleEmailCodeConfirmation(

@@ -50,10 +50,19 @@ export class BaseValidationError extends BaseApiError {
  * Services can extend this for service-specific error handling
  */
 export class AuthenticatedApiClient {
+  private baseUrl: string;
+
+  constructor() {
+    this.baseUrl =
+      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+  }
+
   protected async request<T>(
     url: string,
     options: RequestInit = {},
   ): Promise<T> {
+    const fullUrl = `${this.baseUrl}${url}`;
+
     // Use existing auth-utils function for authentication
     const method =
       (options.method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH") || "GET";
@@ -71,9 +80,7 @@ export class AuthenticatedApiClient {
     };
 
     try {
-      const response = await fetch(url, finalConfig);
-
-      console.groupEnd();
+      const response = await fetch(fullUrl, finalConfig);
 
       if (!response.ok) {
         await this.handleErrorResponse(response);
