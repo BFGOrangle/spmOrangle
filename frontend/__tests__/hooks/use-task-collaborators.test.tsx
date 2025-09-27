@@ -618,3 +618,445 @@ describe("useTaskCollaboratorMutations", () => {
     expect(onRemoveError).not.toHaveBeenCalled();
   });
 });
+
+describe("Concurrent Mutations and Edge Cases", () => {
+  let mockApiService: jest.Mocked<TaskCollaboratorApiService>;
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    mockApiService = createMockApiService();
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Infinity },
+        mutations: { retry: false },
+      },
+    });
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const mockAddRequest: AddCollaboratorRequestDto = {
+    taskId: 1,
+    collaboratorId: 2,
+    assignedById: 3,
+  };
+
+  const mockRemoveRequest: RemoveCollaboratorRequestDto = {
+    taskId: 1,
+    collaboratorId: 2,
+    assignedById: 3,
+  };
+
+  const mockAddResponse: AddCollaboratorResponseDto = {
+    taskId: 1,
+    collaboratorId: 2,
+    assignedById: 3,
+    assignedAt: "2023-12-01T10:00:00Z",
+  };
+
+  describe("concurrent mutations", () => {
+    it("should handle multiple add mutations simultaneously", async () => {
+      const request1 = { ...mockAddRequest, collaboratorId: 2 };
+      const request2 = { ...mockAddRequest, collaboratorId: 3 };
+      const response1 = { ...mockAddResponse, collaboratorId: 2 };
+      const response2 = { ...mockAddResponse, collaboratorId: 3 };
+
+      mockApiService.addCollaborator
+        .mockResolvedValueOnce(response1)
+        .mockResolvedValueOnce(response2);
+
+      const { result } = renderHook(
+        () => useAddCollaboratorMutation(undefined, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      // Trigger multiple mutations concurrently
+      const promise1 = result.current.mutateAsync(request1);
+      const promise2 = result.current.mutateAsync(request2);
+
+      const [result1, result2] = await Promise.all([promise1, promise2]);
+
+      expect(result1).toEqual(response1);
+      expect(result2).toEqual(response2);
+      expect(mockApiService.addCollaborator).toHaveBeenCalledTimes(2);
+      expect(mockApiService.addCollaborator).toHaveBeenCalledWith(request1);
+      expect(mockApiService.addCollaborator).toHaveBeenCalledWith(request2);
+    });
+
+    it("should handle concurrent add and remove mutations", async () => {
+      mockApiService.addCollaborator.mockResolvedValue(mockAddResponse);
+      mockApiService.removeCollaborator.mockResolvedValue(undefined);
+
+      const { result: addResult } = renderHook(
+        () => useAddCollaboratorMutation(undefined, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      const { result: removeResult } = renderHook(
+        () => useRemoveCollaboratorMutation(undefined, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      // Trigger both mutations concurrently
+      const addPromise = addResult.current.mutateAsync(mockAddRequest);
+      const removePromise = removeResult.current.mutateAsync(mockRemoveRequest);
+
+      const [addResponse, removeResponse] = await Promise.all([addPromise, removePromise]);
+
+      expect(addResponse).toEqual(mockAddResponse);
+      expect(removeResponse).toBeUndefined();
+      expect(mockApiService.addCollaborator).toHaveBeenCalledWith(mockAddRequest);
+      expect(mockApiService.removeCollaborator).toHaveBeenCalledWith(mockRemoveRequest);
+    });
+
+    it("should handle partial failures in concurrent mutations", async () => {
+      const request1 = { ...mockAddRequest, collaboratorId: 2 };
+      const request2 = { ...mockAddRequest, collaboratorId: 3 };
+      const response1 = { ...mockAddResponse, collaboratorId: 2 };
+      const error2 = new CollaboratorApiError(409, "Conflict");
+
+      mockApiService.addCollaborator
+        .mockResolvedValueOnce(response1)
+        .mockRejectedValueOnce(error2);
+
+      const { result } = renderHook(
+        () => useAddCollaboratorMutation(undefined, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      const promise1 = result.current.mutateAsync(request1);
+      const promise2 = result.current.mutateAsync(request2);
+
+      const [result1, result2] = await Promise.allSettled([promise1, promise2]);
+
+      expect(result1.status).toBe("fulfilled");
+      expect((result1 as PromiseFulfilledResult<AddCollaboratorResponseDto>).value).toEqual(response1);
+
+      expect(result2.status).toBe("rejected");
+      expect((result2 as PromiseRejectedResult).reason).toBeInstanceOf(CollaboratorApiError);
+    });
+  });
+
+  describe("race conditions and state consistency", () => {
+    it("should maintain state consistency during rapid mutations", async () => {
+      let resolveCount = 0;
+      const delayedMockImplementation = (request: AddCollaboratorRequestDto) => {
+        return new Promise<AddCollaboratorResponseDto>((resolve) => {
+          setTimeout(() => {
+            resolveCount++;
+            resolve({ ...mockAddResponse, collaboratorId: request.collaboratorId });
+          }, resolveCount * 10); // Stagger the responses
+        });
+      };
+
+      mockApiService.addCollaborator.mockImplementation(delayedMockImplementation);
+
+      const { result } = renderHook(
+        () => useAddCollaboratorMutation(undefined, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      // Trigger multiple rapid mutations
+      const requests = [
+        { ...mockAddRequest, collaboratorId: 2 },
+        { ...mockAddRequest, collaboratorId: 3 },
+        { ...mockAddRequest, collaboratorId: 4 },
+      ];
+
+      const promises = requests.map(req => result.current.mutateAsync(req));
+      const results = await Promise.all(promises);
+
+      expect(results).toHaveLength(3);
+      expect(results[0].collaboratorId).toBe(2);
+      expect(results[1].collaboratorId).toBe(3);
+      expect(results[2].collaboratorId).toBe(4);
+      expect(mockApiService.addCollaborator).toHaveBeenCalledTimes(3);
+    });
+
+    it("should handle mutation cancellation scenarios", async () => {
+      let rejectMutation: (error: Error) => void;
+      const pendingPromise = new Promise<AddCollaboratorResponseDto>((_, reject) => {
+        rejectMutation = reject;
+      });
+
+      mockApiService.addCollaborator.mockReturnValue(pendingPromise);
+
+      const { result, unmount } = renderHook(
+        () => useAddCollaboratorMutation(undefined, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      const mutationPromise = result.current.mutateAsync(mockAddRequest);
+
+      // Simulate component unmounting while mutation is pending
+      unmount();
+
+      // Reject the pending mutation
+      rejectMutation!(new Error("Component unmounted"));
+
+      await expect(mutationPromise).rejects.toThrow("Component unmounted");
+    });
+  });
+
+  describe("query invalidation and cache management", () => {
+    it("should support custom onSuccess with cache invalidation", async () => {
+      mockApiService.addCollaborator.mockResolvedValue(mockAddResponse);
+
+      const onSuccess = jest.fn((data, variables, context) => {
+        // Simulate cache invalidation
+        queryClient.invalidateQueries({ queryKey: ["tasks", variables.taskId] });
+      });
+
+      const { result } = renderHook(
+        () => useAddCollaboratorMutation({ onSuccess }, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      const invalidateQueriesSpy = jest.spyOn(queryClient, 'invalidateQueries');
+
+      result.current.mutate(mockAddRequest);
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(onSuccess).toHaveBeenCalledWith(mockAddResponse, mockAddRequest, undefined);
+      expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["tasks", mockAddRequest.taskId] });
+    });
+
+    it("should handle optimistic updates pattern", async () => {
+      mockApiService.addCollaborator.mockResolvedValue(mockAddResponse);
+
+      const onMutate = jest.fn((variables) => {
+        // Simulate optimistic update
+        const previousData = queryClient.getQueryData(["tasks", variables.taskId]);
+        queryClient.setQueryData(["tasks", variables.taskId], (old: any) => ({
+          ...old,
+          collaborators: [...(old?.collaborators || []), variables],
+        }));
+        return { previousData };
+      });
+
+      const onError = jest.fn((error, variables, context: any) => {
+        // Rollback optimistic update
+        if (context?.previousData) {
+          queryClient.setQueryData(["tasks", variables.taskId], context.previousData);
+        }
+      });
+
+      const { result } = renderHook(
+        () => useAddCollaboratorMutation({ onMutate, onError }, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      // Set initial query data
+      queryClient.setQueryData(["tasks", mockAddRequest.taskId], {
+        collaborators: [],
+      });
+
+      result.current.mutate(mockAddRequest);
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(onMutate).toHaveBeenCalledWith(mockAddRequest);
+      expect(onError).not.toHaveBeenCalled();
+    });
+
+    it("should rollback optimistic updates on error", async () => {
+      const apiError = new CollaboratorApiError(409, "Conflict");
+      mockApiService.addCollaborator.mockRejectedValue(apiError);
+
+      const onMutate = jest.fn((variables) => {
+        const previousData = queryClient.getQueryData(["tasks", variables.taskId]);
+        queryClient.setQueryData(["tasks", variables.taskId], (old: any) => ({
+          ...old,
+          collaborators: [...(old?.collaborators || []), variables],
+        }));
+        return { previousData };
+      });
+
+      const onError = jest.fn((error, variables, context: any) => {
+        if (context?.previousData) {
+          queryClient.setQueryData(["tasks", variables.taskId], context.previousData);
+        }
+      });
+
+      const { result } = renderHook(
+        () => useAddCollaboratorMutation({ onMutate, onError }, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      // Set initial query data
+      const initialData = { collaborators: [] };
+      queryClient.setQueryData(["tasks", mockAddRequest.taskId], initialData);
+
+      result.current.mutate(mockAddRequest);
+
+      await waitFor(() => {
+        expect(result.current.isError).toBe(true);
+      });
+
+      expect(onMutate).toHaveBeenCalledWith(mockAddRequest);
+      expect(onError).toHaveBeenCalledWith(apiError, mockAddRequest, { previousData: initialData });
+
+      // Verify rollback happened
+      const finalData = queryClient.getQueryData(["tasks", mockAddRequest.taskId]);
+      expect(finalData).toEqual(initialData);
+    });
+  });
+
+  describe("error recovery and retry scenarios", () => {
+    it("should handle network recovery scenarios", async () => {
+      const networkError = new Error("Network Error");
+      const successResponse = mockAddResponse;
+
+      // First call fails, second succeeds
+      mockApiService.addCollaborator
+        .mockRejectedValueOnce(networkError)
+        .mockResolvedValueOnce(successResponse);
+
+      const { result } = renderHook(
+        () => useAddCollaboratorMutation(undefined, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      // First attempt fails
+      result.current.mutate(mockAddRequest);
+
+      await waitFor(() => {
+        expect(result.current.isError).toBe(true);
+      });
+
+      expect(result.current.error).toEqual(networkError);
+
+      // Reset and retry
+      result.current.reset();
+
+      await waitFor(() => {
+        expect(result.current.isIdle).toBe(true);
+      });
+
+      // Second attempt succeeds
+      result.current.mutate(mockAddRequest);
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(result.current.data).toEqual(successResponse);
+      expect(mockApiService.addCollaborator).toHaveBeenCalledTimes(2);
+    });
+
+    it("should handle API service switching", async () => {
+      const mockApiService2 = createMockApiService();
+      mockApiService.addCollaborator.mockResolvedValue(mockAddResponse);
+      mockApiService2.addCollaborator.mockResolvedValue({
+        ...mockAddResponse,
+        assignedAt: "2023-12-02T10:00:00Z",
+      });
+
+      const { result, rerender } = renderHook(
+        ({ service }) => useAddCollaboratorMutation(undefined, service),
+        {
+          wrapper: createWrapper(queryClient),
+          initialProps: { service: mockApiService },
+        },
+      );
+
+      // First mutation with first service
+      result.current.mutate(mockAddRequest);
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(result.current.data?.assignedAt).toBe("2023-12-01T10:00:00Z");
+
+      // Switch to second service
+      rerender({ service: mockApiService2 });
+
+      // Reset state and try again
+      result.current.reset();
+
+      await waitFor(() => {
+        expect(result.current.isIdle).toBe(true);
+      });
+
+      result.current.mutate(mockAddRequest);
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(result.current.data?.assignedAt).toBe("2023-12-02T10:00:00Z");
+      expect(mockApiService.addCollaborator).toHaveBeenCalledTimes(1);
+      expect(mockApiService2.addCollaborator).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("edge case data validation", () => {
+    it("should handle mutations with minimal valid data", async () => {
+      const minimalRequest: AddCollaboratorRequestDto = {
+        taskId: 1,
+        collaboratorId: 2,
+        assignedById: 3,
+      };
+
+      const minimalResponse: AddCollaboratorResponseDto = {
+        taskId: 1,
+        collaboratorId: 2,
+        assignedById: 3,
+        assignedAt: "2023-12-01T10:00:00Z",
+      };
+
+      mockApiService.addCollaborator.mockResolvedValue(minimalResponse);
+
+      const { result } = renderHook(
+        () => useAddCollaboratorMutation(undefined, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      result.current.mutate(minimalRequest);
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(result.current.data).toEqual(minimalResponse);
+      expect(mockApiService.addCollaborator).toHaveBeenCalledWith(minimalRequest);
+    });
+
+    it("should handle mutations with large data sets", async () => {
+      const largeRequest: AddCollaboratorRequestDto = {
+        taskId: Number.MAX_SAFE_INTEGER,
+        collaboratorId: Number.MAX_SAFE_INTEGER - 1,
+        assignedById: Number.MAX_SAFE_INTEGER - 2,
+      };
+
+      const largeResponse: AddCollaboratorResponseDto = {
+        ...largeRequest,
+        assignedAt: "2023-12-01T10:00:00Z",
+      };
+
+      mockApiService.addCollaborator.mockResolvedValue(largeResponse);
+
+      const { result } = renderHook(
+        () => useAddCollaboratorMutation(undefined, mockApiService),
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      result.current.mutate(largeRequest);
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(result.current.data).toEqual(largeResponse);
+      expect(mockApiService.addCollaborator).toHaveBeenCalledWith(largeRequest);
+    });
+  });
+});
