@@ -29,7 +29,7 @@ describe("Route Enum", () => {
 
   test("should have correct number of routes", () => {
     const routeKeys = Object.keys(Route);
-    expect(routeKeys).toHaveLength(7);
+    expect(routeKeys).toHaveLength(9);
   });
 
   test("should contain auth-related routes", () => {
@@ -85,11 +85,13 @@ describe("Route Enum", () => {
     const allRoutes = Object.values(Route);
     const authRoutes = allRoutes.filter(route => route.startsWith("/auth"));
     
-    expect(authRoutes).toHaveLength(4);
+    expect(authRoutes).toHaveLength(6);
     expect(authRoutes).toContain(Route.SignIn);
     expect(authRoutes).toContain(Route.ConfirmSignUp);
     expect(authRoutes).toContain(Route.NewPassword);
     expect(authRoutes).toContain(Route.ConfirmSMSCode);
+    expect(authRoutes).toContain(Route.ForgotPassword);
+    expect(authRoutes).toContain(Route.ResetPassword);
   });
 
   test("should be comparable", () => {
