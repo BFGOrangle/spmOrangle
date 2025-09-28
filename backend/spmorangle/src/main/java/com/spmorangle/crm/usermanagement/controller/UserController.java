@@ -70,4 +70,18 @@ public class UserController {
         List<String> userTypes = userManagementService.getUserTypes();
         return ResponseEntity.ok(userTypes);
     }
+
+    @GetMapping("/project/{projectId}/members")
+    public ResponseEntity<List<UserResponseDto>> getProjectMembers(@PathVariable Long projectId) {
+        log.info("Getting project members for project: {}", projectId);
+        List<UserResponseDto> members = userManagementService.getProjectMembers(projectId);
+        return ResponseEntity.ok(members);
+    }
+
+    @PostMapping("/batch")
+    public ResponseEntity<List<UserResponseDto>> getUsersByIds(@RequestBody List<Long> userIds) {
+        log.info("Getting users by IDs: {}", userIds);
+        List<UserResponseDto> users = userManagementService.getUsersByIds(userIds);
+        return ResponseEntity.ok(users);
+    }
 }

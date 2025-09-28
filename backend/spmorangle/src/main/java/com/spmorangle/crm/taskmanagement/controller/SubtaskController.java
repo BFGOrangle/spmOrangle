@@ -11,13 +11,16 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.service.UserContextService;
+import com.spmorangle.crm.taskmanagement.dto.CommentResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateSubtaskDto;
 import com.spmorangle.crm.taskmanagement.dto.SubtaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateSubtaskDto;
+import com.spmorangle.crm.taskmanagement.service.CommentService;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
 
 import jakarta.validation.Valid;
@@ -30,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class SubtaskController {
 
+    private final CommentService commentService;
     private final SubtaskService subtaskService;
     private final UserContextService userContextService;
 
@@ -115,5 +119,39 @@ public class SubtaskController {
         log.info("Deleting subtask: {} by user: {}", subtaskId, user.getId());
         subtaskService.deleteSubtask(subtaskId, user.getId());
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    /**
+     * Get comments for a subtask with filtering support
+     * @param subtaskId
+     * @param authorId
+     * @param resolved
+     * @param filter
+     * @return List<CommentResponseDto>
+     */
+    @GetMapping("/{subtaskId}/comments")
+    public ResponseEntity<List<CommentResponseDto>> getSubtaskComments(
+            @PathVariable Long subtaskId,
+            @RequestParam(required = false) Long authorId,
+            @RequestParam(required = false) Boolean resolved,
+            @RequestParam(defaultValue = "ALL") String filter) {
+
+        User user = userContextService.getRequestingUser();
+
+        // Future: Check read permissions
+        // if (!commentService.canRead(user.getId(), subtaskId)) {
+        //     throw new AccessDeniedException("No permission to read comments");
+        // }
+
+        log.info("Getting comments for subtask: {} with filter: {}", subtaskId, filter);
+
+        List<CommentResponseDto> comments;
+        if ("ALL".equals(filter)) {
+            comments = commentService.getSubtaskComments(subtaskId, user.getId());
+        } else {
+            comments = commentService.getSubtaskCommentsWithFilters(subtaskId, authorId, resolved);
+        }
+
+        return ResponseEntity.ok(comments);
     }
 }

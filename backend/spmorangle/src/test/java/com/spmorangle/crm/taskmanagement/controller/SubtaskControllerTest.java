@@ -8,6 +8,7 @@ import com.spmorangle.crm.taskmanagement.dto.SubtaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateSubtaskDto;
 import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
+import com.spmorangle.crm.taskmanagement.service.CommentService;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +51,9 @@ public class SubtaskControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @MockBean
+    private CommentService commentService;
 
     @MockBean
     private SubtaskService subtaskService;

@@ -22,6 +22,7 @@ import {
 import { TaskSummary, TaskPriority, TaskStatus } from "@/lib/mvp-data";
 import { TaskResponse, SubtaskResponse } from "@/services/project-service";
 import { SubtaskList } from "./subtask-list";
+import { CommentSection } from "./comment-section";
 
 // Status and priority styles (moved from tasks page)
 const statusStyles: Record<TaskStatus, string> = {
@@ -225,15 +226,15 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
                 View Details
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle>{taskProps.title}</DialogTitle>
                 <DialogDescription>
                   {taskProps.key} • {taskProps.project}
                 </DialogDescription>
               </DialogHeader>
-              
-              <div className="space-y-4">
+
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2">
                 {taskProps.description && (
                   <div>
                     <h4 className="text-sm font-medium mb-2">Description</h4>
@@ -272,6 +273,18 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
                       subtasks={subtasks}
                       onSubtaskCreated={handleSubtaskCreated}
                       onSubtaskUpdated={handleSubtaskUpdated}
+                    />
+                  </div>
+                )}
+
+                {/* Comments Section */}
+                {!taskProps.isTaskSummary && showDetails && (
+                  <div className="border-t pt-4">
+                    <CommentSection
+                      taskId={Number(taskProps.id)}
+                      projectId={taskProps.projectId || 0}
+                      title="Discussion"
+                      compact
                     />
                   </div>
                 )}
