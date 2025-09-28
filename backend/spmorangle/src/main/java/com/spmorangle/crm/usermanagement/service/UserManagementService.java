@@ -16,4 +16,6 @@ public interface UserManagementService {
     void toggleUserStatus(Long staffId, boolean isActive);
     boolean isUserExistsByEmail(String email);
     List<String> getUserTypes();
+    List<UserResponseDto> getProjectMembers(Long projectId);
+    List<UserResponseDto> getUsersByIds(List<Long> userIds);
 }

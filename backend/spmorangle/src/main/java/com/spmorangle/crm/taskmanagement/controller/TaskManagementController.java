@@ -1,12 +1,16 @@
 package com.spmorangle.crm.taskmanagement.controller;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.taskmanagement.dto.*;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
+import com.spmorangle.crm.taskmanagement.service.CommentService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
+import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
+import com.spmorangle.crm.usermanagement.service.UserManagementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,8 +21,10 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
@@ -28,8 +34,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class TaskManagementController {
 
     private final CollaboratorService collaboratorService;
+    private final CommentService commentService;
     private final TaskService taskService;
     private final UserContextService userContextService;
+    private final UserManagementService userManagementService;
 
 
     /**
@@ -121,5 +129,143 @@ public class TaskManagementController {
         log.info("Deleting task: {} by user: {}", taskId, user.getId());
         taskService.deleteTask(taskId, user.getId());
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    /**
+     * Create a comment on a task or subtask
+     * @param createCommentDto
+     * @return CreateCommentResponseDto
+     */
+    @PostMapping("/comments")
+    public ResponseEntity<CreateCommentResponseDto> createComment(
+            @Valid @RequestBody CreateCommentDto createCommentDto) {
+        User user = userContextService.getRequestingUser();
+        log.info("Creating comment by user: {}", user.getId());
+        CreateCommentResponseDto response = commentService.createComment(createCommentDto, user.getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Update a comment
+     * @param updateCommentDto
+     * @return CommentResponseDto
+     */
+    @PutMapping("/comments")
+    public ResponseEntity<CommentResponseDto> updateComment(
+            @Valid @RequestBody UpdateCommentDto updateCommentDto) {
+        User user = userContextService.getRequestingUser();
+        log.info("Updating comment {} by user: {}", updateCommentDto.getCommentId(), user.getId());
+        CommentResponseDto response = commentService.updateComment(updateCommentDto, user.getId());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Delete a comment
+     * @param commentId
+     */
+    @DeleteMapping("/comments/{commentId}")
+    public ResponseEntity<Void> deleteComment(
+            @PathVariable Long commentId) {
+        User user = userContextService.getRequestingUser();
+        log.info("Deleting comment {} by user: {}", commentId, user.getId());
+        commentService.deleteComment(commentId, user.getId());
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    /**
+     * Get comments for a task with filtering support
+     * @param taskId
+     * @param authorId
+     * @param resolved
+     * @param filter
+     * @return List<CommentResponseDto>
+     */
+    @GetMapping("/{taskId}/comments")
+    public ResponseEntity<List<CommentResponseDto>> getTaskComments(
+            @PathVariable Long taskId,
+            @RequestParam(required = false) Long authorId,
+            @RequestParam(required = false) Boolean resolved,
+            @RequestParam(defaultValue = "ALL") String filter) {
+
+        User user = userContextService.getRequestingUser();
+
+        // Future: Check read permissions
+        // if (!commentService.canRead(user.getId(), taskId)) {
+        //     throw new AccessDeniedException("No permission to read comments");
+        // }
+
+        log.info("Getting comments for task: {} with filter: {}", taskId, filter);
+
+        List<CommentResponseDto> comments;
+        if ("ALL".equals(filter)) {
+            comments = commentService.getTaskComments(taskId, user.getId());
+        } else {
+            comments = commentService.getTaskCommentsWithFilters(taskId, authorId, resolved);
+        }
+
+        return ResponseEntity.ok(comments);
+    }
+
+    /**
+     * Get replies for a comment
+     * @param commentId
+     * @return List<CommentResponseDto>
+     */
+    @GetMapping("/comments/{commentId}/replies")
+    public ResponseEntity<List<CommentResponseDto>> getCommentReplies(
+            @PathVariable Long commentId) {
+        User user = userContextService.getRequestingUser();
+        log.info("Getting replies for comment: {}", commentId);
+        List<CommentResponseDto> replies = commentService.getCommentReplies(commentId, user.getId());
+        return ResponseEntity.ok(replies);
+    }
+
+    /**
+     * Get comment by ID
+     * @param commentId
+     * @return CommentResponseDto
+     */
+    @GetMapping("/comments/{commentId}")
+    public ResponseEntity<CommentResponseDto> getCommentById(
+            @PathVariable Long commentId) {
+        User user = userContextService.getRequestingUser();
+        log.info("Getting comment by ID: {}", commentId);
+        CommentResponseDto comment = commentService.getCommentById(commentId, user.getId());
+        return ResponseEntity.ok(comment);
+    }
+
+    /**
+     * Get user mentions
+     * @return List<CommentResponseDto>
+     */
+    @GetMapping("/comments/mentions")
+    public ResponseEntity<List<CommentResponseDto>> getUserMentions() {
+        User user = userContextService.getRequestingUser();
+        log.info("Getting mentions for user: {}", user.getId());
+        List<CommentResponseDto> mentions = commentService.getUserMentions(user.getId());
+        return ResponseEntity.ok(mentions);
+    }
+
+    /**
+     * Get list of comment authors for a task (for filtering UI)
+     * @param taskId
+     * @return List<UserResponseDto>
+     */
+    @GetMapping("/{taskId}/comments/authors")
+    public ResponseEntity<List<UserResponseDto>> getTaskCommentAuthors(@PathVariable Long taskId) {
+        log.info("Getting comment authors for task: {}", taskId);
+        List<Long> authorIds = commentService.getCommentAuthorsByTaskId(taskId);
+        List<UserResponseDto> authors = authorIds.stream()
+                .map(id -> {
+                    try {
+                        return userManagementService.getUserById(id);
+                    } catch (Exception e) {
+                        log.warn("Could not fetch user {}: {}", id, e.getMessage());
+                        return null;
+                    }
+                })
+                .filter(author -> author != null)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(authors);
     }
 }

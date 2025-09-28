@@ -12,9 +12,11 @@ import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
+import com.spmorangle.crm.taskmanagement.service.CommentService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAlreadyExistsException;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAssignmentNotFoundException;
+import com.spmorangle.crm.usermanagement.service.UserManagementService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -67,6 +69,12 @@ public class TaskManagementControllerTest {
 
     @MockBean
     private UserContextService userContextService;
+
+    @MockBean
+    private CommentService commentService;
+
+    @MockBean
+    private UserManagementService userManagementService;
 
     private AddCollaboratorRequestDto validAddRequest;
     private RemoveCollaboratorRequestDto validRemoveRequest;

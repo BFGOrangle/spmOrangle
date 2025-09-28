@@ -6,7 +6,9 @@ import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
+import com.spmorangle.crm.taskmanagement.service.CommentService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
+import com.spmorangle.crm.usermanagement.service.UserManagementService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -35,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({TaskManagementController.class})
+@WebMvcTest({TaskManagementController.class, GlobalExceptionHandler.class})
 @DisplayName("TaskManagementController Security Tests")
 class TaskManagementControllerSecurityTest {
 
@@ -50,6 +52,12 @@ class TaskManagementControllerSecurityTest {
 
     @MockBean
     private UserContextService userContextService;
+
+    @MockBean
+    private CommentService commentService;
+
+    @MockBean
+    private UserManagementService userManagementService;
 
     private User testUser;
     private User anotherUser;

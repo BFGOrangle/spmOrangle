@@ -150,4 +150,25 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .toList();
     }
 
+    @Override
+    public List<UserResponseDto> getProjectMembers(Long projectId) {
+        log.info("Getting project members for project: {}", projectId);
+        List<User> users = userRepository.findProjectMembers(projectId);
+        return users.stream()
+                .map(UserConverter::convert)
+                .toList();
+    }
+
+    @Override
+    public List<UserResponseDto> getUsersByIds(List<Long> userIds) {
+        log.info("Getting users by IDs: {}", userIds);
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<User> users = userRepository.findByIdIn(userIds);
+        return users.stream()
+                .map(UserConverter::convert)
+                .toList();
+    }
+
 }
