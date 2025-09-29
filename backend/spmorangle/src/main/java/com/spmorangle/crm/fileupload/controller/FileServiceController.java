@@ -8,6 +8,7 @@ import com.spmorangle.crm.fileupload.service.StorageClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import com.spmorangle.common.model.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -44,11 +45,9 @@ public class FileServiceController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "bucket", required = false) String bucket) {
 
-//        User user = userContextService.getRequestingUser();
-//        log.info("Uploading file for user {}: taskId={}, projectId={}, filename={}",
-//                 user.getId(), taskId, projectId, file.getOriginalFilename());
-            log.info("Uploading file for taskId={}, projectId={}, filename={}",
-                taskId, projectId, file.getOriginalFilename());
+        User user = userContextService.getRequestingUser();
+        log.info("Uploading file for user {}: taskId={}, projectId={}, filename={}",
+                user.getId(), taskId, projectId, file.getOriginalFilename());
 
         try {
             // Validate file
@@ -75,12 +74,11 @@ public class FileServiceController {
             log.info("File uploaded successfully to storage: {}", uploadedUrl);
 
             // Create file record in database - using hardcoded user ID for testing
-            Long testUserId = 1L; // TODO: Replace with actual user ID when authentication is enabled
             CreateFileDTO savedFile = fileService.createFile(
                 taskId,
                 projectId,
                 uploadedUrl,
-                testUserId
+                user.getId()
             );
 
             // Create response
@@ -113,6 +111,8 @@ public class FileServiceController {
     public ResponseEntity<List<com.spmorangle.crm.fileupload.model.File>> getFiles(
             @PathVariable("taskId") Long taskId,
             @PathVariable("projectId") Long projectId) {
+
+        User user = userContextService.getRequestingUser();
 
         log.info("Fetching files for taskId={}, projectId={}", taskId, projectId);
 
