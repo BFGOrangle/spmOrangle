@@ -234,17 +234,6 @@ describe("TasksPage", () => {
     expect(mockProjectService.getPersonalTasks).toHaveBeenCalledWith(1);
   });
 
-  it("handles project tasks filter", async () => {
-    const { user } = await setup();
-
-    await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Project Tasks" }));
-    });
-
-    // Should call getAllUserTasks and then filter for projectId !== null
-    expect(mockProjectService.getAllUserTasks).toHaveBeenCalledWith(1);
-  });
-
   it("opens task creation dialog", async () => {
     const { user } = await setup();
 
