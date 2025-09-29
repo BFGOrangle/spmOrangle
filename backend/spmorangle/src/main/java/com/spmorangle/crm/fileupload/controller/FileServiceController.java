@@ -87,7 +87,7 @@ public class FileServiceController {
                 .taskId(taskId)
                 .projectId(projectId)
                 .fileUrl(uploadedUrl)
-                .createdBy(testUserId)
+                .createdBy(user.getId())
                 .build();
 
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
