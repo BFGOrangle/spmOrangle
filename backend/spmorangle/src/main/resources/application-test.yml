@@ -33,8 +33,8 @@ springdoc:
 
 supabase:
   storage:
-    url: https://qkoobjhbvvysowdogmak.storage.supabase.co/storage/v1/s3
-    s3_aws_access_key_id: ${AWS_S3_ACCESS_KEY_ID}
-    s3_aws_secret_access_key: ${AWS_S3_SECRET_ACCESS_KEY}
-    region: ap-southeast-1
-    bucket: syncup_bucket
+    url: https://dummy.supabase.co/storage/v1/s3
+    s3_aws_access_key_id: dummy-access-key
+    s3_aws_secret_access_key: dummy-secret-key
+    region: us-east-1
+    bucket: dummy-bucket

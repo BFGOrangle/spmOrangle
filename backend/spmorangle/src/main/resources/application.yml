@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: spm-orangle-backend
+
+# Default Supabase configuration (can be overridden by profiles)
+supabase:
+  storage:
+    url: ${SUPABASE_STORAGE_URL:https://dummy.supabase.co/storage/v1/s3}
+    s3_aws_access_key_id: ${SUPABASE_S3_ACCESS_KEY_ID:dummy-access-key}
+    s3_aws_secret_access_key: ${SUPABASE_S3_SECRET_ACCESS_KEY:dummy-secret-key}
+    region: ${SUPABASE_STORAGE_REGION:us-east-1}
+    bucket: ${SUPABASE_STORAGE_BUCKET:default-bucket}

@@ -1,5 +1,6 @@
 package com.spmorangle.config;
 
+import com.spmorangle.crm.fileupload.service.StorageClientService;
 import org.mockito.Mockito;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -29,5 +30,11 @@ public class TestConfig {
     @Primary
     public JwtDecoder mockJwtDecoder() {
         return Mockito.mock(JwtDecoder.class);
+    }
+
+    @Bean
+    @Primary
+    public StorageClientService mockStorageClientService() {
+        return Mockito.mock(StorageClientService.class);
     }
 }

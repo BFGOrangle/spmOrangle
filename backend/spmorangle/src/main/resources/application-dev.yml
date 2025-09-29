@@ -43,3 +43,11 @@ app:
     max-length: ${COMMENTS_MAX_LENGTH:2000}
     allow-mentions: ${COMMENTS_ALLOW_MENTIONS:true}
     require-moderation: ${COMMENTS_REQUIRE_MODERATION:false}
+
+supabase:
+  storage:
+    url: https://qkoobjhbvvysowdogmak.storage.supabase.co/storage/v1/s3
+    s3_aws_access_key_id: ${AWS_S3_ACCESS_KEY_ID}
+    s3_aws_secret_access_key: ${AWS_S3_SECRET_ACCESS_KEY}
+    region: ap-southeast-1
+    bucket: syncup_bucket
