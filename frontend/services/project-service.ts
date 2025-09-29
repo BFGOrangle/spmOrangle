@@ -74,6 +74,23 @@ export interface UpdateSubtaskRequest {
   taskType?: 'BUG' | 'FEATURE' | 'CHORE' | 'RESEARCH';
 }
 
+export interface CreateFileUpload{
+  taskId: number;
+  projectId: number;
+  file: File;
+}
+
+export interface FileUploadResponse {
+  id: number;
+  taskId: number;
+  projectId: number;
+  fileUrl: string;
+  createdAt: string;
+  updatedAt?: string;
+  createdBy: number;
+  updatedBy?: number;
+}
+
 export class ProjectService {
 
     private authenticatedClient: AuthenticatedApiClient;
@@ -165,6 +182,18 @@ export class ProjectService {
    */
   async deleteTask(taskId: number, currentUserId: number): Promise<void> {
     await this.authenticatedClient.delete(`/api/tasks/${taskId}`);
+  }
+
+  /**
+   * Upload a file
+   */
+  async uploadFile(taskId: number, projectId: number, file: File, currentUserId: number): Promise<FileUploadResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('taskId', taskId.toString());
+    formData.append('projectId', projectId.toString());
+
+    return this.authenticatedClient.postMultipart('/api/files/upload', formData);
   }
 }
 

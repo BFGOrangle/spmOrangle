@@ -227,4 +227,11 @@ export class AuthenticatedApiClient {
       body: JSON.stringify(data),
     });
   }
+
+  async postMultipart<T>(url: string, formData: FormData): Promise<T> {
+    return this.request<T>(url, {
+      method: "POST",
+      body: formData,
+    });
+  }
 }

@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CollaboratorService Tests")
-class CollaboratorServiceTest {
+class FileUploadImplTest {
 
     @Mock
     private TaskAssigneeRepository taskAssigneeRepository;
