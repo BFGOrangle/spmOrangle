@@ -21,6 +21,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { projectService, CreateTaskRequest, TaskResponse } from "@/services/project-service";
+import { fileService } from "@/services/file-service";
+
+// Helper for file upload
+async function uploadFiles({ files, taskId, projectId }: { files: FileList | File[], taskId: number, projectId: number }) {
+  console.log('uploadFiles called with:', { taskId, projectId, filesCount: files.length });
+
+  const uploads = Array.from(files).map(async (file, index) => {
+    console.log(`Uploading file ${index + 1}/${files.length}:`, file.name);
+    try {
+      // Use correct argument object for uploadFile
+      const result = await fileService.uploadFile({ file, taskId, projectId });
+      console.log(`File ${file.name} uploaded successfully:`, result);
+      return result;
+    } catch (error) {
+      console.error(`Error uploading file ${file.name}:`, error);
+      throw error;
+    }
+  });
+
+  return Promise.all(uploads);
+}
 
 interface TaskCreationDialogProps {
   open: boolean;
@@ -61,6 +82,8 @@ export function TaskCreationDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+
   const isPersonalTask = !projectId;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,21 +105,51 @@ export function TaskCreationDialog({
 
       // For now, we'll use a dummy user ID. In a real app, this would come from auth context
       const userId = 1;
+      const updatedProjectId = isPersonalTask ? 0 : projectId!;
 
       const taskData: CreateTaskRequest = {
         ...formData,
         ownerId: userId,
         title: formData.title!,
         taskType: formData.taskType!,
-        projectId: isPersonalTask ? undefined : projectId,
+        projectId: updatedProjectId,
       };
 
+      console.log('Creating task with data:', taskData);
       const createdTask = await projectService.createTask(taskData);
-      
+      console.log('Task created successfully:', createdTask);
+
+      // Debug file upload logic
+      console.log('Checking file upload conditions:');
+      console.log('selectedFiles:', selectedFiles);
+      console.log('selectedFiles?.length:', selectedFiles?.length);
+      console.log('createdTask.id:', createdTask.id);
+      console.log('createdTask.projectId:', createdTask.projectId);
+      console.log('projectId:', updatedProjectId);
+
+      // Upload files if any
+      if (selectedFiles && createdTask.id) {
+        console.log('Starting file upload...');
+        try {
+          await uploadFiles({
+            files: selectedFiles,
+            taskId: createdTask.id,
+            projectId: createdTask.projectId ?? updatedProjectId,
+          });
+          console.log('File upload completed successfully');
+        } catch (uploadError) {
+          console.error('File upload failed:', uploadError);
+          // Don't fail the entire task creation if file upload fails
+          setError('Task created successfully, but file upload failed. Please try uploading files again.');
+        }
+      } else {
+        console.log('Skipping file upload - conditions not met');
+      }
+
       onTaskCreated?.(createdTask);
       onOpenChange(false);
-      
-      // Reset form
+
+      // Reset form and file input
       setFormData({
         title: '',
         description: '',
@@ -106,6 +159,8 @@ export function TaskCreationDialog({
         assignedUserIds: [],
         projectId,
       });
+      setSelectedFiles(null);
+      setError(null);
     } catch (err) {
       console.error('Error creating task:', err);
       setError('Failed to create task. Please try again.');
@@ -208,6 +263,27 @@ export function TaskCreationDialog({
             <p className="text-xs text-muted-foreground">
               Separate multiple tags with commas
             </p>
+          </div>
+
+
+          <div className="space-y-2">
+            <Label htmlFor="attachments">Attachments</Label>
+            <Input
+              id="attachments"
+              type="file"
+              multiple
+              onChange={e => setSelectedFiles(e.target.files)}
+            />
+            <p className="text-xs text-muted-foreground">
+              You can select one or more files to upload as attachments.
+            </p>
+            {selectedFiles && selectedFiles.length > 0 && (
+              <ul className="text-xs mt-1">
+                {Array.from(selectedFiles).map((file, idx) => (
+                  <li key={idx}>{file.name}</li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {error && (
