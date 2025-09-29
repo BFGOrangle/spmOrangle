@@ -137,7 +137,7 @@ public class TaskServiceImpl implements TaskService {
         log.info("Task {} marked as deleted", taskId);
     }
 
-    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasWriteAccess) {
+    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess) {
         // Load subtasks for this task
         List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId());
         
@@ -150,7 +150,7 @@ public class TaskServiceImpl implements TaskService {
                 .description(task.getDescription())
                 .status(task.getStatus())
                 .tags(task.getTags())
-                .userHasWriteAccess(userHasWriteAccess)
+                .userHasEditAccess(userHasEditAccess)
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .createdBy(task.getCreatedBy())

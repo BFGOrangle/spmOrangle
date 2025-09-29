@@ -20,6 +20,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -226,6 +229,193 @@ class CollaboratorServiceTest {
             assertThat(deletedKey.getTaskId()).isEqualTo(500L);
             assertThat(deletedKey.getUserId()).isEqualTo(600L);
             assertThat(deletedKey.getAssignedId()).isEqualTo(700L);
+        }
+    }
+
+    @Nested
+    @DisplayName("Is User Task Collaborator Tests")
+    class IsUserTaskCollaboratorTests {
+
+        @Test
+        @DisplayName("Should return true when user is a collaborator for the task")
+        void isUserTaskCollaborator_UserIsCollaborator_ReturnsTrue() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 2L;
+            when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, userId))
+                    .thenReturn(true);
+
+            // When
+            boolean result = collaboratorService.isUserTaskCollaborator(taskId, userId);
+
+            // Then
+            assertThat(result).isTrue();
+            verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should return false when user is not a collaborator for the task")
+        void isUserTaskCollaborator_UserIsNotCollaborator_ReturnsFalse() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 2L;
+            when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, userId))
+                    .thenReturn(false);
+
+            // When
+            boolean result = collaboratorService.isUserTaskCollaborator(taskId, userId);
+
+            // Then
+            assertThat(result).isFalse();
+            verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should handle different task and user ID combinations")
+        void isUserTaskCollaborator_DifferentIds_HandlesCorrectly() {
+            // Given
+            Long taskId = 100L;
+            Long userId = 200L;
+            when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, userId))
+                    .thenReturn(true);
+
+            // When
+            boolean result = collaboratorService.isUserTaskCollaborator(taskId, userId);
+
+            // Then
+            assertThat(result).isTrue();
+            verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should handle null values gracefully")
+        void isUserTaskCollaborator_NullValues_DelegatesToRepository() {
+            // Given
+            Long taskId = null;
+            Long userId = null;
+            when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, userId))
+                    .thenReturn(false);
+
+            // When
+            boolean result = collaboratorService.isUserTaskCollaborator(taskId, userId);
+
+            // Then
+            assertThat(result).isFalse();
+            verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, userId);
+        }
+    }
+
+    @Nested
+    @DisplayName("Get Tasks For Which User Is Collaborator Tests")
+    class GetTasksForWhichUserIsCollaboratorTests {
+
+        @Test
+        @DisplayName("Should return list of task IDs when user is collaborator on multiple tasks")
+        void getTasksForWhichUserIsCollaborator_UserHasMultipleTasks_ReturnsTaskIds() {
+            // Given
+            Long userId = 1L;
+            List<Long> expectedTaskIds = Arrays.asList(10L, 20L, 30L);
+            when(taskAssigneeRepository.findTaskIdsUserIsAssigneeFor(userId))
+                    .thenReturn(expectedTaskIds);
+
+            // When
+            List<Long> result = collaboratorService.getTasksForWhichUserIsCollaborator(userId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).hasSize(3);
+            assertThat(result).containsExactlyElementsOf(expectedTaskIds);
+            verify(taskAssigneeRepository).findTaskIdsUserIsAssigneeFor(userId);
+        }
+
+        @Test
+        @DisplayName("Should return empty list when user is not collaborator on any tasks")
+        void getTasksForWhichUserIsCollaborator_UserHasNoTasks_ReturnsEmptyList() {
+            // Given
+            Long userId = 1L;
+            List<Long> emptyList = Collections.emptyList();
+            when(taskAssigneeRepository.findTaskIdsUserIsAssigneeFor(userId))
+                    .thenReturn(emptyList);
+
+            // When
+            List<Long> result = collaboratorService.getTasksForWhichUserIsCollaborator(userId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).isEmpty();
+            verify(taskAssigneeRepository).findTaskIdsUserIsAssigneeFor(userId);
+        }
+
+        @Test
+        @DisplayName("Should return single task ID when user is collaborator on one task")
+        void getTasksForWhichUserIsCollaborator_UserHasSingleTask_ReturnsSingleTaskId() {
+            // Given
+            Long userId = 2L;
+            List<Long> singleTaskList = Arrays.asList(42L);
+            when(taskAssigneeRepository.findTaskIdsUserIsAssigneeFor(userId))
+                    .thenReturn(singleTaskList);
+
+            // When
+            List<Long> result = collaboratorService.getTasksForWhichUserIsCollaborator(userId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).hasSize(1);
+            assertThat(result).contains(42L);
+            verify(taskAssigneeRepository).findTaskIdsUserIsAssigneeFor(userId);
+        }
+
+        @Test
+        @DisplayName("Should handle different user IDs correctly")
+        void getTasksForWhichUserIsCollaborator_DifferentUserId_HandlesCorrectly() {
+            // Given
+            Long userId = 999L;
+            List<Long> expectedTaskIds = Arrays.asList(100L, 200L);
+            when(taskAssigneeRepository.findTaskIdsUserIsAssigneeFor(userId))
+                    .thenReturn(expectedTaskIds);
+
+            // When
+            List<Long> result = collaboratorService.getTasksForWhichUserIsCollaborator(userId);
+
+            // Then
+            assertThat(result).hasSize(2);
+            assertThat(result).containsExactly(100L, 200L);
+            verify(taskAssigneeRepository).findTaskIdsUserIsAssigneeFor(userId);
+        }
+
+        @Test
+        @DisplayName("Should handle null user ID gracefully")
+        void getTasksForWhichUserIsCollaborator_NullUserId_DelegatesToRepository() {
+            // Given
+            Long userId = null;
+            List<Long> emptyList = Collections.emptyList();
+            when(taskAssigneeRepository.findTaskIdsUserIsAssigneeFor(userId))
+                    .thenReturn(emptyList);
+
+            // When
+            List<Long> result = collaboratorService.getTasksForWhichUserIsCollaborator(userId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).isEmpty();
+            verify(taskAssigneeRepository).findTaskIdsUserIsAssigneeFor(userId);
+        }
+
+        @Test
+        @DisplayName("Should preserve order of task IDs returned by repository")
+        void getTasksForWhichUserIsCollaborator_PreservesOrder_ReturnsInSameOrder() {
+            // Given
+            Long userId = 5L;
+            List<Long> orderedTaskIds = Arrays.asList(3L, 1L, 4L, 2L);
+            when(taskAssigneeRepository.findTaskIdsUserIsAssigneeFor(userId))
+                    .thenReturn(orderedTaskIds);
+
+            // When
+            List<Long> result = collaboratorService.getTasksForWhichUserIsCollaborator(userId);
+
+            // Then
+            assertThat(result).containsExactly(3L, 1L, 4L, 2L);
+            verify(taskAssigneeRepository).findTaskIdsUserIsAssigneeFor(userId);
         }
     }
 }
