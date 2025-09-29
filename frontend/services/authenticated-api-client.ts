@@ -77,10 +77,12 @@ export class AuthenticatedApiClient {
       const body = JSON.parse(options.body as string);
       config = await createAuthenticatedRequestConfig(method, body);
     } else {
+      const authModule = await import("@/lib/auth-utils");
+      const bearerToken = authModule.getBearerToken ? await authModule.getBearerToken() : undefined;
       config = {
         method,
         headers: {
-          Authorization: await import("@/lib/auth-utils").then(m => m.getBearerToken()),
+          ...(bearerToken && { Authorization: bearerToken }),
         },
       };
     }

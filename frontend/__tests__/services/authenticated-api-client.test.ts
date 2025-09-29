@@ -3,16 +3,18 @@ import {
   BaseApiError,
   BaseValidationError,
 } from "../../services/authenticated-api-client";
-import { createAuthenticatedRequestConfig } from "@/lib/auth-utils";
+import { createAuthenticatedRequestConfig, getBearerToken } from "@/lib/auth-utils";
 
 // Mock the auth-utils module
 jest.mock("@/lib/auth-utils", () => ({
   createAuthenticatedRequestConfig: jest.fn(),
+  getBearerToken: jest.fn(),
 }));
 
 const mockCreateAuthenticatedRequestConfig = createAuthenticatedRequestConfig as jest.MockedFunction<
   typeof createAuthenticatedRequestConfig
 >;
+const mockGetBearerToken = getBearerToken as jest.MockedFunction<typeof getBearerToken>;
 
 // Mock fetch globally
 const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
@@ -32,8 +34,10 @@ describe("AuthenticatedApiClient", () => {
   beforeEach(() => {
     client = new AuthenticatedApiClient();
     mockCreateAuthenticatedRequestConfig.mockClear();
+    mockGetBearerToken.mockClear();
     mockFetch.mockClear();
     mockCreateAuthenticatedRequestConfig.mockResolvedValue(mockAuthConfig);
+    mockGetBearerToken.mockResolvedValue("Bearer mock-token");
     
     // Mock console methods to reduce noise
     jest.spyOn(console, "error").mockImplementation(() => {});
@@ -57,10 +61,15 @@ describe("AuthenticatedApiClient", () => {
 
       const result = await client.get("/api/test");
 
-      expect(mockCreateAuthenticatedRequestConfig).toHaveBeenCalledWith("GET", undefined);
+      expect(mockGetBearerToken).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalledWith(
         "http://localhost:8080/api/test",
-        mockAuthConfig
+        expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({
+            Authorization: "Bearer mock-token",
+          }),
+        })
       );
       expect(result).toEqual(mockData);
     });
@@ -147,11 +156,6 @@ describe("AuthenticatedApiClient", () => {
 
   describe("DELETE requests", () => {
     it("makes successful DELETE request", async () => {
-      mockCreateAuthenticatedRequestConfig.mockResolvedValueOnce({
-        method: "DELETE",
-        headers: mockAuthConfig.headers,
-      });
-
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 204,
@@ -160,7 +164,16 @@ describe("AuthenticatedApiClient", () => {
 
       const result = await client.delete("/api/test/1");
 
-      expect(mockCreateAuthenticatedRequestConfig).toHaveBeenCalledWith("DELETE", undefined);
+      expect(mockGetBearerToken).toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://localhost:8080/api/test/1",
+        expect.objectContaining({
+          method: "DELETE",
+          headers: expect.objectContaining({
+            Authorization: "Bearer mock-token",
+          }),
+        })
+      );
       expect(result).toBeUndefined();
     });
   });
@@ -330,9 +343,13 @@ describe("AuthenticatedApiClient", () => {
       } as Response);
 
       // Access protected request method through any to test header merging
+      // Use a POST request with body to trigger createAuthenticatedRequestConfig path
       const protectedClient = client as any;
       await protectedClient.request("/test", {
+        method: "POST",
+        body: JSON.stringify({ test: "data" }),
         headers: {
+          "Content-Type": "application/json",
           "Custom-Header": "custom-value",
         },
       });
