@@ -5,9 +5,11 @@ import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAssignmen
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @Slf4j
 @ControllerAdvice
@@ -35,5 +37,23 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Void> handleIllegalArgumentException(IllegalArgumentException ex) {
         log.warn("Invalid argument provided: {}", ex.getMessage());
         return ResponseEntity.badRequest().build(); // 400 Bad Request
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Void> handleTypeMismatchException(MethodArgumentTypeMismatchException ex) {
+        log.warn("Type mismatch for parameter '{}': {}", ex.getName(), ex.getMessage());
+        return ResponseEntity.badRequest().build(); // 400 Bad Request
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Void> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
+        log.warn("Malformed JSON request body: {}", ex.getMessage());
+        return ResponseEntity.badRequest().build(); // 400 Bad Request
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Void> handleRuntimeException(RuntimeException ex) {
+        log.error("Runtime exception occurred: {}", ex.getMessage(), ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build(); // 500 Internal Server Error
     }
 }

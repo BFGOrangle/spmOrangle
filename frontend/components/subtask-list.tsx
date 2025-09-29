@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -21,8 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, CheckCircle2, Circle, Clock, AlertCircle } from "lucide-react";
+import { Plus, CheckCircle2, Circle, Clock, AlertCircle, Eye } from "lucide-react";
 import { SubtaskResponse, CreateSubtaskRequest, projectService } from "@/services/project-service";
+import { CommentSection } from "./comment-section";
 
 interface SubtaskListProps {
   taskId: number;
@@ -58,6 +59,8 @@ const statusLabels: Record<SubtaskStatus, string> = {
 
 export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onSubtaskUpdated }: SubtaskListProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [selectedSubtask, setSelectedSubtask] = useState<SubtaskResponse | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [newSubtask, setNewSubtask] = useState<Partial<CreateSubtaskRequest>>({
     taskId,
@@ -107,14 +110,19 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
     try {
       const currentUserId = 1;
       const updatedSubtask = await projectService.updateSubtask(
-        subtaskId, 
-        { status: newStatus as SubtaskStatus }, 
+        subtaskId,
+        { status: newStatus as SubtaskStatus },
         currentUserId
       );
       onSubtaskUpdated(updatedSubtask);
     } catch (error) {
       console.error('Error updating subtask:', error);
     }
+  };
+
+  const handleViewDetails = (subtask: SubtaskResponse) => {
+    setSelectedSubtask(subtask);
+    setShowDetailDialog(true);
   };
 
   if (subtasks.length === 0 && !showCreateDialog) {
@@ -230,13 +238,83 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
                 )}
               </div>
 
-              <Badge variant="outline" className="text-xs">
-                {statusLabels[subtask.status as SubtaskStatus]}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleViewDetails(subtask)}
+                  className="h-8 w-8 p-0 hover:bg-accent"
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Badge variant="outline" className="text-xs">
+                  {statusLabels[subtask.status as SubtaskStatus]}
+                </Badge>
+              </div>
             </div>
           );
         })}
       </div>
+
+      {/* Subtask Detail Dialog */}
+      {selectedSubtask && (
+        <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <div className={statusColors[selectedSubtask.status as SubtaskStatus]}>
+                  {React.createElement(statusIcons[selectedSubtask.status as SubtaskStatus], { className: "h-5 w-5" })}
+                </div>
+                {selectedSubtask.title}
+              </DialogTitle>
+              <DialogDescription>
+                Subtask Details and Comments
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+              {/* Subtask Information */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <Badge variant="outline">
+                    {statusLabels[selectedSubtask.status as SubtaskStatus]}
+                  </Badge>
+                  <Badge variant="secondary">
+                    {selectedSubtask.taskType}
+                  </Badge>
+                </div>
+
+                {selectedSubtask.details && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Description</h4>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {selectedSubtask.details}
+                    </p>
+                  </div>
+                )}
+
+                <div className="text-xs text-muted-foreground">
+                  Created: {new Date(selectedSubtask.createdAt).toLocaleString()}
+                  {selectedSubtask.updatedAt && selectedSubtask.updatedAt !== selectedSubtask.createdAt && (
+                    <> • Updated: {new Date(selectedSubtask.updatedAt).toLocaleString()}</>
+                  )}
+                </div>
+              </div>
+
+              {/* Comments Section */}
+              <div className="border-t pt-4">
+                <CommentSection
+                  subtaskId={selectedSubtask.id}
+                  projectId={projectId}
+                  title="Subtask Comments"
+                  showTitle={true}
+                  compact={false}
+                />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

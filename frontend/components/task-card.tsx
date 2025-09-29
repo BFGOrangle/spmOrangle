@@ -22,6 +22,7 @@ import {
 import { TaskSummary, TaskPriority, TaskStatus } from "@/lib/mvp-data";
 import { TaskResponse, SubtaskResponse } from "@/services/project-service";
 import { SubtaskList } from "./subtask-list";
+import { CommentSection } from "./comment-section";
 import { fileService, FileResponse } from "@/services/file-service";
 import { FileList } from "./file-icon";
 
@@ -125,11 +126,36 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
       setIsLoadingFiles(true);
 
       try {
-        const fetchedFiles = await fileService.getFilesByTaskAndProject(
-          Number(taskProps.id),
-          updatedProjectId
-        );
-        setFiles(fetchedFiles);
+        // Test with a direct fetch first to see if it reaches the backend
+        const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+        const testUrl = `${baseUrl}/api/files/project/${updatedProjectId}/task/${taskProps.id}`;
+        console.log(`[TaskCard] Making direct fetch to: ${testUrl}`);
+
+        const directResponse = await fetch(testUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        console.log(`[TaskCard] Direct fetch response status: ${directResponse.status}`);
+
+        if (directResponse.ok) {
+          const directResult = await directResponse.json();
+          console.log(`[TaskCard] Direct fetch successful, got ${directResult.length} files`);
+          setFiles(directResult);
+        } else {
+          const errorText = await directResponse.text();
+          console.error(`[TaskCard] Direct fetch failed: ${directResponse.status} ${directResponse.statusText}`, errorText);
+
+          // Fallback to the authenticated service
+          console.log(`[TaskCard] Trying authenticated service as fallback`);
+          const fetchedFiles = await fileService.getFilesByTaskAndProject(
+            Number(taskProps.id),
+            updatedProjectId
+          );
+          setFiles(fetchedFiles);
+        }
       } catch (error) {
         console.error(`[TaskCard] Error fetching files for task ${taskProps.id}, project ${taskProps.projectId}:`, error);
         setFiles([]); // Set empty array on error
@@ -268,15 +294,15 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
                 View Details
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle>{taskProps.title}</DialogTitle>
                 <DialogDescription>
                   {taskProps.key} • {taskProps.project}
                 </DialogDescription>
               </DialogHeader>
-              
-              <div className="space-y-4">
+
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2">
                 {taskProps.description && (
                   <div>
                     <h4 className="text-sm font-medium mb-2">Description</h4>
@@ -315,6 +341,18 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
                       subtasks={subtasks}
                       onSubtaskCreated={handleSubtaskCreated}
                       onSubtaskUpdated={handleSubtaskUpdated}
+                    />
+                  </div>
+                )}
+
+                {/* Comments Section */}
+                {!taskProps.isTaskSummary && showDetails && (
+                  <div className="border-t pt-4">
+                    <CommentSection
+                      taskId={Number(taskProps.id)}
+                      projectId={taskProps.projectId || 0}
+                      title="Discussion"
+                      compact
                     />
                   </div>
                 )}

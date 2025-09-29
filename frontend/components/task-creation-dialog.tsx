@@ -160,7 +160,6 @@ export function TaskCreationDialog({
         projectId,
       });
       setSelectedFiles(null);
-      setError(null);
     } catch (err) {
       console.error('Error creating task:', err);
       setError('Failed to create task. Please try again.');
