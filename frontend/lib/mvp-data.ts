@@ -31,6 +31,7 @@ export type TaskSummary = {
   description: string;
   project: string;
   owner: string;
+  userHasEditAccess: boolean;
   collaborators: string[];
   status: TaskStatus;
   priority: TaskPriority;
