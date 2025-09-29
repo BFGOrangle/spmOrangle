@@ -257,6 +257,104 @@ describe("UserManagementService", () => {
     });
   });
 
+  describe("getProjectMembers", () => {
+    const mockProjectMembers = [
+      { id: 1, fullName: 'John Manager', email: 'john@test.com' },
+      { id: 2, fullName: 'Jane Staff', email: 'jane@test.com' },
+      { id: 3, fullName: 'Bob Developer', email: 'bob@test.com' },
+    ];
+
+    it("successfully fetches project members", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce(mockProjectMembers);
+
+      const result = await service.getProjectMembers(1);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/projects/1/members');
+      expect(result).toEqual(mockProjectMembers);
+    });
+
+    it("handles API errors gracefully", async () => {
+      const mockError = new Error('API Error');
+      mockAuthenticatedClient.get.mockRejectedValueOnce(mockError);
+
+      await expect(service.getProjectMembers(1))
+        .rejects.toThrow('API Error');
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/projects/1/members');
+    });
+
+    it("handles invalid project ID", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+
+      const result = await service.getProjectMembers(999);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/projects/999/members');
+      expect(result).toEqual([]);
+    });
+
+    it("handles empty project members response", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+
+      const result = await service.getProjectMembers(1);
+
+      expect(result).toEqual([]);
+    });
+
+    it("uses correct endpoint format", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+
+      await service.getProjectMembers(123);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/projects/123/members');
+    });
+
+    it("handles network errors", async () => {
+      const networkError = new Error('Network Error');
+      networkError.name = 'NetworkError';
+      mockAuthenticatedClient.get.mockRejectedValueOnce(networkError);
+
+      await expect(service.getProjectMembers(1))
+        .rejects.toThrow('Network Error');
+    });
+
+    it("handles timeout errors", async () => {
+      const timeoutError = new Error('Request timeout');
+      mockAuthenticatedClient.get.mockRejectedValueOnce(timeoutError);
+
+      await expect(service.getProjectMembers(1))
+        .rejects.toThrow('Request timeout');
+    });
+
+    it("handles malformed response data", async () => {
+      const malformedData = { invalid: 'structure' };
+      mockAuthenticatedClient.get.mockResolvedValueOnce(malformedData);
+
+      const result = await service.getProjectMembers(1);
+
+      expect(result).toEqual(malformedData);
+    });
+
+    it("handles null response", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce(null);
+
+      const result = await service.getProjectMembers(1);
+
+      expect(result).toBeNull();
+    });
+
+    it("handles response with partial member data", async () => {
+      const partialData = [
+        { id: 1, fullName: 'John Manager' }, // Missing email
+        { id: 2, email: 'jane@test.com' }, // Missing fullName
+      ];
+      mockAuthenticatedClient.get.mockResolvedValueOnce(partialData);
+
+      const result = await service.getProjectMembers(1);
+
+      expect(result).toEqual(partialData);
+    });
+  });
+
   describe("Singleton instance", () => {
     it("exports a singleton instance", () => {
       expect(userManagementService).toBeInstanceOf(UserManagementService);

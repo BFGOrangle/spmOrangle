@@ -28,4 +28,7 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
 
     @Query("SELECT u FROM User u WHERE u.id IN :userIds")
     List<User> findByIdIn(@Param("userIds") List<Long> userIds);
+
+    @Query(nativeQuery = true, value = "SELECT u.* FROM syncup.users u JOIN syncup.project_members pm ON u.id = pm.user_id WHERE pm.project_id = :projectId")
+    List<User> findUsersInProject(Long projectId);
 }

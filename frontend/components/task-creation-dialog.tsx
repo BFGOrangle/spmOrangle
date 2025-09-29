@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +21,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { projectService, CreateTaskRequest, TaskResponse } from "@/services/project-service";
+import { userManagementService } from "@/services/user-management-service";
 import { fileService } from "@/services/file-service";
+import { useCurrentUser } from "@/contexts/user-context";
+import { UserResponseDto } from "@/types/user";
+import { User, Crown } from "lucide-react";
 
 // Helper for file upload
 async function uploadFiles({ files, taskId, projectId }: { files: FileList | File[], taskId: number, projectId: number }) {
@@ -46,8 +50,9 @@ async function uploadFiles({ files, taskId, projectId }: { files: FileList | Fil
 interface TaskCreationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId?: number; // If provided, create a project task; otherwise, create a personal task
+  projectId?: number; // If provided, defaults to this project; if null/undefined, allows selection
   onTaskCreated?: (task: TaskResponse) => void;
+  availableProjects?: Array<{ id: number; name: string }>; // Projects manager can assign tasks to
 }
 
 const TASK_TYPES = [
@@ -68,8 +73,10 @@ export function TaskCreationDialog({
   open, 
   onOpenChange, 
   projectId, 
-  onTaskCreated 
+  onTaskCreated,
+  availableProjects = []
 }: TaskCreationDialogProps) {
+  const { currentUser } = useCurrentUser();
   const [formData, setFormData] = useState<Partial<CreateTaskRequest>>({
     title: '',
     description: '',
@@ -81,10 +88,43 @@ export function TaskCreationDialog({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  
+  // New state for task assignment and project selection
+  const [projectMembers, setProjectMembers] = useState<UserResponseDto[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [selectedAssignee, setSelectedAssignee] = useState<number | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(projectId || null);
 
-  const isPersonalTask = !projectId;
+  const isManager = currentUser?.role === 'MANAGER';
+  const isPersonalTask = selectedProjectId === null || selectedProjectId === 0;
+  const canAssignToOthers = isManager && !isPersonalTask; // Only managers can assign project tasks to others
+  const canSelectProject = isManager && !projectId; // Only managers can select project when not called from specific project
+
+  // Get the current user's ID consistently
+  const currentUserId = currentUser?.backendStaffId || parseInt(currentUser?.id || '1');
+
+  // Load project members when dialog opens and projectId is available
+  useEffect(() => {
+    if (open && selectedProjectId && canAssignToOthers) {
+      loadProjectMembers();
+    }
+  }, [open, selectedProjectId, canAssignToOthers]);
+
+  const loadProjectMembers = async () => {
+    if (!selectedProjectId) return;
+    
+    try {
+      setLoadingMembers(true);
+      const members = await userManagementService.getProjectMembers(selectedProjectId);
+      setProjectMembers(members);
+    } catch (err) {
+      console.error('Error loading project members:', err);
+      setError('Failed to load project members. You can still create the task without assignment.');
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,29 +143,32 @@ export function TaskCreationDialog({
       setLoading(true);
       setError(null);
 
-      // For now, we'll use a dummy user ID. In a real app, this would come from auth context
-      const userId = 1;
-      const updatedProjectId = isPersonalTask ? 0 : projectId!;
+      // Determine the owner ID and which endpoint to use
+      const assigneeId = selectedAssignee || currentUserId;
+      const shouldUseManagerEndpoint = canAssignToOthers && selectedAssignee && selectedAssignee !== currentUserId;
 
       const taskData: CreateTaskRequest = {
         ...formData,
-        ownerId: userId,
+        ownerId: assigneeId,
         title: formData.title!,
         taskType: formData.taskType!,
-        projectId: updatedProjectId,
+        projectId: isPersonalTask ? undefined : selectedProjectId!,
       };
 
       console.log('Creating task with data:', taskData);
-      const createdTask = await projectService.createTask(taskData);
-      console.log('Task created successfully:', createdTask);
+      console.log('Using manager endpoint:', shouldUseManagerEndpoint);
 
-      // Debug file upload logic
-      console.log('Checking file upload conditions:');
-      console.log('selectedFiles:', selectedFiles);
-      console.log('selectedFiles?.length:', selectedFiles?.length);
-      console.log('createdTask.id:', createdTask.id);
-      console.log('createdTask.projectId:', createdTask.projectId);
-      console.log('projectId:', updatedProjectId);
+      let createdTask: TaskResponse;
+      
+      if (shouldUseManagerEndpoint) {
+        // Use the manager endpoint that allows specifying owner
+        createdTask = await projectService.createTaskWithSpecifiedOwner(taskData);
+      } else {
+        // Use the regular endpoint where the current user becomes the owner
+        createdTask = await projectService.createTask(taskData);
+      }
+      
+      console.log('Task created successfully:', createdTask);
 
       // Upload files if any
       if (selectedFiles && createdTask.id) {
@@ -134,16 +177,13 @@ export function TaskCreationDialog({
           await uploadFiles({
             files: selectedFiles,
             taskId: createdTask.id,
-            projectId: createdTask.projectId ?? updatedProjectId,
+            projectId: createdTask.projectId ?? (isPersonalTask ? 0 : selectedProjectId!),
           });
           console.log('File upload completed successfully');
         } catch (uploadError) {
           console.error('File upload failed:', uploadError);
-          // Don't fail the entire task creation if file upload fails
           setError('Task created successfully, but file upload failed. Please try uploading files again.');
         }
-      } else {
-        console.log('Skipping file upload - conditions not met');
       }
 
       onTaskCreated?.(createdTask);
@@ -160,6 +200,8 @@ export function TaskCreationDialog({
         projectId,
       });
       setSelectedFiles(null);
+      setSelectedAssignee(null);
+      setSelectedProjectId(projectId || null);
       setError(null);
     } catch (err) {
       console.error('Error creating task:', err);
@@ -179,13 +221,33 @@ export function TaskCreationDialog({
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle>
-            Create New {isPersonalTask ? 'Personal' : 'Project'} Task
+            Create New Task
           </DialogTitle>
           <DialogDescription>
-            {isPersonalTask 
-              ? "Create a personal task that's not associated with any project."
-              : "Create a new task for this project."
-            }
+            {canSelectProject ? (
+              <>
+                As a manager, you can create a task for any project or create a personal task.
+                {canAssignToOthers && (
+                  <span className="block mt-1 text-sm text-blue-600">
+                    <Crown className="inline h-3 w-3 mr-1" />
+                    You can also assign project tasks to team members.
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                {isPersonalTask 
+                  ? "Create a personal task that's not associated with any project."
+                  : "Create a new task for this project."
+                }
+                {canAssignToOthers && (
+                  <span className="block mt-1 text-sm text-blue-600">
+                    <Crown className="inline h-3 w-3 mr-1" />
+                    As a manager, you can assign this task to team members.
+                  </span>
+                )}
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
         
@@ -201,6 +263,48 @@ export function TaskCreationDialog({
             />
           </div>
 
+          {/* Project Selection - Only show for managers when not called from specific project */}
+          {canSelectProject && (
+            <div className="space-y-2">
+              <Label htmlFor="project">Project</Label>
+              <Select
+                value={selectedProjectId?.toString() || '0'}
+                onValueChange={(value) => {
+                  const projectId = value === "0" ? null : parseInt(value);
+                  setSelectedProjectId(projectId);
+                  setSelectedAssignee(null); // Reset assignee when project changes
+                  setProjectMembers([]); // Clear project members
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select project or create personal task" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span>Personal Task (No Project)</span>
+                    </div>
+                  </SelectItem>
+                  {availableProjects.map((project) => (
+                    <SelectItem key={project.id} value={project.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <span>📁</span>
+                        <span>{project.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {isPersonalTask 
+                  ? "This will be a personal task assigned to you only."
+                  : "This task will be created for the selected project."
+                }
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Textarea
@@ -211,6 +315,78 @@ export function TaskCreationDialog({
               rows={3}
             />
           </div>
+
+          {/* Task Assignment Section */}
+          {isPersonalTask ? (
+            <div className="space-y-2">
+              <Label>Task Owner</Label>
+              <div className="p-3 bg-muted rounded-md">
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="h-4 w-4" />
+                  <span>This personal task will be assigned to you: <strong>{currentUser?.fullName || currentUser?.email}</strong></span>
+                </div>
+              </div>
+            </div>
+          ) : canAssignToOthers ? (
+            <div className="space-y-2">
+              <Label htmlFor="assignee">Assign to *</Label>
+              <Select
+                value={selectedAssignee?.toString() || ''}
+                onValueChange={(value) => setSelectedAssignee(value ? parseInt(value) : null)}
+                disabled={loadingMembers}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingMembers ? "Loading team members..." : "Select team member"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Option to assign to self */}
+                                    {/* Option to assign to self */}
+                  <SelectItem value={currentUserId.toString()}>
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span>Myself ({currentUser?.fullName || currentUser?.email})</span>
+                    </div>
+                  </SelectItem>
+                  
+                  {/* Project team members */}
+                  {projectMembers.map((member) => {
+                    const isCurrentUser = member.id === currentUserId;
+                    if (isCurrentUser) return null; // Don't duplicate the current user
+                    
+                    return (
+                      <SelectItem key={member.id} value={member.id.toString()}>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          <span>{member.fullName}</span>
+                          <span className="text-xs">{member.email}</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {loadingMembers && (
+                <p className="text-xs text-muted-foreground">
+                  Loading project team members...
+                </p>
+              )}
+              {!loadingMembers && projectMembers.length === 0 && selectedProjectId && (
+                <p className="text-xs text-muted-foreground">
+                  No other team members found for this project. Task will be assigned to you.
+                </p>
+              )}
+            </div>
+          ) : !isPersonalTask ? (
+            <div className="space-y-2">
+              <Label>Task Owner</Label>
+              <div className="p-3 bg-muted rounded-md">
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="h-4 w-4" />
+                  <span>This project task will be assigned to you: <strong>{currentUser?.fullName || currentUser?.email}</strong></span>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -264,7 +440,6 @@ export function TaskCreationDialog({
               Separate multiple tags with commas
             </p>
           </div>
-
 
           <div className="space-y-2">
             <Label htmlFor="attachments">Attachments</Label>

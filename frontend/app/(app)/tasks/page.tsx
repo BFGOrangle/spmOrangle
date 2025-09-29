@@ -25,7 +25,6 @@ import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import {
   type TaskPriority,
   type TaskStatus,
-  type TaskSummary,
 } from "@/lib/mvp-data";
 import {
   CalendarDays,
@@ -38,6 +37,7 @@ import {
 import { projectService, TaskResponse, ProjectResponse } from "@/services/project-service";
 import { TaskCreationDialog } from "@/components/task-creation-dialog";
 import { TaskCard } from "@/components/task-card";
+import { useCurrentUser } from "@/contexts/user-context";
 
 const STATUS_FILTERS: (TaskStatus | "All")[] = [
   "All",
@@ -51,7 +51,6 @@ const STATUS_FILTERS: (TaskStatus | "All")[] = [
 const TASK_TYPE_FILTERS = [
   "All Tasks",
   "Personal Tasks",
-  "Project Tasks",
 ];
 
 // Map backend status to frontend status
@@ -62,6 +61,17 @@ const mapBackendStatus = (status: string): TaskStatus => {
     case 'BLOCKED': return 'Blocked';
     case 'COMPLETED': return 'Done';
     default: return 'Todo';
+  }
+};
+
+// Map backend task type to priority (simplified)
+const mapTaskTypeToPriority = (taskType: string): TaskPriority => {
+  switch (taskType) {
+    case 'BUG': return 'High';
+    case 'FEATURE': return 'Medium';
+    case 'CHORE': return 'Low';
+    case 'RESEARCH': return 'Medium';
+    default: return 'Medium';
   }
 };
 
@@ -127,13 +137,6 @@ const formatRelativeDate = (value: string) => {
   });
 };
 
-const daysUntil = (value: string) => {
-  const now = new Date();
-  const target = new Date(value);
-  const diffMs = target.getTime() - now.getTime();
-  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-};
-
 const getInitials = (value: string) =>
   value
     .split(" ")
@@ -143,42 +146,35 @@ const getInitials = (value: string) =>
     .slice(0, 2)
     .toUpperCase();
 
-// Helper function to get task properties safely for both TaskSummary and TaskResponse
-const getTaskProperties = (task: TaskSummary | TaskResponse) => {
-  const isTaskSummary = 'key' in task && 'collaborators' in task;
-  
+// Helper function to get task display properties from TaskResponse
+const getTaskDisplayProps = (task: TaskResponse) => {
   return {
     id: task.id,
     title: task.title,
     description: task.description || '',
-    status: isTaskSummary ? task.status : mapBackendStatus((task as TaskResponse).status),
-    key: isTaskSummary ? (task as TaskSummary).key : `TASK-${task.id}`,
-    priority: isTaskSummary ? (task as TaskSummary).priority : 'Medium' as TaskPriority,
-    owner: isTaskSummary ? (task as TaskSummary).owner : `User ${(task as TaskResponse).ownerId}`,
-    collaborators: isTaskSummary ? (task as TaskSummary).collaborators : [],
-    dueDate: isTaskSummary ? (task as TaskSummary).dueDate : (task as TaskResponse).createdAt,
-    lastUpdated: isTaskSummary ? (task as TaskSummary).lastUpdated : ((task as TaskResponse).updatedAt || (task as TaskResponse).createdAt),
-    attachments: isTaskSummary ? (task as TaskSummary).attachments : 0,
-    project: isTaskSummary ? (task as TaskSummary).project : ((task as TaskResponse).projectId ? `Project ${(task as TaskResponse).projectId}` : 'Personal Task'),
-    subtasks: 'subtasks' in task && task.subtasks ? task.subtasks : [],
-    isTaskSummary
+    status: mapBackendStatus(task.status),
+    key: `TASK-${task.id}`,
+    priority: mapTaskTypeToPriority(task.taskType),
+    owner: `User ${task.ownerId}`,
+    collaborators: [] as string[], // TODO: Add collaborators when available in API
+    dueDate: task.createdAt, // Using createdAt as placeholder for due date
+    lastUpdated: task.updatedAt || task.createdAt,
+    attachments: 0, // TODO: Add attachment count when available
+    project: task.projectId ? `Project ${task.projectId}` : 'Personal Task',
+    subtasks: task.subtasks || [],
+    ownerId: task.ownerId,
+    projectId: task.projectId
   };
 };
 
-const getSubtaskSummary = (task: TaskSummary | TaskResponse) => {
-  const { subtasks } = getTaskProperties(task);
+const getSubtaskSummary = (task: TaskResponse) => {
+  const subtasks = task.subtasks || [];
   const total = subtasks.length;
   
   // Map backend status to frontend status for counting
   const done = subtasks.filter((subtask) => {
-    if ('details' in subtask) {
-      // TaskResponse subtask (SubtaskResponse)
-      const mappedStatus = mapBackendStatus(subtask.status as string);
-      return mappedStatus === "Done";
-    } else {
-      // TaskSummary subtask
-      return subtask.status === "Done";
-    }
+    const mappedStatus = mapBackendStatus(subtask.status);
+    return mappedStatus === "Done";
   }).length;
   
   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -187,12 +183,12 @@ const getSubtaskSummary = (task: TaskSummary | TaskResponse) => {
 };
 
 type TaskBoardCardProps = {
-  task: TaskSummary | TaskResponse;
+  task: TaskResponse;
 };
 
 const TaskBoardCard = ({ task }: TaskBoardCardProps) => {
   const { total, done, progress } = getSubtaskSummary(task);
-  const taskProps = getTaskProperties(task);
+  const taskProps = getTaskDisplayProps(task);
   const collaboratorOverflow = Math.max(taskProps.collaborators.length - 2, 0);
 
   return (
@@ -225,11 +221,11 @@ const TaskBoardCard = ({ task }: TaskBoardCardProps) => {
         <span className="text-xs font-medium truncate">{taskProps.owner}</span>
       </div>
 
-      {taskProps.collaborators.length > 0 && (
+        {taskProps.collaborators.length > 0 && (
         <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
           <UsersIcon className="h-3 w-3" aria-hidden="true" />
           <div className="flex items-center -space-x-1">
-            {taskProps.collaborators.slice(0, 2).map((name) => (
+            {taskProps.collaborators.slice(0, 2).map((name: string) => (
               <span
                 key={name}
                 className="flex h-5 w-5 items-center justify-center rounded-full border border-background bg-secondary text-[0.6rem] font-semibold text-secondary-foreground shadow-sm"
@@ -244,9 +240,7 @@ const TaskBoardCard = ({ task }: TaskBoardCardProps) => {
             ) : null}
           </div>
         </div>
-      )}
-
-      {total > 0 && (
+      )}      {total > 0 && (
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">
@@ -275,12 +269,12 @@ const TaskBoardCard = ({ task }: TaskBoardCardProps) => {
 };
 
 type TaskTableRowProps = {
-  task: TaskSummary | TaskResponse;
+  task: TaskResponse;
 };
 
 const TaskTableRow = ({ task }: TaskTableRowProps) => {
   const { total, done, progress } = getSubtaskSummary(task);
-  const taskProps = getTaskProperties(task);
+  const taskProps = getTaskDisplayProps(task);
   const collaboratorOverflow = Math.max(taskProps.collaborators.length - 3, 0);
 
   return (
@@ -317,7 +311,7 @@ const TaskTableRow = ({ task }: TaskTableRowProps) => {
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center -space-x-2">
-          {taskProps.collaborators.slice(0, 3).map((name) => (
+          {taskProps.collaborators.slice(0, 3).map((name: string) => (
             <span
               key={name}
               className="flex h-8 w-8 items-center justify-center rounded-full border border-background bg-secondary text-[0.65rem] font-semibold text-secondary-foreground shadow-sm"
@@ -379,6 +373,7 @@ const TaskTableRow = ({ task }: TaskTableRowProps) => {
 };
 
 export default function TasksPage() {
+  const { currentUser, isLoading: userLoading } = useCurrentUser();
   const [selectedStatus, setSelectedStatus] =
     useState<(typeof STATUS_FILTERS)[number]>("All");
   const [selectedTaskType, setSelectedTaskType] = useState<string>("All Tasks");
@@ -387,7 +382,7 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>("all"); // "all" | "personal" | projectId string
+  const [selectedProject, setSelectedProject] = useState<string>("all"); // "all" | "personal" | "owned" | projectId string
   const [dateFrom, setDateFrom] = useState<string>(""); // yyyy-MM-dd
   const [dateTo, setDateTo] = useState<string>("");
 
@@ -398,8 +393,15 @@ export default function TasksPage() {
     const loadTasks = async () => {
       try {
         setLoading(true);
-        // For now, we'll use a dummy user ID. In a real app, this would come from auth context
-        const userId = 1;
+        
+        // Check if we have a current user
+        if (!currentUser) {
+          setError("User not authenticated");
+          return;
+        }
+        
+        // Use backendStaffId if available, otherwise use a fallback (like parsing from cognitoSub or using 1)
+        const userId = currentUser.backendStaffId || 1; // Fallback to 1 for now
         
         let tasksData: TaskResponse[] = [];
         if (selectedTaskType === "Personal Tasks") {
@@ -417,21 +419,28 @@ export default function TasksPage() {
       } catch (err) {
         console.error('Error loading tasks:', err);
         setError("Failed to load tasks");
-        // Fall back to demo data on error
         setTasks([]);
       } finally {
         setLoading(false);
       }
     };
 
-    loadTasks();
-  }, [selectedTaskType]);
+    // Only load tasks if we have a user and user context is not loading
+    if (!userLoading && currentUser) {
+      loadTasks();
+    } else if (!userLoading && !currentUser) {
+      setLoading(false);
+      setError("Please log in to view tasks");
+    }
+  }, [selectedTaskType, currentUser, userLoading]);
 
   // Load project list for project filter
   useEffect(() => {
     const loadProjects = async () => {
       try {
-        const userId = 1; // from auth context in real app
+        if (!currentUser) return;
+        
+        const userId = currentUser.backendStaffId || 1; // Fallback to 1 for now
         const data = await projectService.getUserProjects(userId);
         setProjects(data);
       } catch (e) {
@@ -439,8 +448,11 @@ export default function TasksPage() {
         setProjects([]);
       }
     };
-    loadProjects();
-  }, []);
+    
+    if (!userLoading && currentUser) {
+      loadProjects();
+    }
+  }, [currentUser, userLoading]);
 
   const handleTaskCreated = (newTask: TaskResponse) => {
     // Add the new task to the current tasks list
@@ -483,7 +495,13 @@ export default function TasksPage() {
     return tasks.filter((t) => {
       // Project filter
       if (selectedProject === "personal" && t.projectId) return false;
-      if (selectedProject !== "all" && selectedProject !== "personal") {
+      if (selectedProject === "owned" && currentUser) {
+        // Show only projects owned by current user
+        const userId = currentUser.backendStaffId || 1;
+        const project = projects.find(p => p.id === t.projectId);
+        if (!project || project.ownerId !== userId) return false;
+      }
+      if (selectedProject !== "all" && selectedProject !== "personal" && selectedProject !== "owned") {
         const pid = Number(selectedProject);
         if (!Number.isNaN(pid) && t.projectId !== pid) return false;
       }
@@ -498,7 +516,7 @@ export default function TasksPage() {
       }
       return true;
     });
-  }, [tasks, selectedProject, dateFrom, dateTo]);
+  }, [tasks, selectedProject, dateFrom, dateTo, currentUser, projects]);
 
   // Sorting according to selection
   const sortedTasks = useMemo(() => {
@@ -524,12 +542,12 @@ export default function TasksPage() {
   }, [baseFilteredTasks, sortBy]);
 
   const tasksByStatus = useMemo(() => {
-    const grouped = statusOrder.reduce<Record<TaskStatus, (TaskResponse | TaskSummary)[]>>(
+    const grouped = statusOrder.reduce<Record<TaskStatus, TaskResponse[]>>(
       (acc, status) => {
         acc[status] = [];
         return acc;
       },
-      {} as Record<TaskStatus, (TaskResponse | TaskSummary)[]>,
+      {} as Record<TaskStatus, TaskResponse[]>,
     );
 
     sortedTasks.forEach((task) => {
@@ -546,7 +564,7 @@ export default function TasksPage() {
     selectedStatus === "All" ? statusOrder : [selectedStatus as TaskStatus];
 
   const filteredTasks = useMemo(() => {
-    let tasksToFilter: (TaskSummary | TaskResponse)[] = sortedTasks;
+    let tasksToFilter: TaskResponse[] = sortedTasks;
     if (selectedStatus !== "All") {
       tasksToFilter = [...tasksByStatus[selectedStatus as TaskStatus]];
     }
@@ -675,8 +693,9 @@ export default function TasksPage() {
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="personal">Personal</SelectItem>
+                    <SelectItem value="all">All Projects</SelectItem>
+                    <SelectItem value="personal">Personal Only</SelectItem>
+                    <SelectItem value="owned">My Projects</SelectItem>
                     {projects.map((p) => (
                       <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                     ))}
@@ -829,6 +848,7 @@ export default function TasksPage() {
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         onTaskCreated={handleTaskCreated}
+        availableProjects={projects.map(p => ({ id: p.id, name: p.name }))}
       />
     </SidebarInset>
   );

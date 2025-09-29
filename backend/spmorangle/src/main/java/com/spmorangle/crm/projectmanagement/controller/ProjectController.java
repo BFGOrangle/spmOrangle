@@ -2,6 +2,7 @@ package com.spmorangle.crm.projectmanagement.controller;
 
 import java.util.List;
 
+import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -57,4 +58,12 @@ public class ProjectController {
         projectService.deleteProject(projectId, user.getId());
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
+
+    @GetMapping("/{projectId}/members")
+    public ResponseEntity<List<UserResponseDto>> getProjectMembers(
+            @PathVariable Long projectId) {
+        List<UserResponseDto> members = projectService.getProjectMembers(projectId);
+        return ResponseEntity.ok(members);
+    }
+
 }

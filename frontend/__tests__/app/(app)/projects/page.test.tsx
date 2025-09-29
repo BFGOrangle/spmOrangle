@@ -1,7 +1,22 @@
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render, screen, waitFor, act } from "../../../test-utils";
 import userEvent from "@testing-library/user-event";
 import ProjectsPage from "../../../../app/(app)/projects/page";
 import { projectService } from "@/services/project-service";
+
+// Mock AWS Amplify Auth functions
+jest.mock("aws-amplify/auth", () => ({
+  fetchAuthSession: jest.fn(() => Promise.resolve({ tokens: null })),
+  getCurrentUser: jest.fn(() => Promise.resolve({})),
+  fetchUserAttributes: jest.fn(() => Promise.resolve({})),
+  signOut: jest.fn(() => Promise.resolve()),
+}));
+
+// Mock AWS Amplify Core Hub
+jest.mock("@aws-amplify/core", () => ({
+  Hub: {
+    listen: jest.fn(() => jest.fn()), // Return unsubscribe function
+  },
+}));
 
 // Mock the project service to avoid network calls
 jest.mock("@/services/project-service", () => ({
@@ -12,28 +27,18 @@ jest.mock("@/services/project-service", () => ({
 
 const mockProjectService = projectService as jest.Mocked<typeof projectService>;
 
-// Mock SidebarInset and SidebarTrigger components
-jest.mock("@/components/ui/sidebar", () => ({
-  SidebarInset: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="sidebar-inset">{children}</div>
-  ),
-  SidebarTrigger: ({ className }: { className?: string }) => (
-    <button data-testid="sidebar-trigger" className={className}>
-      Toggle Sidebar
-    </button>
-  ),
-}));
-
 // Mock UI components
 jest.mock("@/components/ui/card", () => ({
   Card: ({
     children,
     className,
+    onClick,
   }: {
     children: React.ReactNode;
     className?: string;
+    onClick?: () => void;
   }) => (
-    <div data-testid="card" className={className}>
+    <div data-testid="card" className={className} onClick={onClick}>
       {children}
     </div>
   ),
@@ -115,9 +120,36 @@ jest.mock("@/components/ui/button", () => ({
   ),
 }));
 
-jest.mock("@/components/ui/separator", () => ({
-  Separator: ({ className }: { className?: string }) => (
-    <hr data-testid="separator" className={className} />
+jest.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="dropdown-menu">{children}</div>
+  ),
+  DropdownMenuTrigger: ({ 
+    children,
+    asChild 
+  }: { 
+    children: React.ReactNode;
+    asChild?: boolean;
+  }) => (
+    <div data-testid="dropdown-trigger">{children}</div>
+  ),
+  DropdownMenuContent: ({ 
+    children,
+    align 
+  }: { 
+    children: React.ReactNode;
+    align?: string;
+  }) => (
+    <div data-testid="dropdown-content" data-align={align}>{children}</div>
+  ),
+  DropdownMenuItem: ({ 
+    children,
+    onClick 
+  }: { 
+    children: React.ReactNode;
+    onClick?: () => void;
+  }) => (
+    <div data-testid="dropdown-item" onClick={onClick}>{children}</div>
   ),
 }));
 
@@ -184,11 +216,9 @@ describe("ProjectsPage", () => {
       component = render(<ProjectsPage />);
     });
     
-    // Wait for loading to complete - loading skeletons should be gone
+    // Wait for data to load by checking for heading specifically
     await waitFor(() => {
-      // Check that loading skeleton is not present by looking for the skeleton divs
-      const loadingSkeletons = component.container.querySelectorAll('.animate-pulse');
-      expect(loadingSkeletons).toHaveLength(0);
+      expect(screen.getByRole("heading", { level: 1, name: "All Projects" })).toBeInTheDocument();
     });
     
     return { user, component };
@@ -202,88 +232,37 @@ describe("ProjectsPage", () => {
     it("renders the page header with title and description", async () => {
       await setup();
 
-      expect(screen.getByText("Projects")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("All Projects");
       expect(
-        screen.getByText(
-          "A snapshot of where every initiative stands so your team can stay in sync.",
-        ),
+        screen.getByText("All accessible projects (4)"),
       ).toBeInTheDocument();
     });
 
-    it("renders the sidebar trigger", () => {
-      render(<ProjectsPage />);
-
-      expect(screen.getByTestId("sidebar-trigger")).toBeInTheDocument();
-    });
-
-    it("renders the 'New Project' button", () => {
-      render(<ProjectsPage />);
+    it("renders the 'New Project' button", async () => {
+      await setup();
 
       const newProjectButton = screen.getByText("New Project");
       expect(newProjectButton).toBeInTheDocument();
       expect(newProjectButton.closest("button")).toHaveAttribute(
-        "data-size",
-        "sm",
+        "data-testid",
+        "button",
       );
-    });
-
-    it("renders the 'Export report' button", () => {
-      render(<ProjectsPage />);
-
-      const exportButton = screen.getByText("Export report");
-      expect(exportButton).toBeInTheDocument();
-      expect(exportButton.closest("button")).toHaveAttribute(
-        "data-variant",
-        "ghost",
-      );
-      expect(exportButton.closest("button")).toHaveAttribute("data-size", "sm");
     });
   });
 
-  describe("Statistics Cards", () => {
-    it("renders all four statistics cards", async () => {
-      await setup();
-
-      expect(screen.getByText("Total projects")).toBeInTheDocument();
-      expect(screen.getByText("Active delivery")).toBeInTheDocument();
-      expect(screen.getByText("Planning pipeline")).toBeInTheDocument();
-      expect(screen.getByText("Task completion")).toBeInTheDocument();
-    });
-
-    it("displays correct planning projects count", () => {
-      render(<ProjectsPage />);
-
-      // Real projects don't have status, so planning should be 0
-      const planningCard = screen
-        .getByText("Planning pipeline")
-        .closest("[data-testid='card']");
-      const planningCountElements = screen.getAllByText("0");
-      const planningElement = planningCountElements.find(
-        (el) =>
-          planningCard?.contains(el) &&
-          el.getAttribute("data-testid") === "card-title",
-      );
-      expect(planningElement).toBeInTheDocument();
-    });
-
-    it("displays correct completion and at-risk summary", () => {
-      render(<ProjectsPage />);
-
-      // Real projects don't have status tracking, so should be "0 completed · 0 need attention"
-      expect(
-        screen.getByText("0 completed · 0 need attention"),
-      ).toBeInTheDocument();
-    });
-
   describe("Project Cards", () => {
-
-    it("displays project status badges", async () => {
+    it("displays project titles and descriptions", async () => {
       await setup();
 
       await waitFor(() => {
-        // All real projects default to "Active" status
-        const activeBadges = screen.getAllByText("Active");
-        expect(activeBadges).toHaveLength(4);
+        expect(screen.getByText("Test Project 1")).toBeInTheDocument();
+        expect(screen.getByText("Test description 1")).toBeInTheDocument();
+        expect(screen.getByText("Test Project 2")).toBeInTheDocument();
+        expect(screen.getByText("Test description 2")).toBeInTheDocument();
+        expect(screen.getByText("Test Project 3")).toBeInTheDocument();
+        expect(screen.getByText("Test description 3")).toBeInTheDocument();
+        expect(screen.getByText("Test Project 4")).toBeInTheDocument();
+        expect(screen.getByText("Test description 4")).toBeInTheDocument();
       });
     });
 
@@ -291,10 +270,10 @@ describe("ProjectsPage", () => {
       await setup();
 
       await waitFor(() => {
-        expect(screen.getByText("75% complete")).toBeInTheDocument();
-        expect(screen.getByText("45% complete")).toBeInTheDocument();
-        expect(screen.getByText("20% complete")).toBeInTheDocument();
-        expect(screen.getByText("100% complete")).toBeInTheDocument();
+        expect(screen.getByText("75%")).toBeInTheDocument();
+        expect(screen.getByText("45%")).toBeInTheDocument();
+        expect(screen.getByText("20%")).toBeInTheDocument();
+        expect(screen.getByText("100%")).toBeInTheDocument();
       });
     });
 
@@ -309,111 +288,14 @@ describe("ProjectsPage", () => {
       });
     });
 
-    it("displays project owners", async () => {
+    it("displays completion status indicators", async () => {
       await setup();
 
       await waitFor(() => {
-        // Real projects show "User {ownerId}" format
-        expect(screen.getByText("User 1")).toBeInTheDocument();
-        expect(screen.getByText("User 2")).toBeInTheDocument();
-        expect(screen.getByText("User 3")).toBeInTheDocument();
-        expect(screen.getByText("User 4")).toBeInTheDocument();
+        // Check for completed and remaining indicators  
+        expect(screen.getAllByText(/completed/i)).toHaveLength(4);
+        expect(screen.getAllByText(/remaining/i)).toHaveLength(4);
       });
-    });
-
-
-    it("applies correct progress bar widths", async () => {
-      const { component } = await setup();
-
-      // Check for progress bar elements by their style attribute
-      const progressBars = component.container.querySelectorAll('[style*="width:"]');
-
-      await waitFor(() => {
-        expect(progressBars.length).toBeGreaterThan(0);
-      });
-
-      // Check that progress bars have width styles
-      const hasProgressBarWidths = Array.from(progressBars as NodeListOf<Element>).some((bar) => {
-        const style = bar.getAttribute("style");
-        return style?.match(/width:\s*(75|45|20|100)%/);
-      });
-
-      expect(hasProgressBarWidths).toBe(true);
-    });
-  });
-
-  describe("Sections", () => {
-    it("renders the active initiatives section", async () => {
-      await setup();
-
-      expect(screen.getByText("Active initiatives")).toBeInTheDocument();
-      expect(
-        screen.getByText(
-          "Monitor ownership, status, and near-term milestones at a glance.",
-        ),
-      ).toBeInTheDocument();
-    });
-
-    it("renders section headers and descriptions", async () => {
-      await setup();
-
-      await waitFor(() => {
-        // Check for section labels in the project cards
-        expect(screen.getAllByText("Owner")).toHaveLength(4);
-        expect(screen.getAllByText("Progress")).toHaveLength(4);
-        // Real projects show "Updated" instead of "Due date"
-        expect(screen.getAllByText("Updated")).toHaveLength(4);
-      });
-    });
-  });
-
-  describe("Component Structure", () => {
-    it("wraps content in SidebarInset", async () => {
-      await setup();
-
-      expect(screen.getByTestId("sidebar-inset")).toBeInTheDocument();
-    });
-
-    it("has proper semantic structure", async () => {
-      const { component } = await setup();
-
-      // Check for header
-      const header = component.container.querySelector("header");
-      expect(header).toBeInTheDocument();
-
-      // Check for sections
-      const sections = component.container.querySelectorAll("section");
-      expect(sections).toHaveLength(2); // Statistics section and projects section
-    });
-
-    it("renders progress bars for each project", async () => {
-      await setup();
-
-      await waitFor(() => {
-        // Should have progress bars for each project
-        const progressContainers = screen.getAllByText(/% complete/);
-        expect(progressContainers).toHaveLength(4);
-      });
-    });
-  });
-
-  describe("User Interactions", () => {
-    it("handles new project button click", async () => {
-      const { user } = await setup();
-
-      const newProjectButton = screen.getByText("New Project");
-
-      // Button should be clickable (no error thrown)
-      await expect(user.click(newProjectButton)).resolves.not.toThrow();
-    });
-
-    it("handles export report button click", async () => {
-      const { user } = await setup();
-
-      const exportButton = screen.getByText("Export report");
-
-      // Button should be clickable (no error thrown)
-      await expect(user.click(exportButton)).resolves.not.toThrow();
     });
   });
 
@@ -422,44 +304,35 @@ describe("ProjectsPage", () => {
       await setup();
 
       const h1 = screen.getByRole("heading", { level: 1 });
-      expect(h1).toHaveTextContent("Projects");
-
-      const h2 = screen.getByRole("heading", { level: 2 });
-      expect(h2).toHaveTextContent("Active initiatives");
+      expect(h1).toHaveTextContent("All Projects");
     });
 
     it("has accessible button labels", async () => {
       await setup();
 
       expect(
-        screen.getByRole("button", { name: "Toggle Sidebar" }),
+        screen.getByRole("button", { name: "All Projects" }),
       ).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "New Project" }),
       ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "Export report" }),
-      ).toBeInTheDocument();
     });
   });
 
-
-
-
   describe("Status Badge Styling", () => {
-    it("applies correct CSS classes to status badges", async () => {
+    it("applies correct CSS classes to completion percentage badges", async () => {
       await setup();
 
       // Wait for badges to appear
       await waitFor(() => {
-        expect(screen.getAllByText("Active")).toHaveLength(4);
+        expect(screen.getByText("75%")).toBeInTheDocument();
       });
 
-      // All badges should be "Active" for real projects
-      const activeBadges = screen.getAllByText("Active");
-      activeBadges.forEach(badge => {
-        expect(badge).toHaveClass("border-emerald-200");
-      });
+      // Check for percentage badges
+      expect(screen.getByText("75%")).toBeInTheDocument(); // Project 1: 30/40 = 75%
+      expect(screen.getByText("45%")).toBeInTheDocument(); // Project 2: 18/40 = 45%
+      expect(screen.getByText("20%")).toBeInTheDocument(); // Project 3: 5/25 = 20%
+      expect(screen.getByText("100%")).toBeInTheDocument(); // Project 4: 50/50 = 100%
     });
   });
 
@@ -474,5 +347,3 @@ describe("ProjectsPage", () => {
     });
   });
 });
-});
-

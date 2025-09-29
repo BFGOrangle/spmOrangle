@@ -26,6 +26,7 @@ import {
 
 import { projectService, ProjectResponse, TaskResponse } from "@/services/project-service";
 import { TaskCreationDialog } from "@/components/task-creation-dialog";
+import { TaskCard } from "@/components/task-card";
 
 // Map backend status to frontend status
 const mapBackendStatus = (status: string) => {
@@ -69,98 +70,14 @@ const statusStyles: Record<TaskStatus, string> = {
 };
 
 const TaskBoardCard = ({ task }: { task: TaskResponse }) => {
-  const mappedStatus = mapBackendStatus(task.status) as TaskStatus;
-  
   return (
-    <Card className="cursor-pointer transition-all hover:shadow-sm">
-      <CardContent className="p-3">
-        <div className="space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <h4 className="text-sm font-medium leading-none">{task.title}</h4>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-              <MoreHorizontal className="h-3 w-3" />
-            </Button>
-          </div>
-          
-          {task.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2">
-              {task.description}
-            </p>
-          )}
-          
-          <div className="flex items-center justify-between">
-            <Badge variant="outline" className={statusStyles[mappedStatus]}>
-              {mappedStatus}
-            </Badge>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Badge variant="secondary" className="text-xs">
-                {task.taskType}
-              </Badge>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <TaskCard task={task} variant="board" />
   );
 };
 
 const TaskTableRow = ({ task }: { task: TaskResponse }) => {
-  const mappedStatus = mapBackendStatus(task.status) as TaskStatus;
-  
   return (
-    <div className="grid gap-3 py-4 text-sm sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]">
-      <div className="space-y-1">
-        <div className="font-medium">{task.title}</div>
-        {task.description && (
-          <div className="text-muted-foreground line-clamp-1">
-            {task.description}
-          </div>
-        )}
-        {task.tags && task.tags.length > 0 && (
-          <div className="flex gap-1">
-            {task.tags.slice(0, 2).map((tag, index) => (
-              <Badge key={index} variant="secondary" className="text-xs">
-                {tag}
-              </Badge>
-            ))}
-            {task.tags.length > 2 && (
-              <span className="text-xs text-muted-foreground">
-                +{task.tags.length - 2} more
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2">
-        <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
-          {task.ownerId.toString().slice(-2)}
-        </div>
-        <span className="text-muted-foreground">User {task.ownerId}</span>
-      </div>
-
-      <div className="flex items-center gap-1">
-        <UsersIcon className="h-3 w-3 text-muted-foreground" />
-        <span className="text-muted-foreground">-</span>
-      </div>
-
-      <div className="flex items-center">
-        <Badge variant="outline" className={statusStyles[mappedStatus]}>
-          {mappedStatus}
-        </Badge>
-      </div>
-
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Badge variant="secondary">{task.taskType}</Badge>
-      </div>
-
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Clock4 className="h-3 w-3" />
-        <span className="text-xs">
-          {new Date(task.createdAt).toLocaleDateString()}
-        </span>
-      </div>
-    </div>
+    <TaskCard task={task} variant="table" />
   );
 };
 

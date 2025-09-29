@@ -6,13 +6,14 @@ import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.projectmanagement.dto.CreateProjectDto;
 import com.spmorangle.crm.projectmanagement.dto.ProjectResponseDto;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
+import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -47,10 +48,10 @@ public class ProjectControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private ProjectService projectService;
 
-    @MockBean
+    @MockitoBean
     private UserContextService userContextService;
 
     private User testUser;
@@ -289,6 +290,129 @@ public class ProjectControllerTest {
                     .andExpect(status().isNoContent());
 
             verify(projectService).deleteProject(eq(invalidProjectId), eq(123L));
+        }
+    }
+
+    @Nested
+    @DisplayName("Get Project Members Tests")
+    class GetProjectMembersTests {
+
+        @Test
+        @DisplayName("Should successfully return project members")
+        void getProjectMembers_ValidProjectId_ReturnsProjectMembersWithOk() throws Exception {
+            // Given
+            Long projectId = 1L;
+            List<UserResponseDto> expectedMembers = Arrays.asList(
+                    UserResponseDto.builder()
+                            .id(1L)
+                            .username("user1")
+                            .email("user1@example.com")
+                            .build(),
+                    UserResponseDto.builder()
+                            .id(2L)
+                            .username("user2")
+                            .email("user2@example.com")
+                            .build()
+            );
+
+            when(projectService.getProjectMembers(eq(projectId))).thenReturn(expectedMembers);
+
+            // When & Then
+            mockMvc.perform(get("/api/projects/{projectId}/members", projectId)
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].id").value(1L))
+                    .andExpect(jsonPath("$[0].username").value("user1"))
+                    .andExpect(jsonPath("$[0].email").value("user1@example.com"))
+                    .andExpect(jsonPath("$[1].id").value(2L))
+                    .andExpect(jsonPath("$[1].username").value("user2"))
+                    .andExpect(jsonPath("$[1].email").value("user2@example.com"));
+
+            verify(projectService).getProjectMembers(eq(projectId));
+        }
+
+        @Test
+        @DisplayName("Should return empty list when project has no members")
+        void getProjectMembers_ProjectWithNoMembers_ReturnsEmptyListWithOk() throws Exception {
+            // Given
+            Long projectId = 1L;
+            List<UserResponseDto> emptyMembers = Collections.emptyList();
+
+            when(projectService.getProjectMembers(eq(projectId))).thenReturn(emptyMembers);
+
+            // When & Then
+            mockMvc.perform(get("/api/projects/{projectId}/members", projectId)
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(0));
+
+            verify(projectService).getProjectMembers(eq(projectId));
+        }
+
+        @Test
+        @DisplayName("Should handle invalid project ID")
+        void getProjectMembers_InvalidProjectId_CallsServiceWithId() throws Exception {
+            // Given
+            Long invalidProjectId = 999L;
+            when(projectService.getProjectMembers(eq(invalidProjectId))).thenReturn(Collections.emptyList());
+
+            // When & Then
+            mockMvc.perform(get("/api/projects/{projectId}/members", invalidProjectId)
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk());
+
+            verify(projectService).getProjectMembers(eq(invalidProjectId));
+        }
+
+        @Test
+        @DisplayName("Should handle service throwing exception")
+        void getProjectMembers_ServiceThrowsException_ReturnsInternalServerError() throws Exception {
+            // Given
+            Long projectId = 1L;
+            when(projectService.getProjectMembers(eq(projectId)))
+                    .thenThrow(new RuntimeException("Database error"));
+
+            // When & Then
+            mockMvc.perform(get("/api/projects/{projectId}/members", projectId)
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isInternalServerError());
+
+            verify(projectService).getProjectMembers(eq(projectId));
+        }
+
+        @Test
+        @DisplayName("Should handle zero project ID")
+        void getProjectMembers_ZeroProjectId_CallsServiceWithZero() throws Exception {
+            // Given
+            Long zeroProjectId = 0L;
+            when(projectService.getProjectMembers(eq(zeroProjectId))).thenReturn(Collections.emptyList());
+
+            // When & Then
+            mockMvc.perform(get("/api/projects/{projectId}/members", zeroProjectId)
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk());
+
+            verify(projectService).getProjectMembers(eq(zeroProjectId));
+        }
+
+        @Test
+        @DisplayName("Should handle negative project ID")
+        void getProjectMembers_NegativeProjectId_CallsServiceWithNegativeId() throws Exception {
+            // Given
+            Long negativeProjectId = -1L;
+            when(projectService.getProjectMembers(eq(negativeProjectId))).thenReturn(Collections.emptyList());
+
+            // When & Then
+            mockMvc.perform(get("/api/projects/{projectId}/members", negativeProjectId)
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk());
+
+            verify(projectService).getProjectMembers(eq(negativeProjectId));
         }
     }
 

@@ -34,18 +34,24 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CreateTaskResponseDto createTask(CreateTaskDto createTaskDto, Long currentUserId) {
+        return createTask(createTaskDto, currentUserId, currentUserId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CreateTaskResponseDto createTask(CreateTaskDto createTaskDto, Long taskOwnerId, Long currentUserId) {
         log.info("Creating task with title: {} for user: {}", createTaskDto.getTitle(), currentUserId);
         
         Task task = new Task();
         
         task.setProjectId(createTaskDto.getProjectId());
-        task.setOwnerId(currentUserId);
+        task.setOwnerId(taskOwnerId);
         task.setTaskType(createTaskDto.getTaskType());
         task.setTitle(createTaskDto.getTitle());
         task.setDescription(createTaskDto.getDescription());
         task.setStatus(createTaskDto.getStatus());
         task.setTags(createTaskDto.getTags());
-        task.setCreatedBy(currentUserId);
+        task.setCreatedBy(taskOwnerId);
         task.setCreatedAt(OffsetDateTime.now());
         
         Task savedTask = taskRepository.save(task);

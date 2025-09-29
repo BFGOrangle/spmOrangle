@@ -16,10 +16,13 @@ describe("Route Enum", () => {
       "SignIn",
       "Dashboard", 
       "Profile",
+      "Projects",
       "Unauthorized",
       "ConfirmSignUp",
       "NewPassword",
-      "ConfirmSMSCode"
+      "ConfirmSMSCode",
+      "ForgotPassword",
+      "ResetPassword"
     ];
 
     expectedRoutes.forEach(routeName => {
@@ -29,7 +32,7 @@ describe("Route Enum", () => {
 
   test("should have correct number of routes", () => {
     const routeKeys = Object.keys(Route);
-    expect(routeKeys).toHaveLength(9);
+    expect(routeKeys).toHaveLength(10);
   });
 
   test("should contain auth-related routes", () => {
@@ -37,7 +40,9 @@ describe("Route Enum", () => {
       Route.SignIn,
       Route.ConfirmSignUp,
       Route.NewPassword,
-      Route.ConfirmSMSCode
+      Route.ConfirmSMSCode,
+      Route.ForgotPassword,
+      Route.ResetPassword
     ];
 
     authRoutes.forEach(route => {
@@ -48,6 +53,7 @@ describe("Route Enum", () => {
   test("should contain app routes", () => {
     expect(Route.Dashboard).toBe("/dashboard");
     expect(Route.Profile).toBe("/profile");
+    expect(Route.Projects).toBe("/projects");
     expect(Route.Unauthorized).toBe("/unauthorized");
   });
 
@@ -68,6 +74,7 @@ describe("Route Enum", () => {
           return "auth";
         case Route.Dashboard:
         case Route.Profile:
+        case Route.Projects:
           return "app";
         case Route.Unauthorized:
           return "error";

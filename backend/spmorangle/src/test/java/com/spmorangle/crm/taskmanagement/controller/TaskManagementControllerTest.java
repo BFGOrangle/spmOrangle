@@ -25,10 +25,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -39,7 +39,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -51,6 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest({TaskManagementController.class, GlobalExceptionHandler.class})
+@EnableMethodSecurity
 @DisplayName("TaskManagementController Tests")
 @WithMockUser(username = "test@example.com", authorities = {"ROLE_USER"})
 public class TaskManagementControllerTest {
@@ -517,6 +517,283 @@ public class TaskManagementControllerTest {
     }
 
     @Nested
+    @DisplayName("Create Task with Specified Owner Tests")
+    @WithMockUser(username = "test@example.com", authorities = {"ROLE_MANAGER"})
+    class CreateTaskWithSpecifiedOwnerTests {
+
+        @Test
+        @DisplayName("Should successfully create task with specified owner when user has MANAGER role")
+        void createTaskWithSpecifiedOwner_ValidRequest_ReturnsCreatedWithResponse() throws Exception {
+            // Given
+            CreateTaskDto createTaskDto = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .ownerId(456L) // Specified owner
+                    .title("Task with Specified Owner")
+                    .description("Task description")
+                    .taskType(TaskType.FEATURE)
+                    .status(Status.TODO)
+                    .tags(Arrays.asList("tag1", "tag2"))
+                    .assignedUserIds(Arrays.asList(789L, 101L))
+                    .build();
+
+            CreateTaskResponseDto responseDto = CreateTaskResponseDto.builder()
+                    .id(1L)
+                    .projectId(101L)
+                    .ownerId(456L) // Owner is the specified user
+                    .title("Task with Specified Owner")
+                    .description("Task description")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .createdBy(456L)
+                    .createdAt(OffsetDateTime.now())
+                    .assignedUserIds(Arrays.asList(789L, 101L))
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.createTask(any(CreateTaskDto.class), eq(456L), eq(123L))).thenReturn(responseDto);
+
+            // When & Then
+            mockMvc.perform(post("/api/tasks/with-owner-id")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createTaskDto)))
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(1L))
+                    .andExpect(jsonPath("$.projectId").value(101L))
+                    .andExpect(jsonPath("$.ownerId").value(456L))
+                    .andExpect(jsonPath("$.title").value("Task with Specified Owner"))
+                    .andExpect(jsonPath("$.description").value("Task description"))
+                    .andExpect(jsonPath("$.status").value("TODO"))
+                    .andExpect(jsonPath("$.taskType").value("FEATURE"))
+                    .andExpect(jsonPath("$.createdBy").value(456L))
+                    .andExpect(jsonPath("$.assignedUserIds[0]").value(789L))
+                    .andExpect(jsonPath("$.assignedUserIds[1]").value(101L));
+
+            verify(taskService).createTask(any(CreateTaskDto.class), eq(456L), eq(123L));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when ownerId is null in request")
+        void createTaskWithSpecifiedOwner_NullOwnerId_ReturnsBadRequest() throws Exception {
+            // Given
+            CreateTaskDto createTaskDto = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .ownerId(null) // Null owner ID should cause validation error
+                    .title("Task with Null Owner")
+                    .description("Task description")
+                    .taskType(TaskType.FEATURE)
+                    .status(Status.TODO)
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+
+            // When & Then
+            mockMvc.perform(post("/api/tasks/with-owner-id")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createTaskDto)))
+                    .andExpect(status().isBadRequest());
+
+            verify(taskService, never()).createTask(any(CreateTaskDto.class), any(Long.class), any(Long.class));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when ownerId is missing in request")
+        void createTaskWithSpecifiedOwner_MissingOwnerId_ReturnsBadRequest() throws Exception {
+            // Given
+            CreateTaskDto createTaskDto = CreateTaskDto.builder()
+                    .projectId(101L)
+                    // ownerId is missing
+                    .title("Task without Owner")
+                    .description("Task description")
+                    .taskType(TaskType.FEATURE)
+                    .status(Status.TODO)
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+
+            // When & Then
+            mockMvc.perform(post("/api/tasks/with-owner-id")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createTaskDto)))
+                    .andExpect(status().isBadRequest());
+
+            verify(taskService, never()).createTask(any(CreateTaskDto.class), any(Long.class), any(Long.class));
+        }
+
+        @Test
+        @DisplayName("Should return 403 when user does not have MANAGER role")
+        @WithMockUser(username = "test@example.com", authorities = {"ROLE_USER"})
+        void createTaskWithSpecifiedOwner_NonManagerRole_ReturnsForbidden() throws Exception {
+            // Given
+            CreateTaskDto createTaskDto = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .ownerId(456L)
+                    .title("Task with Specified Owner")
+                    .description("Task description")
+                    .taskType(TaskType.FEATURE)
+                    .status(Status.TODO)
+                    .build();
+
+            // When & Then
+            mockMvc.perform(post("/api/tasks/with-owner-id")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createTaskDto)))
+                    .andExpect(status().isForbidden());
+
+            verify(taskService, never()).createTask(any(CreateTaskDto.class), any(Long.class), any(Long.class));
+            verify(userContextService, never()).getRequestingUser();
+        }
+
+        @Test
+        @DisplayName("Should handle service exception gracefully")
+        void createTaskWithSpecifiedOwner_ServiceThrowsException_ReturnsInternalServerError() throws Exception {
+            // Given
+            CreateTaskDto createTaskDto = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .ownerId(456L)
+                    .title("Task with Specified Owner")
+                    .description("Task description")
+                    .taskType(TaskType.FEATURE)
+                    .status(Status.TODO)
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.createTask(any(CreateTaskDto.class), eq(456L), eq(123L)))
+                    .thenThrow(new RuntimeException("Database error"));
+
+            // When & Then
+            mockMvc.perform(post("/api/tasks/with-owner-id")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createTaskDto)))
+                    .andExpect(status().isInternalServerError());
+
+            verify(taskService).createTask(any(CreateTaskDto.class), eq(456L), eq(123L));
+        }
+
+        @Test
+        @DisplayName("Should handle invalid JSON in request body")
+        void createTaskWithSpecifiedOwner_InvalidJson_ReturnsBadRequest() throws Exception {
+            // Given
+            String invalidJson = "{ invalid json }";
+
+            // When & Then
+            mockMvc.perform(post("/api/tasks/with-owner-id")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(invalidJson))
+                    .andExpect(status().isBadRequest());
+
+            verify(taskService, never()).createTask(any(CreateTaskDto.class), any(Long.class), any(Long.class));
+            verify(userContextService, never()).getRequestingUser();
+        }
+
+        @Test
+        @DisplayName("Should validate required fields in CreateTaskDto")
+        void createTaskWithSpecifiedOwner_MissingRequiredFields_ReturnsBadRequest() throws Exception {
+            // Given
+            CreateTaskDto createTaskDto = CreateTaskDto.builder()
+                    .ownerId(456L)
+                    // Missing required fields like title, taskType
+                    .description("Task description")
+                    .status(Status.TODO)
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+
+            // When & Then
+            mockMvc.perform(post("/api/tasks/with-owner-id")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createTaskDto)))
+                    .andExpect(status().isBadRequest());
+
+            verify(taskService, never()).createTask(any(CreateTaskDto.class), any(Long.class), any(Long.class));
+        }
+
+        @Test
+        @DisplayName("Should handle minimal valid request correctly")
+        void createTaskWithSpecifiedOwner_MinimalValidRequest_ReturnsCreated() throws Exception {
+            // Given
+            CreateTaskDto createTaskDto = CreateTaskDto.builder()
+                    .ownerId(456L)
+                    .title("Minimal Task")
+                    .taskType(TaskType.FEATURE)
+                    .status(Status.TODO)
+                    .build();
+
+            CreateTaskResponseDto responseDto = CreateTaskResponseDto.builder()
+                    .id(1L)
+                    .ownerId(456L)
+                    .title("Minimal Task")
+                    .taskType(TaskType.FEATURE)
+                    .status(Status.TODO)
+                    .createdBy(456L)
+                    .createdAt(OffsetDateTime.now())
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.createTask(any(CreateTaskDto.class), eq(456L), eq(123L))).thenReturn(responseDto);
+
+            // When & Then
+            mockMvc.perform(post("/api/tasks/with-owner-id")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createTaskDto)))
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(1L))
+                    .andExpect(jsonPath("$.ownerId").value(456L))
+                    .andExpect(jsonPath("$.title").value("Minimal Task"))
+                    .andExpect(jsonPath("$.taskType").value("FEATURE"))
+                    .andExpect(jsonPath("$.status").value("TODO"));
+
+            verify(taskService).createTask(any(CreateTaskDto.class), eq(456L), eq(123L));
+        }
+
+        @Test
+        @DisplayName("Should log task creation with correct user ID")
+        void createTaskWithSpecifiedOwner_ValidRequest_LogsCorrectUserId() throws Exception {
+            // Given
+            CreateTaskDto createTaskDto = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .ownerId(456L)
+                    .title("Logged Task")
+                    .taskType(TaskType.FEATURE)
+                    .status(Status.TODO)
+                    .build();
+
+            CreateTaskResponseDto responseDto = CreateTaskResponseDto.builder()
+                    .id(1L)
+                    .ownerId(456L)
+                    .title("Logged Task")
+                    .taskType(TaskType.FEATURE)
+                    .status(Status.TODO)
+                    .createdBy(456L)
+                    .createdAt(OffsetDateTime.now())
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.createTask(any(CreateTaskDto.class), eq(456L), eq(123L))).thenReturn(responseDto);
+
+            // When & Then
+            mockMvc.perform(post("/api/tasks/with-owner-id")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createTaskDto)))
+                    .andExpect(status().isCreated());
+
+            // Verify that the correct user ID (123L from testUser) is passed to the service
+            verify(taskService).createTask(any(CreateTaskDto.class), eq(456L), eq(123L));
+            verify(userContextService).getRequestingUser();
+        }
+    }
+
+    @Nested
     @DisplayName("Get Project Tasks Tests")
     class GetProjectTasksTests {
 
@@ -745,7 +1022,7 @@ public class TaskManagementControllerTest {
             // When & Then
             mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{invalid json"))
+                            .content("{\"invalid\": \"json\"}"))
                     .andExpect(status().isBadRequest());
         }
     }
