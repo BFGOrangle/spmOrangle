@@ -12,6 +12,8 @@ import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAssignmen
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class CollaboratorServiceImpl implements CollaboratorService {
@@ -54,5 +56,15 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         }
 
         taskAssigneeRepository.deleteById(new TaskAssigneeCK(taskId, collaboratorId, assignedById));
+    }
+
+    @Override
+    public boolean isUserTaskCollaborator(Long taskId, Long userId) {
+        return taskAssigneeRepository.existsByTaskIdAndUserId(taskId, userId);
+    }
+
+    @Override
+    public List<Long> getTasksForWhichUserIsCollaborator(Long userId) {
+        return taskAssigneeRepository.findTaskIdsUserIsAssigneeFor(userId);
     }
 }

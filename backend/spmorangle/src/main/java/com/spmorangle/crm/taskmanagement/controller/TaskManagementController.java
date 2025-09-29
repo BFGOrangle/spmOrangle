@@ -89,8 +89,9 @@ public class TaskManagementController {
     @GetMapping("/project/{projectId}")
     public ResponseEntity<List<TaskResponseDto>> getProjectTasks(
             @PathVariable Long projectId) {
+        User user = userContextService.getRequestingUser();
         log.info("Getting tasks for project: {}", projectId);
-        List<TaskResponseDto> tasks = taskService.getProjectTasks(projectId);
+        List<TaskResponseDto> tasks = taskService.getProjectTasks(user.getId(), projectId);
         return ResponseEntity.ok(tasks);
     }
 

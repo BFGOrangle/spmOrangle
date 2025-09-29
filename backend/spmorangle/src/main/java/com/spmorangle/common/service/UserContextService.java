@@ -14,4 +14,6 @@ public interface UserContextService {
      * IMPT: This overload users cognito sub not staff ID
      */
     boolean isRequestingUserSelfCheckBySub(UUID cognitoSub);
+
+    boolean isRequestingUserTaskCollaborator(Long taskId);
 }
