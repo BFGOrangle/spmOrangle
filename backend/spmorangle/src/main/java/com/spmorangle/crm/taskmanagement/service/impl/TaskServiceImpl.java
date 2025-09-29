@@ -137,6 +137,17 @@ public class TaskServiceImpl implements TaskService {
         log.info("Task {} marked as deleted", taskId);
     }
 
+    @Override
+    public boolean canUserUpdateOrDeleteTask(Long taskId, Long userId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+        if (task.getOwnerId().equals(userId)) {
+            return true;
+        }
+        return collaboratorService.isUserTaskCollaborator(taskId, userId);
+    }
+
+
     private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess) {
         // Load subtasks for this task
         List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId());

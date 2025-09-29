@@ -18,4 +18,6 @@ public interface TaskService {
     
     void deleteTask(Long taskId, Long currentUserId);
 
+    boolean canUserUpdateOrDeleteTask(Long taskId, Long userId);
+
 }
