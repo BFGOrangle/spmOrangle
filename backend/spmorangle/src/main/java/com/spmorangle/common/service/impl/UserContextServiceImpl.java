@@ -4,6 +4,7 @@ import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.common.util.SecurityContextUtil;
+import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +15,7 @@ import java.util.UUID;
 public class UserContextServiceImpl implements UserContextService {
 
     private final UserRepository userRepository;
+    private final TaskAssigneeRepository taskAssigneeRepository;
 
     public User getRequestingUser() {
         UUID cognitoSub = SecurityContextUtil.getCurrentCognitoSubUUID()
@@ -28,5 +30,10 @@ public class UserContextServiceImpl implements UserContextService {
 
     public boolean isRequestingUserSelfCheckBySub(UUID cognitoSub) {
         return getRequestingUser().getCognitoSub().equals(cognitoSub);
+    }
+
+    public boolean isRequestingUserTaskCollaborator(Long taskId) {
+        Long requestingUserId = getRequestingUser().getId();
+        return taskAssigneeRepository.existsByTaskIdAndUserId(taskId, requestingUserId);
     }
 }

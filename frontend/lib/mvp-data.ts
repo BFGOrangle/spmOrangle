@@ -31,6 +31,7 @@ export type TaskSummary = {
   description: string;
   project: string;
   owner: string;
+  userHasEditAccess: boolean;
   collaborators: string[];
   status: TaskStatus;
   priority: TaskPriority;
@@ -99,6 +100,7 @@ export const demoTasks: TaskSummary[] = [
       "Capture requirements, user journeys, and technical constraints for the cross-platform experience.",
     project: "Cross-platform Mobile App",
     owner: "Alicia Keys",
+    userHasEditAccess: true,
     collaborators: ["Marcus Lee", "Priya Patel"],
     status: "In Progress",
     priority: "High",
@@ -131,6 +133,7 @@ export const demoTasks: TaskSummary[] = [
       "Validate key workflows before pushing the revenue intelligence release to production.",
     project: "Revenue Intelligence",
     owner: "Daniel Cho",
+    userHasEditAccess: false,
     collaborators: ["Julia Sato", "Jamal Carter"],
     status: "Review",
     priority: "Medium",
@@ -163,6 +166,7 @@ export const demoTasks: TaskSummary[] = [
       "Refresh cohort analysis charts and wire data to the unified metrics layer.",
     project: "Data Quality Refresh",
     owner: "Marcus Lee",
+    userHasEditAccess: true,
     collaborators: ["Alicia Keys", "Julia Sato"],
     status: "Blocked",
     priority: "High",
@@ -195,6 +199,7 @@ export const demoTasks: TaskSummary[] = [
       "Design guided walkthroughs and collaborative canvases for new users entering the product.",
     project: "Customer Onboarding",
     owner: "Priya Patel",
+    userHasEditAccess: true,
     collaborators: ["Alicia Keys"],
     status: "Todo",
     priority: "Medium",
@@ -222,6 +227,7 @@ export const demoTasks: TaskSummary[] = [
       "Transition data models and pipelines to the new Snowflake environment with zero downtime.",
     project: "Data Quality Refresh",
     owner: "Julia Sato",
+    userHasEditAccess: false,
     collaborators: ["Marcus Lee", "Daniel Cho"],
     status: "In Progress",
     priority: "High",
@@ -259,6 +265,7 @@ export const demoTasks: TaskSummary[] = [
       "Consolidate pipeline stages and sync cohorts with the marketing automation platform.",
     project: "Revenue Intelligence",
     owner: "Jamal Carter",
+    userHasEditAccess: true,
     collaborators: [],
     status: "Done",
     priority: "Low",

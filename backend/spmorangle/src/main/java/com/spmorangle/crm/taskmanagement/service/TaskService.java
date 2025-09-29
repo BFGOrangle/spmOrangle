@@ -10,12 +10,14 @@ public interface TaskService {
 
     CreateTaskResponseDto createTask(CreateTaskDto createTaskDto, Long currentUserId);
     
-    List<TaskResponseDto> getProjectTasks(Long projectId);
+    List<TaskResponseDto> getProjectTasks(Long userId, Long projectId);
     
     List<TaskResponseDto> getPersonalTasks(Long userId);
     
     List<TaskResponseDto> getAllUserTasks(Long userId);
     
     void deleteTask(Long taskId, Long currentUserId);
+
+    boolean canUserUpdateOrDeleteTask(Long taskId, Long userId);
 
 }

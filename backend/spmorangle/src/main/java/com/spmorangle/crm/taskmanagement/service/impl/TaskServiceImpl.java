@@ -17,7 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -84,12 +86,16 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public List<TaskResponseDto> getProjectTasks(Long projectId) {
+    public List<TaskResponseDto> getProjectTasks(Long userId, Long projectId) {
         log.info("Getting tasks for project: {}", projectId);
         List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
+        Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
         return tasks.stream()
-                .map(this::mapToTaskResponseDto)
-                .collect(Collectors.toList());
+                .map((task) -> {
+                    boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
+                    return mapToTaskResponseDto(task, userHasWriteAccess);
+                })
+                .toList();
     }
 
     @Override
@@ -97,7 +103,7 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting personal tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
         return tasks.stream()
-                .map(this::mapToTaskResponseDto)
+                .map(task -> mapToTaskResponseDto(task, true))
                 .collect(Collectors.toList());
     }
 
@@ -106,7 +112,7 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting all tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findUserTasks(userId);
         return tasks.stream()
-                .map(this::mapToTaskResponseDto)
+                .map(task -> mapToTaskResponseDto(task, true))
                 .collect(Collectors.toList());
     }
 
@@ -131,7 +137,18 @@ public class TaskServiceImpl implements TaskService {
         log.info("Task {} marked as deleted", taskId);
     }
 
-    private TaskResponseDto mapToTaskResponseDto(Task task) {
+    @Override
+    public boolean canUserUpdateOrDeleteTask(Long taskId, Long userId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+        if (task.getOwnerId().equals(userId)) {
+            return true;
+        }
+        return collaboratorService.isUserTaskCollaborator(taskId, userId);
+    }
+
+
+    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess) {
         // Load subtasks for this task
         List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId());
         
@@ -144,6 +161,7 @@ public class TaskServiceImpl implements TaskService {
                 .description(task.getDescription())
                 .status(task.getStatus())
                 .tags(task.getTags())
+                .userHasEditAccess(userHasEditAccess)
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .createdBy(task.getCreatedBy())

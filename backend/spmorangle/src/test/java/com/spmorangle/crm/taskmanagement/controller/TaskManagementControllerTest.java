@@ -544,7 +544,8 @@ public class TaskManagementControllerTest {
                     createTaskResponseDto(2L, "Project Task 2", Status.IN_PROGRESS)
             );
 
-            when(taskService.getProjectTasks(eq(projectId))).thenReturn(projectTasks);
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getProjectTasks(eq(testUser.getId()), eq(projectId))).thenReturn(projectTasks);
 
             // When & Then
             mockMvc.perform(get("/api/tasks/project/{projectId}", projectId)

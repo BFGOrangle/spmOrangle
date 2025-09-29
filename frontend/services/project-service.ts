@@ -40,6 +40,7 @@ export interface TaskResponse {
   description?: string;
   status: 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
   tags?: string[];
+  userHasEditAccess: boolean;
   createdAt: string;
   updatedAt?: string;
   createdBy: number;

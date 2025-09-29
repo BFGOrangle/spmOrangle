@@ -91,6 +91,7 @@ const getTaskProperties = (task: TaskSummary | TaskResponse) => {
     id: task.id,
     title: task.title,
     description: task.description || '',
+    userHasEditAccess: task.userHasEditAccess,
     status: isTaskSummary ? task.status : mapBackendStatus((task as TaskResponse).status),
     key: isTaskSummary ? (task as TaskSummary).key : `TASK-${task.id}`,
     priority: isTaskSummary ? (task as TaskSummary).priority : 'Medium' as TaskPriority,
@@ -268,15 +269,28 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
           <Dialog open={showDetails} onOpenChange={setShowDetails}>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm">
-                View Details
+                {taskProps.userHasEditAccess ? (
+                  <>Manage</>
+                ) : (
+                  <>View</>
+                )} {" Details"}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
-              <DialogHeader>
-                <DialogTitle>{taskProps.title}</DialogTitle>
-                <DialogDescription>
-                  {taskProps.key} • {taskProps.project}
-                </DialogDescription>
+              <DialogHeader className="flex flex-row justify-between">
+                <div>
+                  <DialogTitle>{taskProps.title}</DialogTitle>
+                  <DialogDescription>
+                    {taskProps.key} • {taskProps.project}
+                  </DialogDescription>
+                </div>
+                {taskProps.userHasEditAccess && (
+                  <div className="px-2 flex flex-row space-x-2">
+                    {/* @jitt Please replace with actual update and delete functionality */}
+                    <Button variant="outline">Update</Button>
+                    <Button variant="destructive">Delete</Button>
+                  </div>
+                )}
               </DialogHeader>
 
               <div className="flex-1 overflow-y-auto space-y-4 pr-2">
@@ -503,6 +517,13 @@ function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
           </span>
         )}
       </div>
+      {taskProps.userHasEditAccess && (
+        <div className="flex flex-row space-x-2">
+          {/* @Jitt Please replace with actual update and delete functionality */}
+          <Button variant="outline">Update</Button>
+          <Button variant="destructive">Delete</Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -22,9 +22,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -478,4 +481,247 @@ class TaskServiceImplTest {
             verify(taskRepository, org.mockito.Mockito.times(2)).findUserTasks(userId);
         }
     }
+
+    @Nested
+    @DisplayName("canUserUpdateOrDeleteTask Tests")
+    class CanUserUpdateOrDeleteTaskTests {
+
+        @Test
+        @DisplayName("Should return true when user is task owner")
+        void canUserUpdateOrDeleteTask_UserIsOwner_ReturnsTrue() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L; // Same as testTask1 owner
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask1));
+
+            // When
+            boolean result = taskService.canUserUpdateOrDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isTrue();
+            verify(taskRepository).findById(taskId);
+            verify(collaboratorService, never()).isUserTaskCollaborator(anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("Should return true when user is collaborator but not owner")
+        void canUserUpdateOrDeleteTask_UserIsCollaborator_ReturnsTrue() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 999L; // Different from testTask1 owner (201L)
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask1));
+            when(collaboratorService.isUserTaskCollaborator(taskId, userId)).thenReturn(true);
+
+            // When
+            boolean result = taskService.canUserUpdateOrDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isTrue();
+            verify(taskRepository).findById(taskId);
+            verify(collaboratorService).isUserTaskCollaborator(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should return false when user is neither owner nor collaborator")
+        void canUserUpdateOrDeleteTask_UserIsNeitherOwnerNorCollaborator_ReturnsFalse() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 999L; // Different from testTask1 owner (201L)
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask1));
+            when(collaboratorService.isUserTaskCollaborator(taskId, userId)).thenReturn(false);
+
+            // When
+            boolean result = taskService.canUserUpdateOrDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isFalse();
+            verify(taskRepository).findById(taskId);
+            verify(collaboratorService).isUserTaskCollaborator(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should throw RuntimeException when task is not found")
+        void canUserUpdateOrDeleteTask_TaskNotFound_ThrowsRuntimeException() {
+            // Given
+            Long taskId = 999L;
+            Long userId = 201L;
+            when(taskRepository.findById(taskId)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> taskService.canUserUpdateOrDeleteTask(taskId, userId))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("Task not found");
+
+            verify(taskRepository).findById(taskId);
+            verify(collaboratorService, never()).isUserTaskCollaborator(anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("Should handle different task and user ID combinations")
+        void canUserUpdateOrDeleteTask_DifferentIds_HandlesCorrectly() {
+            // Given
+            Long taskId = 2L;
+            Long userId = 201L; // Same as testTask2 owner
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask2));
+
+            // When
+            boolean result = taskService.canUserUpdateOrDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isTrue();
+            verify(taskRepository).findById(taskId);
+            verify(collaboratorService, never()).isUserTaskCollaborator(anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("Should handle null task ID gracefully")
+        void canUserUpdateOrDeleteTask_NullTaskId_DelegatesToRepository() {
+            // Given
+            Long taskId = null;
+            Long userId = 201L;
+            when(taskRepository.findById(taskId)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> taskService.canUserUpdateOrDeleteTask(taskId, userId))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("Task not found");
+
+            verify(taskRepository).findById(taskId);
+        }
+
+        @Test
+        @DisplayName("Should handle null user ID gracefully")
+        void canUserUpdateOrDeleteTask_NullUserId_HandlesCorrectly() {
+            // Given
+            Long taskId = 1L;
+            Long userId = null;
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask1));
+            when(collaboratorService.isUserTaskCollaborator(taskId, userId)).thenReturn(false);
+
+            // When
+            boolean result = taskService.canUserUpdateOrDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isFalse(); // null userId won't equal task owner ID
+            verify(taskRepository).findById(taskId);
+            verify(collaboratorService).isUserTaskCollaborator(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should verify repository and service interactions for owner scenario")
+        void canUserUpdateOrDeleteTask_OwnerScenario_VerifyInteractions() {
+            // Given
+            Long taskId = 3L;
+            Long userId = 201L; // Same as testTask3 owner
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask3));
+
+            // When
+            boolean result = taskService.canUserUpdateOrDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isTrue();
+            verify(taskRepository).findById(taskId);
+            // Collaborator service should not be called when user is owner
+            verify(collaboratorService, never()).isUserTaskCollaborator(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should verify repository and service interactions for collaborator scenario")
+        void canUserUpdateOrDeleteTask_CollaboratorScenario_VerifyInteractions() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 500L; // Different from testTask1 owner
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask1));
+            when(collaboratorService.isUserTaskCollaborator(taskId, userId)).thenReturn(true);
+
+            // When
+            boolean result = taskService.canUserUpdateOrDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isTrue();
+            verify(taskRepository).findById(taskId);
+            verify(collaboratorService).isUserTaskCollaborator(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should handle edge case with user ID 0")
+        void canUserUpdateOrDeleteTask_UserIdZero_HandlesCorrectly() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 0L;
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask1));
+            when(collaboratorService.isUserTaskCollaborator(taskId, userId)).thenReturn(false);
+
+            // When
+            boolean result = taskService.canUserUpdateOrDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isFalse();
+            verify(taskRepository).findById(taskId);
+            verify(collaboratorService).isUserTaskCollaborator(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should handle task with different owner ID correctly")
+        void canUserUpdateOrDeleteTask_TaskWithDifferentOwner_HandlesCorrectly() {
+            // Given
+            Long taskId = 10L;
+            Long userId = 999L;
+            Long differentOwnerId = 888L;
+
+            Task taskWithDifferentOwner = createTestTask(10L, 100L, differentOwnerId,
+                    "Different Owner Task", "Description", Status.TODO, Collections.emptyList());
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(taskWithDifferentOwner));
+            when(collaboratorService.isUserTaskCollaborator(taskId, userId)).thenReturn(true);
+
+            // When
+            boolean result = taskService.canUserUpdateOrDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isTrue(); // User is collaborator
+            verify(taskRepository).findById(taskId);
+            verify(collaboratorService).isUserTaskCollaborator(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should handle maximum Long values for IDs")
+        void canUserUpdateOrDeleteTask_MaxLongValues_HandlesCorrectly() {
+            // Given
+            Long taskId = Long.MAX_VALUE;
+            Long userId = Long.MAX_VALUE - 1;
+
+            Task maxIdTask = createTestTask(Long.MAX_VALUE, 100L, Long.MAX_VALUE - 1,
+                    "Max ID Task", "Description", Status.TODO, Collections.emptyList());
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(maxIdTask));
+
+            // When
+            boolean result = taskService.canUserUpdateOrDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isTrue(); // User is owner
+            verify(taskRepository).findById(taskId);
+            verify(collaboratorService, never()).isUserTaskCollaborator(anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("Should handle collaborator service returning false correctly")
+        void canUserUpdateOrDeleteTask_CollaboratorServiceReturnsFalse_ReturnsFalse() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 300L; // Different from owner
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask1));
+            when(collaboratorService.isUserTaskCollaborator(taskId, userId)).thenReturn(false);
+
+            // When
+            boolean result = taskService.canUserUpdateOrDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isFalse();
+            verify(taskRepository).findById(taskId);
+            verify(collaboratorService).isUserTaskCollaborator(taskId, userId);
+        }
+    }
 }
+
