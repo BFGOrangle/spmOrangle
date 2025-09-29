@@ -96,13 +96,27 @@ export default function SigninForm() {
           </div>
           <SigninButton isPending={isPending} />
           {errorMessage && <ErrorMessageCallout errorMessage={errorMessage} />}
-          <div className="flex justify-center">
-            <Link
-              href="/auth/signup"
-              className="mt-2 cursor-pointer text-blue-800 text-sm"
-            >
-              {"Don't have an account? "} Sign up.
+          <div className="flex flex-col items-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Forgot password? {" "}
+              <Link
+                href="/auth/forgot-password"
+                className="cursor-pointer text-primary text-sm hover:underline"
+              >
+                Reset password
             </Link>
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Don't have an account? {" "}
+              <Link
+                href="/auth/signup"
+                className="cursor-pointer text-primary hover:underline text-sm"
+              >
+                Sign up.
+              </Link>
+            </p>
+            
+            
           </div>
         </CardContent>
       </Card>

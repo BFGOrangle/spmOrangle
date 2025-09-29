@@ -6,4 +6,6 @@ export enum Route {
   ConfirmSignUp = "/auth/confirm-signup",
   NewPassword = "/auth/new-password",
   ConfirmSMSCode = "/auth/confirm-sms-code",
+  ForgotPassword = "/auth/forgot-password",
+  ResetPassword = "/auth/reset-password",
 }

@@ -9,7 +9,7 @@ import { ErrorMessageCallout } from "@/components/error-message-callout";
 import { toast } from "sonner";
 import { Route } from "@/enums/Route";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardTitle } from "@/components/ui/card";
 import { userManagementService } from "@/services/user-management-service";
 import {
   BaseApiError,
@@ -181,14 +181,16 @@ export default function SignUpForm() {
             )}
           </Button>
         </CardContent>
+        <CardFooter className="flex justify-center">
+          <p className="text-sm text-muted-foreground">
+            Already have an account? {" "}
+            <Link href={Route.SignIn} className="mt-2 cursor-pointer text-primary hover:underline">
+              Log in.
+            </Link>
+          </p>
+        </CardFooter>
       </Card>
       {error && <ErrorMessageCallout errorMessage={error} />}
-
-      <div className="flex justify-center">
-        <Link href={Route.SignIn} className="mt-2 cursor-pointer text-primary">
-          Already have an account? Log in.
-        </Link>
-      </div>
     </form>
   );
 }
