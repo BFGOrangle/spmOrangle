@@ -17,7 +17,6 @@ public class CreateTaskDto {
 
     private final Long projectId;
 
-    @NotNull(message = "Owner ID is required")
     private final Long ownerId;
 
     @NotNull(message = "Title is required")

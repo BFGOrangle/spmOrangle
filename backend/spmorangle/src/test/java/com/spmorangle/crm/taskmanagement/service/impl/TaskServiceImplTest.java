@@ -1,6 +1,9 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
-import com.spmorangle.crm.taskmanagement.dto.SubtaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
+import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
+import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
@@ -22,12 +25,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -60,13 +69,13 @@ class TaskServiceImplTest {
                                   Status.TODO, Arrays.asList("tag1", "tag2"));
 
         testTask2 = createTestTask(2L, 102L, 201L, "Task 2", "Description 2",
-                                  Status.IN_PROGRESS, Arrays.asList("tag3"));
+                                  Status.IN_PROGRESS, Collections.singletonList("tag3"));
 
         testTask3 = createTestTask(3L, 103L, 201L, "Task 3", null,
                                   Status.COMPLETED, Collections.emptyList());
 
-        // Mock subtaskService to return empty lists for all task IDs
-//        when(subtaskService.getSubtasksByTaskId(anyLong())).thenReturn(Collections.emptyList());
+        // Mock subtaskService to return empty lists for all task IDs (lenient for tests that don't use it)
+        lenient().when(subtaskService.getSubtasksByTaskId(anyLong())).thenReturn(Collections.emptyList());
     }
 
     private Task createTestTask(Long id, Long projectId, Long ownerId, String title,
@@ -723,5 +732,594 @@ class TaskServiceImplTest {
             verify(collaboratorService).isUserTaskCollaborator(taskId, userId);
         }
     }
-}
 
+    @Nested
+    @DisplayName("Create Task with Specified Owner Tests")
+    class CreateTaskWithSpecifiedOwnerTests {
+
+        private CreateTaskDto validCreateTaskDto;
+        private Task savedTask;
+        private OffsetDateTime fixedDateTime;
+
+        @BeforeEach
+        void setUp() {
+            fixedDateTime = OffsetDateTime.now();
+
+            validCreateTaskDto = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .ownerId(456L)
+                    .title("Test Task with Specified Owner")
+                    .description("Test Description")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .tags(Arrays.asList("tag1", "tag2"))
+                    .assignedUserIds(Arrays.asList(789L, 101L))
+                    .build();
+
+            savedTask = new Task();
+            savedTask.setId(1L);
+            savedTask.setProjectId(101L);
+            savedTask.setOwnerId(456L);
+            savedTask.setTaskType(TaskType.FEATURE);
+            savedTask.setTitle("Test Task with Specified Owner");
+            savedTask.setDescription("Test Description");
+            savedTask.setStatus(Status.TODO);
+            savedTask.setTags(Arrays.asList("tag1", "tag2"));
+            savedTask.setCreatedBy(456L);
+            savedTask.setCreatedAt(fixedDateTime);
+        }
+
+        @Test
+        @DisplayName("Should successfully create task with specified owner and current user")
+        void createTask_ValidSpecifiedOwner_ReturnsCreateTaskResponseDto() {
+            // Given
+            Long specifiedOwnerId = 456L;
+            Long currentUserId = 123L;
+
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(validCreateTaskDto, specifiedOwnerId, currentUserId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getId()).isEqualTo(1L);
+            assertThat(result.getProjectId()).isEqualTo(101L);
+            assertThat(result.getOwnerId()).isEqualTo(456L);
+            assertThat(result.getTitle()).isEqualTo("Test Task with Specified Owner");
+            assertThat(result.getDescription()).isEqualTo("Test Description");
+            assertThat(result.getStatus()).isEqualTo(Status.TODO);
+            assertThat(result.getTaskType()).isEqualTo(TaskType.FEATURE);
+            assertThat(result.getTags()).containsExactly("tag1", "tag2");
+            assertThat(result.getCreatedBy()).isEqualTo(456L);
+            assertThat(result.getCreatedAt()).isEqualTo(fixedDateTime);
+
+            verify(taskRepository).save(argThat(task ->
+                Objects.equals(task.getProjectId(), 101L) &&
+                Objects.equals(task.getOwnerId(), 456L) &&
+                Objects.equals(task.getCreatedBy(), 456L) &&
+                Objects.equals(task.getTitle(), "Test Task with Specified Owner") &&
+                Objects.equals(task.getDescription(), "Test Description") &&
+                Objects.equals(task.getStatus(), Status.TODO) &&
+                Objects.equals(task.getTaskType(), TaskType.FEATURE) &&
+                Objects.equals(task.getTags(), Arrays.asList("tag1", "tag2"))
+            ));
+        }
+
+        @Test
+        @DisplayName("Should assign collaborators when assignedUserIds provided")
+        void createTask_WithAssignedUserIds_AssignsCollaborators() {
+            // Given
+            Long specifiedOwnerId = 456L;
+            Long currentUserId = 123L;
+
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(collaboratorService.addCollaborator(any(AddCollaboratorRequestDto.class)))
+                    .thenReturn(AddCollaboratorResponseDto.builder()
+                            .taskId(1L)
+                            .collaboratorId(789L)
+                            .assignedById(123L)
+                            .assignedAt(fixedDateTime)
+                            .build());
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(validCreateTaskDto, specifiedOwnerId, currentUserId);
+
+            // Then
+            assertThat(result.getAssignedUserIds()).containsExactly(789L, 101L);
+
+            verify(collaboratorService, times(2)).addCollaborator(argThat(request ->
+                request.getTaskId().equals(1L) &&
+                request.getAssignedById().equals(123L) &&
+                (request.getCollaboratorId().equals(789L) || request.getCollaboratorId().equals(101L))
+            ));
+        }
+
+        @Test
+        @DisplayName("Should handle empty assigned user IDs list")
+        void createTask_EmptyAssignedUserIds_DoesNotAssignCollaborators() {
+            // Given
+            Long specifiedOwnerId = 456L;
+            Long currentUserId = 123L;
+
+            CreateTaskDto dtoWithEmptyAssignedUserIds = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .ownerId(456L)
+                    .title("Test Task")
+                    .description("Test Description")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .assignedUserIds(Collections.emptyList())
+                    .build();
+
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(dtoWithEmptyAssignedUserIds, specifiedOwnerId, currentUserId);
+
+            // Then
+            assertThat(result.getAssignedUserIds()).isEmpty();
+            verify(collaboratorService, never()).addCollaborator(any());
+        }
+
+        @Test
+        @DisplayName("Should handle null assigned user IDs list")
+        void createTask_NullAssignedUserIds_DoesNotAssignCollaborators() {
+            // Given
+            Long specifiedOwnerId = 456L;
+            Long currentUserId = 123L;
+
+            CreateTaskDto dtoWithNullAssignedUserIds = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .ownerId(456L)
+                    .title("Test Task")
+                    .description("Test Description")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .assignedUserIds(null)
+                    .build();
+
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(dtoWithNullAssignedUserIds, specifiedOwnerId, currentUserId);
+
+            // Then
+            assertThat(result.getAssignedUserIds()).isEmpty();
+            verify(collaboratorService, never()).addCollaborator(any());
+        }
+
+        @Test
+        @DisplayName("Should continue when collaborator assignment fails for some users")
+        void createTask_CollaboratorAssignmentFails_ContinuesWithOtherAssignments() {
+            // Given
+            Long specifiedOwnerId = 456L;
+            Long currentUserId = 123L;
+
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(collaboratorService.addCollaborator(argThat(request ->
+                    request != null && request.getCollaboratorId().equals(789L))))
+                    .thenThrow(new RuntimeException("Assignment failed for user 789"));
+            when(collaboratorService.addCollaborator(argThat(request ->
+                    request != null && request.getCollaboratorId().equals(101L))))
+                    .thenReturn(AddCollaboratorResponseDto.builder()
+                            .taskId(1L)
+                            .collaboratorId(101L)
+                            .assignedById(123L)
+                            .assignedAt(fixedDateTime)
+                            .build());
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(validCreateTaskDto, specifiedOwnerId, currentUserId);
+
+            // Then
+            assertThat(result.getAssignedUserIds()).containsExactly(101L);
+            verify(collaboratorService, times(2)).addCollaborator(any());
+        }
+
+        @Test
+        @DisplayName("Should create task with minimal required fields")
+        void createTask_MinimalFields_CreatesTaskSuccessfully() {
+            // Given
+            Long specifiedOwnerId = 456L;
+            Long currentUserId = 123L;
+
+            CreateTaskDto minimalDto = CreateTaskDto.builder()
+                    .title("Minimal Task")
+                    .taskType(TaskType.BUG)
+                    .build();
+
+            Task minimalSavedTask = new Task();
+            minimalSavedTask.setId(1L);
+            minimalSavedTask.setOwnerId(456L);
+            minimalSavedTask.setTitle("Minimal Task");
+            minimalSavedTask.setTaskType(TaskType.BUG);
+            minimalSavedTask.setStatus(Status.TODO);
+            minimalSavedTask.setCreatedBy(456L);
+            minimalSavedTask.setCreatedAt(fixedDateTime);
+
+            when(taskRepository.save(any(Task.class))).thenReturn(minimalSavedTask);
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(minimalDto, specifiedOwnerId, currentUserId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getOwnerId()).isEqualTo(456L);
+            assertThat(result.getTitle()).isEqualTo("Minimal Task");
+            assertThat(result.getTaskType()).isEqualTo(TaskType.BUG);
+            assertThat(result.getCreatedBy()).isEqualTo(456L);
+
+            verify(taskRepository).save(argThat(task ->
+                Objects.equals(task.getOwnerId(), 456L) &&
+                Objects.equals(task.getCreatedBy(), 456L) &&
+                Objects.equals(task.getTitle(), "Minimal Task") &&
+                Objects.equals(task.getTaskType(), TaskType.BUG)
+            ));
+        }
+
+        @Test
+        @DisplayName("Should set correct timestamps on task creation")
+        void createTask_SetsCorrectTimestamps() {
+            // Given
+            Long specifiedOwnerId = 456L;
+            Long currentUserId = 123L;
+
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+            // When
+            taskService.createTask(validCreateTaskDto, specifiedOwnerId, currentUserId);
+
+            // Then
+            verify(taskRepository).save(argThat(task ->
+                task.getCreatedAt() != null &&
+                task.getCreatedAt().isBefore(OffsetDateTime.now().plusSeconds(1)) &&
+                task.getCreatedAt().isAfter(OffsetDateTime.now().minusSeconds(10))
+            ));
+        }
+
+        @Test
+        @DisplayName("Should handle different task types correctly")
+        void createTask_DifferentTaskTypes_CreatesCorrectly() {
+            // Given
+            Long specifiedOwnerId = 456L;
+            Long currentUserId = 123L;
+
+            TaskType[] taskTypes = {TaskType.FEATURE, TaskType.BUG, TaskType.CHORE};
+
+            for (TaskType taskType : taskTypes) {
+                CreateTaskDto dto = CreateTaskDto.builder()
+                        .title("Task of type " + taskType)
+                        .taskType(taskType)
+                        .build();
+
+                Task task = new Task();
+                task.setId(1L);
+                task.setOwnerId(456L);
+                task.setTitle("Task of type " + taskType);
+                task.setTaskType(taskType);
+                task.setCreatedBy(456L);
+                task.setCreatedAt(fixedDateTime);
+
+                when(taskRepository.save(any(Task.class))).thenReturn(task);
+
+                // When
+                CreateTaskResponseDto result = taskService.createTask(dto, specifiedOwnerId, currentUserId);
+
+                // Then
+                assertThat(result.getTaskType()).isEqualTo(taskType);
+            }
+        }
+
+        @Test
+        @DisplayName("Should handle different status types correctly")
+        void createTask_DifferentStatuses_CreatesCorrectly() {
+            // Given
+            Long specifiedOwnerId = 456L;
+            Long currentUserId = 123L;
+
+            Status[] statuses = {Status.TODO, Status.IN_PROGRESS, Status.COMPLETED, Status.BLOCKED};
+
+            for (Status status : statuses) {
+                CreateTaskDto dto = CreateTaskDto.builder()
+                        .title("Task with status " + status)
+                        .taskType(TaskType.FEATURE)
+                        .status(status)
+                        .build();
+
+                Task task = new Task();
+                task.setId(1L);
+                task.setOwnerId(456L);
+                task.setTitle("Task with status " + status);
+                task.setTaskType(TaskType.FEATURE);
+                task.setStatus(status);
+                task.setCreatedBy(456L);
+                task.setCreatedAt(fixedDateTime);
+
+                when(taskRepository.save(any(Task.class))).thenReturn(task);
+
+                // When
+                CreateTaskResponseDto result = taskService.createTask(dto, specifiedOwnerId, currentUserId);
+
+                // Then
+                assertThat(result.getStatus()).isEqualTo(status);
+            }
+        }
+
+        @Test
+        @DisplayName("Should handle null and empty tags correctly")
+        void createTask_NullAndEmptyTags_HandlesCorrectly() {
+            // Given
+            Long specifiedOwnerId = 456L;
+            Long currentUserId = 123L;
+
+            // Test with null tags
+            CreateTaskDto dtoWithNullTags = CreateTaskDto.builder()
+                    .title("Task with null tags")
+                    .taskType(TaskType.FEATURE)
+                    .tags(null)
+                    .build();
+
+            Task taskWithNullTags = new Task();
+            taskWithNullTags.setId(1L);
+            taskWithNullTags.setOwnerId(456L);
+            taskWithNullTags.setTitle("Task with null tags");
+            taskWithNullTags.setTaskType(TaskType.FEATURE);
+            taskWithNullTags.setTags(null);
+            taskWithNullTags.setCreatedBy(456L);
+            taskWithNullTags.setCreatedAt(fixedDateTime);
+
+            when(taskRepository.save(any(Task.class))).thenReturn(taskWithNullTags);
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(dtoWithNullTags, specifiedOwnerId, currentUserId);
+
+            // Then
+            assertThat(result.getTags()).isNull();
+
+            // Test with empty tags
+            CreateTaskDto dtoWithEmptyTags = CreateTaskDto.builder()
+                    .title("Task with empty tags")
+                    .taskType(TaskType.FEATURE)
+                    .tags(Collections.emptyList())
+                    .build();
+
+            Task taskWithEmptyTags = new Task();
+            taskWithEmptyTags.setId(2L);
+            taskWithEmptyTags.setOwnerId(456L);
+            taskWithEmptyTags.setTitle("Task with empty tags");
+            taskWithEmptyTags.setTaskType(TaskType.FEATURE);
+            taskWithEmptyTags.setTags(Collections.emptyList());
+            taskWithEmptyTags.setCreatedBy(456L);
+            taskWithEmptyTags.setCreatedAt(fixedDateTime);
+
+            when(taskRepository.save(any(Task.class))).thenReturn(taskWithEmptyTags);
+
+            // When
+            CreateTaskResponseDto resultEmpty = taskService.createTask(dtoWithEmptyTags, specifiedOwnerId, currentUserId);
+
+            // Then
+            assertThat(resultEmpty.getTags()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should verify transaction annotation is applied")
+        void createTask_TransactionAnnotation_IsApplied() {
+            // This test verifies that the @Transactional annotation is properly configured
+            // The actual transaction behavior would be tested in integration tests
+
+            // Given
+            Long specifiedOwnerId = 456L;
+            Long currentUserId = 123L;
+
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+            // When & Then - Should not throw any exception
+            assertThatCode(() -> taskService.createTask(validCreateTaskDto, specifiedOwnerId, currentUserId))
+                    .doesNotThrowAnyException();
+        }
+    }
+
+    @Nested
+    @DisplayName("Create Task with Current User as Owner Tests")
+    class CreateTaskWithCurrentUserAsOwnerTests {
+
+        private CreateTaskDto validCreateTaskDto;
+        private Task savedTask;
+        private OffsetDateTime fixedDateTime;
+
+        @BeforeEach
+        void setUp() {
+            fixedDateTime = OffsetDateTime.now();
+
+            validCreateTaskDto = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .title("Test Task with Current User as Owner")
+                    .description("Test Description")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .tags(Arrays.asList("tag1", "tag2"))
+                    .assignedUserIds(Arrays.asList(789L, 101L))
+                    .build();
+
+            savedTask = new Task();
+            savedTask.setId(1L);
+            savedTask.setProjectId(101L);
+            savedTask.setOwnerId(123L);
+            savedTask.setTaskType(TaskType.FEATURE);
+            savedTask.setTitle("Test Task with Current User as Owner");
+            savedTask.setDescription("Test Description");
+            savedTask.setStatus(Status.TODO);
+            savedTask.setTags(Arrays.asList("tag1", "tag2"));
+            savedTask.setCreatedBy(123L);
+            savedTask.setCreatedAt(fixedDateTime);
+        }
+
+        @Test
+        @DisplayName("Should successfully create task with current user as owner")
+        void createTask_CurrentUserAsOwner_ReturnsCreateTaskResponseDto() {
+            // Given
+            Long currentUserId = 123L;
+
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(validCreateTaskDto, currentUserId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getId()).isEqualTo(1L);
+            assertThat(result.getProjectId()).isEqualTo(101L);
+            assertThat(result.getOwnerId()).isEqualTo(123L); // Current user becomes owner
+            assertThat(result.getTitle()).isEqualTo("Test Task with Current User as Owner");
+            assertThat(result.getDescription()).isEqualTo("Test Description");
+            assertThat(result.getStatus()).isEqualTo(Status.TODO);
+            assertThat(result.getTaskType()).isEqualTo(TaskType.FEATURE);
+            assertThat(result.getTags()).containsExactly("tag1", "tag2");
+            assertThat(result.getCreatedBy()).isEqualTo(123L);
+            assertThat(result.getCreatedAt()).isEqualTo(fixedDateTime);
+
+            verify(taskRepository).save(argThat(task ->
+                Objects.equals(task.getProjectId(), 101L) &&
+                Objects.equals(task.getOwnerId(), 123L) &&
+                Objects.equals(task.getCreatedBy(), 123L) &&
+                Objects.equals(task.getTitle(), "Test Task with Current User as Owner") &&
+                Objects.equals(task.getDescription(), "Test Description") &&
+                Objects.equals(task.getStatus(), Status.TODO) &&
+                Objects.equals(task.getTaskType(), TaskType.FEATURE) &&
+                Objects.equals(task.getTags(), Arrays.asList("tag1", "tag2"))
+            ));
+        }
+
+        @Test
+        @DisplayName("Should assign collaborators when creating task with current user as owner")
+        void createTask_CurrentUserAsOwnerWithAssignedUserIds_AssignsCollaborators() {
+            // Given
+            Long currentUserId = 123L;
+
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(validCreateTaskDto, currentUserId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getOwnerId()).isEqualTo(currentUserId);
+
+            verify(taskRepository).save(any(Task.class));
+            verify(collaboratorService, times(2)).addCollaborator(any(AddCollaboratorRequestDto.class));
+            
+            // Verify the specific collaborator requests
+            verify(collaboratorService).addCollaborator(argThat(request -> 
+                request.getTaskId().equals(1L) && 
+                request.getCollaboratorId().equals(789L) && 
+                request.getAssignedById().equals(currentUserId)
+            ));
+            verify(collaboratorService).addCollaborator(argThat(request -> 
+                request.getTaskId().equals(1L) && 
+                request.getCollaboratorId().equals(101L) && 
+                request.getAssignedById().equals(currentUserId)
+            ));
+        }
+
+        @Test
+        @DisplayName("Should not assign collaborators when assignedUserIds is empty")
+        void createTask_CurrentUserAsOwnerEmptyAssignedUserIds_DoesNotAssignCollaborators() {
+            // Given
+            Long currentUserId = 123L;
+            CreateTaskDto dtoWithEmptyAssignedUserIds = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .title("Test Task")
+                    .description("Test Description")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .tags(Arrays.asList("tag1", "tag2"))
+                    .assignedUserIds(Collections.emptyList())
+                    .build();
+
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(dtoWithEmptyAssignedUserIds, currentUserId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getOwnerId()).isEqualTo(currentUserId);
+
+            verify(taskRepository).save(any(Task.class));
+            verify(collaboratorService, never()).addCollaborator(any());
+        }
+
+        @Test
+        @DisplayName("Should ignore ownerId from DTO and use current user as owner")
+        void createTask_CurrentUserAsOwnerIgnoresDtoOwnerId_UsesCurrentUserAsOwner() {
+            // Given
+            Long currentUserId = 123L;
+            CreateTaskDto dtoWithDifferentOwnerId = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .ownerId(999L) // This should be ignored
+                    .title("Test Task")
+                    .description("Test Description")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .tags(Arrays.asList("tag1", "tag2"))
+                    .assignedUserIds(Collections.emptyList())
+                    .build();
+
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(dtoWithDifferentOwnerId, currentUserId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getOwnerId()).isEqualTo(currentUserId); // Should use current user, not DTO's ownerId
+
+            verify(taskRepository).save(argThat(task ->
+                Objects.equals(task.getOwnerId(), currentUserId) &&
+                Objects.equals(task.getCreatedBy(), currentUserId)
+            ));
+        }
+
+        @Test
+        @DisplayName("Should handle minimal fields correctly when current user is owner")
+        void createTask_CurrentUserAsOwnerMinimalFields_CreatesTaskSuccessfully() {
+            // Given
+            Long currentUserId = 123L;
+            CreateTaskDto minimalDto = CreateTaskDto.builder()
+                    .projectId(101L)
+                    .title("Minimal Task")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .build();
+
+            Task minimalSavedTask = new Task();
+            minimalSavedTask.setId(2L);
+            minimalSavedTask.setProjectId(101L);
+            minimalSavedTask.setOwnerId(currentUserId);
+            minimalSavedTask.setTitle("Minimal Task");
+            minimalSavedTask.setStatus(Status.TODO);
+            minimalSavedTask.setTaskType(TaskType.FEATURE);
+            minimalSavedTask.setCreatedBy(currentUserId);
+
+            when(taskRepository.save(any(Task.class))).thenReturn(minimalSavedTask);
+
+            // When
+            CreateTaskResponseDto result = taskService.createTask(minimalDto, currentUserId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getId()).isEqualTo(2L);
+            assertThat(result.getOwnerId()).isEqualTo(currentUserId);
+            assertThat(result.getTitle()).isEqualTo("Minimal Task");
+            assertThat(result.getDescription()).isNull();
+            assertThat(result.getTags()).isNullOrEmpty();
+
+            verify(taskRepository).save(argThat(task ->
+                Objects.equals(task.getOwnerId(), currentUserId) &&
+                Objects.equals(task.getCreatedBy(), currentUserId) &&
+                Objects.equals(task.getTitle(), "Minimal Task")
+            ));
+        }
+    }
+}

@@ -151,6 +151,13 @@ export class ProjectService {
   }
 
   /**
+   * Create a new task with specified owner (manager only)
+   */
+  async createTaskWithSpecifiedOwner(taskData: CreateTaskRequest): Promise<TaskResponse> {
+    return this.authenticatedClient.post('/api/tasks/with-owner-id', taskData);
+  }
+
+  /**
    * Get subtasks for a specific task
    */
   async getSubtasksByTaskId(taskId: number): Promise<SubtaskResponse[]> {

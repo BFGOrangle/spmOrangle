@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -49,6 +50,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Void> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
         log.warn("Malformed JSON request body: {}", ex.getMessage());
         return ResponseEntity.badRequest().build(); // 400 Bad Request
+    }
+
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    public ResponseEntity<Void> handleAuthorizationDeniedException(AuthorizationDeniedException ex) {
+        log.warn("Access denied: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build(); // 403 Forbidden
     }
 
     @ExceptionHandler(RuntimeException.class)

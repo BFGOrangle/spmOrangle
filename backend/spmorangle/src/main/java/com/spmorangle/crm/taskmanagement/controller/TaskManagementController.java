@@ -1,6 +1,7 @@
 package com.spmorangle.crm.taskmanagement.controller;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.spmorangle.common.model.User;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,6 +53,20 @@ public class TaskManagementController {
         User user = userContextService.getRequestingUser();
         log.info("Creating task for user {}", user.getId());
         CreateTaskResponseDto response = taskService.createTask(createTaskDto, user.getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PreAuthorize("hasRole('MANAGER')")
+    @PostMapping("/with-owner-id")
+    public ResponseEntity<CreateTaskResponseDto> createTaskWithSpecifiedOwner(
+            @Valid @RequestBody CreateTaskDto createTaskDto) {
+        User user = userContextService.getRequestingUser();
+
+        Long specifiedOwnerId = Optional.ofNullable(createTaskDto.getOwnerId())
+                .orElseThrow(() -> new IllegalArgumentException("Specific Owner ID must be provided"));
+
+        log.info("Creating task for user {}", user.getId());
+        CreateTaskResponseDto response = taskService.createTask(createTaskDto, specifiedOwnerId, user.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

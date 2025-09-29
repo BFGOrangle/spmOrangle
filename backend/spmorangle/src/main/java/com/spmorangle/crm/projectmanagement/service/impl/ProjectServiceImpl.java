@@ -4,6 +4,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.spmorangle.common.converter.UserConverter;
+import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +28,7 @@ public class ProjectServiceImpl implements ProjectService {
 
     private final ProjectRepository projectRepository;
     private final TaskRepository taskRepository;
+    private final UserRepository userRepository;
 
     @Override
     public List<ProjectResponseDto> getUserProjects(Long userId) {
@@ -76,6 +80,14 @@ public class ProjectServiceImpl implements ProjectService {
         projectRepository.save(project);
         log.info("Project {} marked as deleted", projectId);
     }
+
+    @Override
+    public List<UserResponseDto> getProjectMembers(Long projectId) {
+        return userRepository.findUsersInProject(projectId).stream()
+                .map(UserConverter::convert)
+                .toList();
+    }
+
 
     private ProjectResponseDto mapToProjectResponseDto(Project project) {
         // Get task counts for the project

@@ -4,6 +4,30 @@ import userEvent from "@testing-library/user-event";
 import TasksPage from "../../../../app/(app)/tasks/page";
 import { demoTasks } from "@/lib/mvp-data";
 import { projectService, TaskResponse } from "@/services/project-service";
+import { UserProvider } from "@/contexts/user-context";
+
+// Mock AWS Amplify Auth functions that are used by UserProvider
+jest.mock("aws-amplify/auth", () => ({
+  fetchAuthSession: jest.fn().mockResolvedValue({
+    tokens: {
+      accessToken: {
+        payload: {
+          sub: "test-user-id",
+          "cognito:groups": ["user"],
+        },
+      },
+    },
+  }),
+  getCurrentUser: jest.fn().mockResolvedValue({
+    userId: "test-user-id",
+    username: "testuser",
+  }),
+  fetchUserAttributes: jest.fn().mockResolvedValue({
+    email: "test@example.com",
+    name: "Test User",
+  }),
+  signOut: jest.fn().mockResolvedValue(undefined),
+}));
 
 // Mock the project service to avoid network calls
 jest.mock("@/services/project-service", () => ({
@@ -71,6 +95,11 @@ jest.mock("@/components/task-card", () => ({
 
 const mockProjectService = projectService as jest.Mocked<typeof projectService>;
 
+// Test wrapper component that provides UserProvider context
+const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <UserProvider>{children}</UserProvider>
+);
+
 describe("TasksPage", () => {
   beforeAll(() => {
     jest.useFakeTimers();
@@ -121,7 +150,11 @@ describe("TasksPage", () => {
     
     let component: any;
     await act(async () => {
-      component = render(<TasksPage />);
+      component = render(
+        <TestWrapper>
+          <TasksPage />
+        </TestWrapper>
+      );
     });
     
     // Wait for initial data loading
@@ -265,7 +298,11 @@ describe("TasksPage", () => {
     );
 
     await act(async () => {
-      render(<TasksPage />);
+      render(
+        <TestWrapper>
+          <TasksPage />
+        </TestWrapper>
+      );
     });
 
     expect(screen.getByText("Loading tasks...")).toBeInTheDocument();

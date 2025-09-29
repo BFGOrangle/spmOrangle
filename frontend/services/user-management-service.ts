@@ -99,6 +99,21 @@ export class UserManagementService {
   async getUserTypes(): Promise<string[]> {
     return this.authenticatedClient.get<string[]>("/api/user/user-types");
   }
+
+  /**
+   * Get project members (authenticated)
+   * Uses the projects endpoint: GET /{projectId}/members
+   */
+  async getProjectMembers(projectId: number): Promise<UserResponseDto[]> {
+    return this.authenticatedClient.get<UserResponseDto[]>(`/api/projects/${projectId}/members`);
+  }
+
+  /**
+   * Get users by IDs (authenticated)
+   */
+  async getUsersByIds(userIds: number[]): Promise<UserResponseDto[]> {
+    return this.authenticatedClient.post<UserResponseDto[]>("/api/user/batch", userIds);
+  }
 }
 
 // Export a singleton instance

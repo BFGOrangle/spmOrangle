@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, RenderOptions } from "@testing-library/react";
 import { ReactElement, ReactNode } from "react";
+import { UserProvider } from "@/contexts/user-context";
 
 // Create a custom render function that includes QueryClient
 const createTestQueryClient = () =>
@@ -28,7 +29,9 @@ const AllTheProviders = ({
   queryClient?: QueryClient;
 }) => {
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <UserProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </UserProvider>
   );
 };
 

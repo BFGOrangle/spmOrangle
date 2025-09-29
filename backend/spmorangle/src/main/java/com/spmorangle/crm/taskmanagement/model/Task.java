@@ -3,6 +3,8 @@ package com.spmorangle.crm.taskmanagement.model;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import lombok.Builder;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
 
 import com.spmorangle.crm.taskmanagement.enums.Status;

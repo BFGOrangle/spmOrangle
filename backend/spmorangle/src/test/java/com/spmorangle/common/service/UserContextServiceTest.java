@@ -222,87 +222,214 @@ class UserContextServiceTest {
     }
 
     @Nested
-    @DisplayName("isRequestingUserTaskCollaborator Tests")
+    @DisplayName("IsRequestingUserTaskCollaborator Tests")
     class IsRequestingUserTaskCollaboratorTests {
 
         @Test
-        @DisplayName("Should return true when requesting user is collaborator for the task")
-        void shouldReturnTrueWhenUserIsTaskCollaborator() {
-            try (MockedStatic<SecurityContextUtil> mockedSecurityUtil = mockStatic(SecurityContextUtil.class)) {
-                // Given
-                Long taskId = 10L;
-                mockedSecurityUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
+        @DisplayName("Should return true when user is task collaborator")
+        void isRequestingUserTaskCollaborator_UserIsCollaborator_ReturnsTrue() {
+            // Given
+            Long taskId = 123L;
+
+            try (MockedStatic<SecurityContextUtil> mockedSecurityContextUtil = mockStatic(SecurityContextUtil.class)) {
+                mockedSecurityContextUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
                         .thenReturn(Optional.of(testCognitoSub));
-                when(userRepository.findByCognitoSub(testCognitoSub))
-                        .thenReturn(Optional.of(testUser));
-                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, testUser.getId()))
-                        .thenReturn(true);
+
+                when(userRepository.findByCognitoSub(testCognitoSub)).thenReturn(Optional.of(testUser));
+                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, testUser.getId())).thenReturn(true);
 
                 // When
                 boolean result = userContextService.isRequestingUserTaskCollaborator(taskId);
 
                 // Then
                 assertTrue(result);
+                verify(userRepository).findByCognitoSub(testCognitoSub);
                 verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, testUser.getId());
             }
         }
 
         @Test
-        @DisplayName("Should return false when requesting user is not collaborator for the task")
-        void shouldReturnFalseWhenUserIsNotTaskCollaborator() {
-            try (MockedStatic<SecurityContextUtil> mockedSecurityUtil = mockStatic(SecurityContextUtil.class)) {
-                // Given
-                Long taskId = 10L;
-                mockedSecurityUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
+        @DisplayName("Should return false when user is not task collaborator")
+        void isRequestingUserTaskCollaborator_UserIsNotCollaborator_ReturnsFalse() {
+            // Given
+            Long taskId = 123L;
+
+            try (MockedStatic<SecurityContextUtil> mockedSecurityContextUtil = mockStatic(SecurityContextUtil.class)) {
+                mockedSecurityContextUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
                         .thenReturn(Optional.of(testCognitoSub));
-                when(userRepository.findByCognitoSub(testCognitoSub))
-                        .thenReturn(Optional.of(testUser));
-                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, testUser.getId()))
-                        .thenReturn(false);
+
+                when(userRepository.findByCognitoSub(testCognitoSub)).thenReturn(Optional.of(testUser));
+                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, testUser.getId())).thenReturn(false);
 
                 // When
                 boolean result = userContextService.isRequestingUserTaskCollaborator(taskId);
 
                 // Then
                 assertFalse(result);
+                verify(userRepository).findByCognitoSub(testCognitoSub);
+                verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, testUser.getId());
+            }
+        }
+
+        @Test
+        @DisplayName("Should throw RuntimeException when cognito sub not available")
+        void isRequestingUserTaskCollaborator_CognitoSubNotAvailable_ThrowsRuntimeException() {
+            // Given
+            Long taskId = 123L;
+
+            try (MockedStatic<SecurityContextUtil> mockedSecurityContextUtil = mockStatic(SecurityContextUtil.class)) {
+                mockedSecurityContextUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
+                        .thenReturn(Optional.empty());
+
+                // When & Then
+                RuntimeException exception = assertThrows(RuntimeException.class,
+                    () -> userContextService.isRequestingUserTaskCollaborator(taskId));
+
+                assertEquals("Requesting User Cognito sub not available", exception.getMessage());
+                verify(userRepository, never()).findByCognitoSub(any());
+                verify(taskAssigneeRepository, never()).existsByTaskIdAndUserId(any(), any());
+            }
+        }
+
+        @Test
+        @DisplayName("Should throw RuntimeException when user not found")
+        void isRequestingUserTaskCollaborator_UserNotFound_ThrowsRuntimeException() {
+            // Given
+            Long taskId = 123L;
+
+            try (MockedStatic<SecurityContextUtil> mockedSecurityContextUtil = mockStatic(SecurityContextUtil.class)) {
+                mockedSecurityContextUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
+                        .thenReturn(Optional.of(testCognitoSub));
+
+                when(userRepository.findByCognitoSub(testCognitoSub)).thenReturn(Optional.empty());
+
+                // When & Then
+                RuntimeException exception = assertThrows(RuntimeException.class,
+                    () -> userContextService.isRequestingUserTaskCollaborator(taskId));
+
+                assertEquals("Requesting user not found", exception.getMessage());
+                verify(userRepository).findByCognitoSub(testCognitoSub);
+                verify(taskAssigneeRepository, never()).existsByTaskIdAndUserId(any(), any());
+            }
+        }
+
+        @Test
+        @DisplayName("Should handle null task ID gracefully")
+        void isRequestingUserTaskCollaborator_NullTaskId_DelegatesToRepository() {
+            // Given
+            Long taskId = null;
+
+            try (MockedStatic<SecurityContextUtil> mockedSecurityContextUtil = mockStatic(SecurityContextUtil.class)) {
+                mockedSecurityContextUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
+                        .thenReturn(Optional.of(testCognitoSub));
+
+                when(userRepository.findByCognitoSub(testCognitoSub)).thenReturn(Optional.of(testUser));
+                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, testUser.getId())).thenReturn(false);
+
+                // When
+                boolean result = userContextService.isRequestingUserTaskCollaborator(taskId);
+
+                // Then
+                assertFalse(result);
+                verify(userRepository).findByCognitoSub(testCognitoSub);
                 verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, testUser.getId());
             }
         }
 
         @Test
         @DisplayName("Should handle different task IDs correctly")
-        void shouldHandleDifferentTaskIdsCorrectly() {
-            try (MockedStatic<SecurityContextUtil> mockedSecurityUtil = mockStatic(SecurityContextUtil.class)) {
-                // Given
-                Long taskId = 999L;
-                mockedSecurityUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
+        void isRequestingUserTaskCollaborator_DifferentTaskIds_HandlesCorrectly() {
+            // Given
+            Long[] taskIds = {1L, 999L, Long.MAX_VALUE, 0L};
+
+            try (MockedStatic<SecurityContextUtil> mockedSecurityContextUtil = mockStatic(SecurityContextUtil.class)) {
+                mockedSecurityContextUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
                         .thenReturn(Optional.of(testCognitoSub));
-                when(userRepository.findByCognitoSub(testCognitoSub))
-                        .thenReturn(Optional.of(testUser));
-                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, testUser.getId()))
-                        .thenReturn(true);
+
+                when(userRepository.findByCognitoSub(testCognitoSub)).thenReturn(Optional.of(testUser));
+
+                for (Long taskId : taskIds) {
+                    // Reset mocks for each iteration
+                    reset(taskAssigneeRepository);
+                    when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, testUser.getId())).thenReturn(true);
+
+                    // When
+                    boolean result = userContextService.isRequestingUserTaskCollaborator(taskId);
+
+                    // Then
+                    assertTrue(result);
+                    verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, testUser.getId());
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("Should handle different user IDs correctly")
+        void isRequestingUserTaskCollaborator_DifferentUserIds_HandlesCorrectly() {
+            // Given
+            Long taskId = 123L;
+            Long[] userIds = {1L, 999L, Long.MAX_VALUE};
+
+            try (MockedStatic<SecurityContextUtil> mockedSecurityContextUtil = mockStatic(SecurityContextUtil.class)) {
+                mockedSecurityContextUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
+                        .thenReturn(Optional.of(testCognitoSub));
+
+                for (Long userId : userIds) {
+                    // Reset mocks for each iteration
+                    reset(userRepository, taskAssigneeRepository);
+
+                    User userWithDifferentId = new User();
+                    userWithDifferentId.setId(userId);
+                    userWithDifferentId.setCognitoSub(testCognitoSub);
+
+                    when(userRepository.findByCognitoSub(testCognitoSub)).thenReturn(Optional.of(userWithDifferentId));
+                    when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, userId)).thenReturn(true);
+
+                    // When
+                    boolean result = userContextService.isRequestingUserTaskCollaborator(taskId);
+
+                    // Then
+                    assertTrue(result);
+                    verify(userRepository).findByCognitoSub(testCognitoSub);
+                    verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, userId);
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("Should verify correct sequence of method calls")
+        void isRequestingUserTaskCollaborator_VerifyMethodCallSequence() {
+            // Given
+            Long taskId = 123L;
+
+            try (MockedStatic<SecurityContextUtil> mockedSecurityContextUtil = mockStatic(SecurityContextUtil.class)) {
+                mockedSecurityContextUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
+                        .thenReturn(Optional.of(testCognitoSub));
+
+                when(userRepository.findByCognitoSub(testCognitoSub)).thenReturn(Optional.of(testUser));
+                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, testUser.getId())).thenReturn(true);
 
                 // When
-                boolean result = userContextService.isRequestingUserTaskCollaborator(taskId);
+                userContextService.isRequestingUserTaskCollaborator(taskId);
 
-                // Then
-                assertTrue(result);
+                // Then - Verify the sequence of calls
+                verify(userRepository).findByCognitoSub(testCognitoSub);
                 verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, testUser.getId());
             }
         }
 
         @Test
-        @DisplayName("Should handle null task ID gracefully")
-        void shouldHandleNullTaskIdGracefully() {
-            try (MockedStatic<SecurityContextUtil> mockedSecurityUtil = mockStatic(SecurityContextUtil.class)) {
-                // Given
-                Long taskId = null;
-                mockedSecurityUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
+        @DisplayName("Should handle edge case with negative task ID")
+        void isRequestingUserTaskCollaborator_NegativeTaskId_HandlesCorrectly() {
+            // Given
+            Long taskId = -1L;
+
+            try (MockedStatic<SecurityContextUtil> mockedSecurityContextUtil = mockStatic(SecurityContextUtil.class)) {
+                mockedSecurityContextUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
                         .thenReturn(Optional.of(testCognitoSub));
-                when(userRepository.findByCognitoSub(testCognitoSub))
-                        .thenReturn(Optional.of(testUser));
-                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, testUser.getId()))
-                        .thenReturn(false);
+
+                when(userRepository.findByCognitoSub(testCognitoSub)).thenReturn(Optional.of(testUser));
+                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, testUser.getId())).thenReturn(false);
 
                 // When
                 boolean result = userContextService.isRequestingUserTaskCollaborator(taskId);
@@ -314,94 +441,56 @@ class UserContextServiceTest {
         }
 
         @Test
-        @DisplayName("Should throw exception when requesting user cognito sub is not available")
-        void shouldThrowExceptionWhenCognitoSubNotAvailable() {
-            try (MockedStatic<SecurityContextUtil> mockedSecurityUtil = mockStatic(SecurityContextUtil.class)) {
-                // Given
-                Long taskId = 10L;
-                mockedSecurityUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
-                        .thenReturn(Optional.empty());
+        @DisplayName("Should handle repository returning both true and false correctly")
+        void isRequestingUserTaskCollaborator_RepositoryDifferentResults_HandlesCorrectly() {
+            // Given
+            Long taskId1 = 123L;
+            Long taskId2 = 456L;
 
-                // When & Then
-                RuntimeException exception = assertThrows(RuntimeException.class,
-                    () -> userContextService.isRequestingUserTaskCollaborator(taskId));
-                assertEquals("Requesting User Cognito sub not available", exception.getMessage());
-                verify(taskAssigneeRepository, never()).existsByTaskIdAndUserId(any(), any());
-            }
-        }
-
-        @Test
-        @DisplayName("Should throw exception when requesting user is not found")
-        void shouldThrowExceptionWhenRequestingUserNotFound() {
-            try (MockedStatic<SecurityContextUtil> mockedSecurityUtil = mockStatic(SecurityContextUtil.class)) {
-                // Given
-                Long taskId = 10L;
-                mockedSecurityUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
+            try (MockedStatic<SecurityContextUtil> mockedSecurityContextUtil = mockStatic(SecurityContextUtil.class)) {
+                mockedSecurityContextUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
                         .thenReturn(Optional.of(testCognitoSub));
-                when(userRepository.findByCognitoSub(testCognitoSub))
-                        .thenReturn(Optional.empty());
 
-                // When & Then
-                RuntimeException exception = assertThrows(RuntimeException.class,
-                    () -> userContextService.isRequestingUserTaskCollaborator(taskId));
-                assertEquals("Requesting user not found", exception.getMessage());
-                verify(taskAssigneeRepository, never()).existsByTaskIdAndUserId(any(), any());
-            }
-        }
-
-        @Test
-        @DisplayName("Should verify repository called with correct parameters")
-        void shouldVerifyRepositoryCalledWithCorrectParameters() {
-            try (MockedStatic<SecurityContextUtil> mockedSecurityUtil = mockStatic(SecurityContextUtil.class)) {
-                // Given
-                Long taskId = 42L;
-                Long userId = 123L;
-                User userWithDifferentId = new User();
-                userWithDifferentId.setId(userId);
-                userWithDifferentId.setCognitoSub(testCognitoSub);
-
-                mockedSecurityUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
-                        .thenReturn(Optional.of(testCognitoSub));
-                when(userRepository.findByCognitoSub(testCognitoSub))
-                        .thenReturn(Optional.of(userWithDifferentId));
-                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, userId))
-                        .thenReturn(false);
+                when(userRepository.findByCognitoSub(testCognitoSub)).thenReturn(Optional.of(testUser));
+                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId1, testUser.getId())).thenReturn(true);
+                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId2, testUser.getId())).thenReturn(false);
 
                 // When
-                boolean result = userContextService.isRequestingUserTaskCollaborator(taskId);
+                boolean result1 = userContextService.isRequestingUserTaskCollaborator(taskId1);
+                boolean result2 = userContextService.isRequestingUserTaskCollaborator(taskId2);
 
                 // Then
-                assertFalse(result);
-                verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, userId);
-                verify(taskAssigneeRepository, never()).existsByTaskIdAndUserId(eq(taskId), eq(testUser.getId()));
+                assertTrue(result1);
+                assertFalse(result2);
+                verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId1, testUser.getId());
+                verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId2, testUser.getId());
             }
         }
 
         @Test
-        @DisplayName("Should work correctly when user has different ID")
-        void shouldWorkCorrectlyWhenUserHasDifferentId() {
-            try (MockedStatic<SecurityContextUtil> mockedSecurityUtil = mockStatic(SecurityContextUtil.class)) {
-                // Given
-                Long taskId = 15L;
-                Long differentUserId = 789L;
-                User differentUser = new User();
-                differentUser.setId(differentUserId);
-                differentUser.setUserName("differentuser");
-                differentUser.setCognitoSub(testCognitoSub);
+        @DisplayName("Should handle multiple consecutive calls efficiently")
+        void isRequestingUserTaskCollaborator_MultipleCalls_HandlesEfficiently() {
+            // Given
+            Long taskId = 123L;
 
-                mockedSecurityUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
+            try (MockedStatic<SecurityContextUtil> mockedSecurityContextUtil = mockStatic(SecurityContextUtil.class)) {
+                mockedSecurityContextUtil.when(SecurityContextUtil::getCurrentCognitoSubUUID)
                         .thenReturn(Optional.of(testCognitoSub));
-                when(userRepository.findByCognitoSub(testCognitoSub))
-                        .thenReturn(Optional.of(differentUser));
-                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, differentUserId))
-                        .thenReturn(true);
 
-                // When
-                boolean result = userContextService.isRequestingUserTaskCollaborator(taskId);
+                when(userRepository.findByCognitoSub(testCognitoSub)).thenReturn(Optional.of(testUser));
+                when(taskAssigneeRepository.existsByTaskIdAndUserId(taskId, testUser.getId())).thenReturn(true);
+
+                // When - Multiple calls
+                boolean result1 = userContextService.isRequestingUserTaskCollaborator(taskId);
+                boolean result2 = userContextService.isRequestingUserTaskCollaborator(taskId);
+                boolean result3 = userContextService.isRequestingUserTaskCollaborator(taskId);
 
                 // Then
-                assertTrue(result);
-                verify(taskAssigneeRepository).existsByTaskIdAndUserId(taskId, differentUserId);
+                assertTrue(result1);
+                assertTrue(result2);
+                assertTrue(result3);
+                verify(userRepository, times(3)).findByCognitoSub(testCognitoSub);
+                verify(taskAssigneeRepository, times(3)).existsByTaskIdAndUserId(taskId, testUser.getId());
             }
         }
     }
