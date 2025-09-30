@@ -5,6 +5,8 @@ import java.util.List;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.UpdateTaskDto;
+import com.spmorangle.crm.taskmanagement.dto.UpdateTaskResponseDto;
 
 public interface TaskService {
 
@@ -23,7 +25,9 @@ public interface TaskService {
     List<TaskResponseDto> getPersonalTasks(Long userId);
     
     List<TaskResponseDto> getAllUserTasks(Long userId);
-    
+
+    UpdateTaskResponseDto updateTask(UpdateTaskDto updateTaskDto, Long currentUserId);
+
     void deleteTask(Long taskId, Long currentUserId);
 
     boolean canUserUpdateOrDeleteTask(Long taskId, Long userId);
