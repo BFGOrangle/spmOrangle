@@ -1,15 +1,11 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
-import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
-import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
-import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
-import com.spmorangle.crm.taskmanagement.dto.SubtaskResponseDto;
-import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
-import com.spmorangle.crm.taskmanagement.dto.UpdateTaskDto;
-import com.spmorangle.crm.taskmanagement.dto.UpdateTaskResponseDto;
+import com.spmorangle.crm.projectmanagement.service.ProjectService;
+import com.spmorangle.crm.taskmanagement.dto.*;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
+import com.spmorangle.crm.taskmanagement.service.CommentService;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +28,8 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final CollaboratorService collaboratorService;
     private final SubtaskService subtaskService;
+    private final CommentService commentService;
+    private final ProjectService projectService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -134,7 +132,7 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
         // Only owner or collaborators can update the task
-        if (!canUserUpdateOrDeleteTask(updateTaskDto.getTaskId(), currentUserId)) {
+        if (!canUserUpdateTask(updateTaskDto.getTaskId(), currentUserId)) {
             throw new RuntimeException("Only task owner or collaborators can update the task");
         }
 
@@ -180,6 +178,7 @@ public class TaskServiceImpl implements TaskService {
                 .build();
     }
 
+    // only for managers
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteTask(Long taskId, Long currentUserId) {
@@ -188,10 +187,28 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
-        // Only owner can delete the task
-        if (!task.getOwnerId().equals(currentUserId)) {
-            throw new RuntimeException("Only task owner can delete the task");
+        // Only manager of the project can delete the task
+        if (!canUserDeleteTask(taskId, currentUserId)) {
+            throw new RuntimeException("Only project owner or collaborators can delete the task");
         }
+
+        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(taskId);
+        // Delete all associated subtasks
+        if (subtasks != null && !subtasks.isEmpty()) {
+            for (SubtaskResponseDto subtask : subtasks) {
+                subtaskService.deleteSubtask(subtask.getId(), currentUserId);
+                log.info("Deleted subtask {} of task {}", subtask.getId(), taskId);
+            }
+        }
+        // TODO: Delete comments
+        // List<CommentResponseDto> comments = commentService.getTaskComments(taskId);
+        // // Delete all associated comments
+        // if (comments != null && !comments.isEmpty()) {
+        //     for (CommentResponseDto comment : comments) {
+        //         commentService.deleteComment(comment.getId());
+        //         log.info("Deleted comment {} of task {}", comment.getId(), taskId);
+        //     }
+        // }
 
         task.setDeleteInd(true);
         task.setUpdatedBy(currentUserId);
@@ -202,7 +219,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public boolean canUserUpdateOrDeleteTask(Long taskId, Long userId) {
+    public boolean canUserUpdateTask(Long taskId, Long userId) {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
         if (task.getOwnerId().equals(userId)) {
@@ -210,6 +227,21 @@ public class TaskServiceImpl implements TaskService {
         }
         return collaboratorService.isUserTaskCollaborator(taskId, userId);
     }
+
+    @Override
+    public boolean canUserDeleteTask(Long taskId, Long userId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+
+        // Only project owner can delete the task
+        Long projectId = task.getProjectId();
+        Long projectOwnerId = projectService.getOwnerId(projectId);
+        if (task.getProjectId() != null && projectOwnerId.equals(userId)) {
+            return true;
+        }
+        return collaboratorService.isUserTaskCollaborator(taskId, userId);
+    }
+
 
 
     private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess) {
