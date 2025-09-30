@@ -172,8 +172,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
     if (!confirm("Are you sure you want to delete this task?")) return;
 
     try {
-      const userId = currentUser.backendStaffId || 1;
-      await projectService.deleteTask(task.id, userId);
+      await projectService.deleteTask(task.id);
       router.push('/tasks');
     } catch (error) {
       console.error("Error deleting task:", error);
