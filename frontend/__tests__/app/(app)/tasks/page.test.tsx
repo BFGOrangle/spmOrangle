@@ -187,7 +187,6 @@ describe("TasksPage", () => {
     expect(screen.getByTestId("board-column-todo")).toBeInTheDocument();
     expect(screen.getByTestId("board-column-in-progress")).toBeInTheDocument();
     expect(screen.getByTestId("board-column-blocked")).toBeInTheDocument();
-    expect(screen.getByTestId("board-column-review")).toBeInTheDocument();
     expect(screen.getByTestId("board-column-done")).toBeInTheDocument();
 
     const todoColumn = screen.getByTestId("board-column-todo");

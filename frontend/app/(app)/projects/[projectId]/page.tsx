@@ -3,6 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  pointerWithin,
+  rectIntersection,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +32,8 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { DroppableColumn } from "@/components/ui/droppable-column";
 import {
   ArrowLeft,
   Clock4,
@@ -27,6 +45,8 @@ import {
 import { projectService, ProjectResponse, TaskResponse } from "@/services/project-service";
 import { TaskCreationDialog } from "@/components/task-creation-dialog";
 import { TaskCard } from "@/components/task-card";
+import { DraggableTaskCard } from "@/components/draggable-task-card";
+import { cn } from "@/lib/utils";
 
 // Map backend status to frontend status
 const mapBackendStatus = (status: string) => {
@@ -46,7 +66,6 @@ const STATUS_FILTERS: (TaskStatus | "All")[] = [
   "Todo",
   "In Progress",
   "Blocked",
-  "Review",
   "Done",
 ];
 
@@ -54,19 +73,15 @@ const statusOrder: TaskStatus[] = [
   "Todo",
   "In Progress",
   "Blocked",
-  "Review",
   "Done",
 ];
 
 const statusStyles: Record<TaskStatus, string> = {
-  Todo: "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-500/40 dark:bg-slate-500/20 dark:text-slate-100",
-  "In Progress":
-    "border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/20 dark:text-sky-100",
-  Blocked:
-    "border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-100",
-  Review:
-    "border-purple-300 bg-purple-100 text-purple-700 dark:border-purple-500/40 dark:bg-purple-500/20 dark:text-purple-100",
-  Done: "border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/20 dark:text-emerald-100",
+  Todo: "border-border bg-background",
+  "In Progress": "border-border bg-background",
+  Blocked: "border-border bg-background",
+  Review: "border-border bg-background", // Keep for compatibility but won't be used
+  Done: "border-border bg-background",
 };
 
 const TaskBoardCard = ({ task }: { task: TaskResponse }) => {
@@ -84,7 +99,7 @@ const TaskTableRow = ({ task }: { task: TaskResponse }) => {
 export default function ProjectTasksPage() {
   const params = useParams();
   const projectId = parseInt(params.projectId as string);
-  
+
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [tasks, setTasks] = useState<TaskResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +107,110 @@ export default function ProjectTasksPage() {
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | "All">("All");
   const [selectedAssignee, setSelectedAssignee] = useState<string>("all"); // "all" or ownerId as string
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [activeTask, setActiveTask] = useState<TaskResponse | null>(null);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  // Map frontend status to backend status
+  const mapFrontendToBackend = (frontendStatus: TaskStatus): 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED' => {
+    switch (frontendStatus) {
+      case 'Todo': return 'TODO';
+      case 'In Progress': return 'IN_PROGRESS';
+      case 'Blocked': return 'BLOCKED';
+      case 'Done': return 'COMPLETED';
+      default: return 'TODO';
+    }
+  };
+
+  // Custom collision detection for columns
+  const collisionDetectionStrategy = (args: any) => {
+    const pointerIntersections = pointerWithin(args);
+    const droppableIntersections = pointerIntersections.filter((intersection: any) => {
+      return statusOrder.some(status => status === intersection.id);
+    });
+
+    if (droppableIntersections.length > 0) {
+      return droppableIntersections;
+    }
+
+    const rectIntersections = rectIntersection(args);
+    const droppableRectIntersections = rectIntersections.filter((intersection: any) => {
+      return statusOrder.some(status => status === intersection.id);
+    });
+
+    if (droppableRectIntersections.length > 0) {
+      return droppableRectIntersections;
+    }
+
+    const allIntersections = closestCenter(args);
+    return allIntersections.filter((intersection: any) => {
+      return statusOrder.some(status => status === intersection.id);
+    });
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const task = tasks.find((t) => t.id === active.id);
+    setActiveTask(task || null);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveTask(null);
+
+    if (!over) {
+      return;
+    }
+
+    const taskId = active.id as number;
+    let newStatus: TaskStatus | null = null;
+
+    // Check if dropped directly on a column
+    if (statusOrder.some(status => status === over.id)) {
+      newStatus = over.id as TaskStatus;
+    } else {
+      // If dropped on a card, find which column it belongs to
+      const droppedOnTask = tasks.find(t => t.id === over.id);
+      if (droppedOnTask) {
+        newStatus = mapBackendStatus(droppedOnTask.status) as TaskStatus;
+      }
+    }
+
+    if (!newStatus) {
+      return;
+    }
+
+    const task = tasks.find((t) => t.id === taskId);
+
+    if (!task) {
+      console.error("Task not found during drag end:", taskId);
+      return;
+    }
+
+    const currentMappedStatus = mapBackendStatus(task.status);
+
+    // Only update if the status actually changed
+    if (currentMappedStatus !== newStatus) {
+      try {
+        const backendStatus = mapFrontendToBackend(newStatus);
+        const updatedTask = await projectService.updateTask({
+          taskId: task.id,
+          status: backendStatus,
+        });
+        handleTaskUpdated(updatedTask);
+      } catch (error) {
+        console.error('Error updating task status:', error);
+        // Optionally show error toast
+      }
+    }
+  };
 
   useEffect(() => {
     const loadProjectData = async () => {
@@ -131,6 +250,13 @@ export default function ProjectTasksPage() {
   const handleTaskCreated = (newTask: TaskResponse) => {
     // Add the new task to the current tasks list
     setTasks(prevTasks => [newTask, ...prevTasks]);
+  };
+
+  const handleTaskUpdated = (updatedTask: TaskResponse) => {
+    // Update the task in the list
+    setTasks(prevTasks =>
+      prevTasks.map(task => task.id === updatedTask.id ? updatedTask : task)
+    );
   };
 
   const totals = useMemo(() => {
@@ -337,42 +463,75 @@ export default function ProjectTasksPage() {
             </p>
           </div>
 
-          <div className="w-full overflow-x-auto">
-            <div className="flex gap-4 pb-4" style={{ minWidth: `${boardStatuses.length * 280}px` }}>
-              {boardStatuses.map((status) => {
-                const tasks = tasksByStatus[status];
-                const count = tasks.length;
+          <DndContext
+            sensors={sensors}
+            collisionDetection={collisionDetectionStrategy}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="w-full overflow-x-auto">
+              <div className="flex gap-4 pb-4" style={{ minWidth: `${boardStatuses.length * 280}px` }}>
+                {boardStatuses.map((status) => {
+                  const columnTasks = tasksByStatus[status];
+                  const count = columnTasks.length;
 
-                return (
-                  <div
-                    key={status}
-                    className="flex min-h-[400px] w-72 flex-shrink-0 flex-col rounded-lg border bg-muted/50"
-                  >
-                    <div className="flex items-center justify-between p-4 pb-2">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{status}</h3>
-                        <Badge variant="secondary" className="text-xs">
-                          {count}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-2.5 py-2.5">
-                      {tasks.length ? (
-                        tasks.map((task) => (
-                          <TaskBoardCard key={task.id} task={task} />
-                        ))
-                      ) : (
-                        <div className="rounded-lg border border-dashed border-border/70 p-3 text-center text-xs text-muted-foreground">
-                          No tasks in this column yet.
+                  return (
+                    <Card
+                      key={status}
+                      className={cn("flex min-h-[400px] w-72 flex-shrink-0 flex-col", statusStyles[status])}
+                    >
+                      <CardHeader className="pb-3 flex-shrink-0">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold">{status}</h3>
+                            <Badge variant="secondary" className="text-xs bg-white/80">
+                              {count}
+                            </Badge>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                      </CardHeader>
+
+                      <CardContent className="pt-0 flex-1 flex flex-col min-h-0 overflow-hidden">
+                        <SortableContext
+                          items={columnTasks.map((t) => t.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <DroppableColumn
+                            id={status}
+                            className="rounded flex-1 min-h-0 p-2 overflow-y-auto"
+                          >
+                            <ScrollArea className="h-full w-full">
+                              <div className="space-y-2 pr-2">
+                                {columnTasks.map((task) => (
+                                  <DraggableTaskCard
+                                    key={task.id}
+                                    task={task}
+                                    onTaskUpdated={handleTaskUpdated}
+                                  />
+                                ))}
+                                {columnTasks.length === 0 && (
+                                  <div className="rounded-lg border border-dashed border-border/70 p-3 text-center text-xs text-muted-foreground">
+                                    Drop tasks here
+                                  </div>
+                                )}
+                              </div>
+                            </ScrollArea>
+                          </DroppableColumn>
+                        </SortableContext>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+            <DragOverlay>
+              {activeTask ? (
+                <div className="rotate-3 scale-105">
+                  <TaskCard task={activeTask} variant="board" />
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </section>
 
         {/* Detailed List */}
