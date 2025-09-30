@@ -120,14 +120,14 @@ export class ProjectService {
   /**
    * Create a new project
    */
-  async createProject(projectData: CreateProjectRequest, currentUserId: number): Promise<ProjectResponse> {
+  async createProject(projectData: CreateProjectRequest): Promise<ProjectResponse> {
     return this.authenticatedClient.post(`/api/projects`, projectData);
   }
 
   /**
    * Delete a project
    */
-  async deleteProject(projectId: number, currentUserId: number): Promise<void> {
+  async deleteProject(projectId: number): Promise<void> {
     await this.authenticatedClient.delete(`/api/projects/${projectId}`);
   }
 
@@ -176,21 +176,21 @@ export class ProjectService {
   /**
    * Create a new subtask
    */
-  async createSubtask(subtaskData: CreateSubtaskRequest, currentUserId: number): Promise<SubtaskResponse> {
+  async createSubtask(subtaskData: CreateSubtaskRequest): Promise<SubtaskResponse> {
     return this.authenticatedClient.post(`/api/subtasks`, subtaskData);
   }
 
   /**
    * Update a subtask
    */
-  async updateSubtask(subtaskId: number, updateData: UpdateSubtaskRequest, currentUserId: number): Promise<SubtaskResponse> {
+  async updateSubtask(subtaskId: number, updateData: UpdateSubtaskRequest): Promise<SubtaskResponse> {
     return this.authenticatedClient.put(`/api/subtasks/${subtaskId}`, updateData);
   }
 
   /**
    * Delete a subtask
    */
-  async deleteSubtask(subtaskId: number, currentUserId: number): Promise<void> {
+  async deleteSubtask(subtaskId: number): Promise<void> {
     return this.authenticatedClient.delete(`/api/subtasks/${subtaskId}`);
   }
 
@@ -204,7 +204,7 @@ export class ProjectService {
   /**
    * Delete a task
    */
-  async deleteTask(taskId: number, currentUserId: number): Promise<void> {
+  async deleteTask(taskId: number): Promise<void> {
     await this.authenticatedClient.delete(`/api/tasks/${taskId}`);
   }
 
