@@ -87,6 +87,7 @@ public class TaskServiceImpl implements TaskService {
                 .assignedUserIds(assignedUserIds)
                 .tags(savedTask.getTags())
                 .userHasEditAccess(true) // Creator always has edit access
+                .userHasDeleteAccess(canUserDeleteTask(savedTask.getId(), currentUserId))
                 .createdBy(savedTask.getCreatedBy())
                 .createdAt(savedTask.getCreatedAt())
                 .build();
@@ -100,7 +101,8 @@ public class TaskServiceImpl implements TaskService {
         return tasks.stream()
                 .map((task) -> {
                     boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
-                    return mapToTaskResponseDto(task, userHasWriteAccess);
+                    boolean userHasDeleteAccess = task.getProjectId() != null && projectService.getOwnerId(task.getProjectId()).equals(userId);
+                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess);
                 })
                 .toList();
     }
@@ -110,7 +112,7 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting personal tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
         return tasks.stream()
-                .map(task -> mapToTaskResponseDto(task, true))
+                .map(task -> mapToTaskResponseDto(task, true, true))
                 .collect(Collectors.toList());
     }
 
@@ -119,7 +121,10 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting all tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findUserTasks(userId);
         return tasks.stream()
-                .map(task -> mapToTaskResponseDto(task, true))
+                .map(task -> {
+                    boolean userHasDeleteAccess = task.getProjectId() != null && projectService.getOwnerId(task.getProjectId()).equals(userId);
+                    return mapToTaskResponseDto(task, true, userHasDeleteAccess);
+                })
                 .collect(Collectors.toList());
     }
 
@@ -173,6 +178,7 @@ public class TaskServiceImpl implements TaskService {
                 .status(updatedTask.getStatus())
                 .tags(updatedTask.getTags())
                 .userHasEditAccess(true) // User who just updated has edit access
+                .userHasDeleteAccess(canUserDeleteTask(updatedTask.getId(), currentUserId))
                 .updatedAt(updatedTask.getUpdatedAt())
                 .updatedBy(updatedTask.getUpdatedBy())
                 .build();
@@ -244,7 +250,7 @@ public class TaskServiceImpl implements TaskService {
 
 
 
-    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess) {
+    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess, boolean userHasDeleteAccess) {
         // Load subtasks for this task
         List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId());
         
@@ -258,6 +264,7 @@ public class TaskServiceImpl implements TaskService {
                 .status(task.getStatus())
                 .tags(task.getTags())
                 .userHasEditAccess(userHasEditAccess)
+                .userHasDeleteAccess(userHasDeleteAccess)
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .createdBy(task.getCreatedBy())

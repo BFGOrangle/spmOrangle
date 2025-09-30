@@ -23,6 +23,7 @@ public class TaskResponseDto {
     private final Status status;
     private final List<String> tags;
     private final boolean userHasEditAccess;
+    private final boolean userHasDeleteAccess;
     private final OffsetDateTime createdAt;
     private final OffsetDateTime updatedAt;
     private final Long createdBy;
