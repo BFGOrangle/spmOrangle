@@ -11,4 +11,5 @@ public interface ProjectService {
     ProjectResponseDto createProject(CreateProjectDto createProjectDto, Long currentUserId);
     void deleteProject(Long projectId, Long currentUserId);
     List<UserResponseDto> getProjectMembers(Long projectId);
+    Long getOwnerId(Long projectId);
 }

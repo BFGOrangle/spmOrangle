@@ -108,4 +108,11 @@ public class ProjectServiceImpl implements ProjectService {
                 .completedTaskCount(completedTaskCount)
                 .build();
     }
+
+    @Override
+    public Long getOwnerId(Long projectId) {
+        return projectRepository.findById(projectId)
+                .map(Project::getOwnerId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+    }
 }
