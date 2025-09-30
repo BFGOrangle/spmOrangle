@@ -4,6 +4,7 @@ const config: Config = {
   clearMocks: true,
   collectCoverage: true,
   coverageDirectory: "coverage",
+  coverageReporters: ["json-summary", "json", "lcov", "text", "html"],
   testEnvironment: "jsdom",
   preset: "ts-jest",
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],

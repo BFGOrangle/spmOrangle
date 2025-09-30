@@ -55,6 +55,25 @@ jobs:
         working-directory: ./backend/spmorangle
         run: mvn test -Dspring.profiles.active=test
 
+      - name: Generate JaCoCo Badge
+        id: jacoco
+        uses: cicirello/jacoco-badge-generator@v2
+        if: github.event_name == 'pull_request'
+        with:
+          jacoco-csv-file: backend/spmorangle/target/site/jacoco/jacoco.csv
+          generate-branches-badge: true
+          generate-summary: true
+
+      - name: Add coverage comment to PR
+        uses: madrapps/jacoco-report@v1.7.1
+        if: github.event_name == 'pull_request'
+        with:
+          paths: ${{ github.workspace }}/backend/spmorangle/target/site/jacoco/jacoco.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-coverage-overall: 40
+          min-coverage-changed-files: 60
+          title: Backend Coverage Report
+
       - name: Package application
         working-directory: ./backend/spmorangle
         run: mvn package -DskipTests
