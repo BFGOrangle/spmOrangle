@@ -88,6 +88,7 @@ public class TaskServiceImpl implements TaskService {
                 .status(savedTask.getStatus())
                 .assignedUserIds(assignedUserIds)
                 .tags(savedTask.getTags())
+                .userHasEditAccess(true) // Creator always has edit access
                 .createdBy(savedTask.getCreatedBy())
                 .createdAt(savedTask.getCreatedAt())
                 .build();
@@ -173,6 +174,7 @@ public class TaskServiceImpl implements TaskService {
                 .description(updatedTask.getDescription())
                 .status(updatedTask.getStatus())
                 .tags(updatedTask.getTags())
+                .userHasEditAccess(true) // User who just updated has edit access
                 .updatedAt(updatedTask.getUpdatedAt())
                 .updatedBy(updatedTask.getUpdatedBy())
                 .build();

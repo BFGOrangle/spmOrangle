@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import {
   MoreHorizontal,
   Paperclip,
   Users as UsersIcon,
+  ExternalLink,
 } from "lucide-react";
 import { TaskSummary, TaskPriority, TaskStatus } from "@/lib/mvp-data";
 import { TaskResponse, SubtaskResponse } from "@/services/project-service";
@@ -25,6 +27,7 @@ import { SubtaskList } from "./subtask-list";
 import { CommentSection } from "./comment-section";
 import { fileService, FileResponse } from "@/services/file-service";
 import { FileList } from "./file-icon";
+import { TaskUpdateDialog } from "./task-update-dialog";
 
 // Status and priority styles (moved from tasks page)
 const statusStyles: Record<TaskStatus, string> = {
@@ -111,11 +114,15 @@ interface TaskCardProps {
   task: TaskSummary | TaskResponse;
   variant?: 'board' | 'table';
   onSubtaskUpdated?: (taskId: number | string, subtasks: SubtaskResponse[]) => void;
+  onTaskUpdated?: (updatedTask: TaskResponse) => void;
 }
 
-export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCardProps) {
+export function TaskCard({ task, variant = 'board', onSubtaskUpdated, onTaskUpdated }: TaskCardProps) {
+  const router = useRouter();
   const taskProps = getTaskProperties(task);
   const [showDetails, setShowDetails] = useState(false);
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [currentTask, setCurrentTask] = useState<TaskResponse | null>(taskProps.isTaskSummary ? null : task as TaskResponse);
   const [subtasks, setSubtasks] = useState<SubtaskResponse[]>(taskProps.subtasks as SubtaskResponse[]);
   const [files, setFiles] = useState<FileResponse[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
@@ -166,6 +173,24 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
     return { total, done, progress };
   };
 
+  const handleOpenPage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/tasks/${taskProps.id}`);
+  };
+
+  const handleTaskUpdate = (updatedTask: TaskResponse) => {
+    setCurrentTask(updatedTask);
+    setSubtasks(updatedTask.subtasks || []);
+    setShowUpdateDialog(false);
+    onTaskUpdated?.(updatedTask);
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // For now, just navigate to tasks page - actual delete will be on detail page
+    alert("Please open the task detail page to delete");
+  };
+
   if (variant === 'table') {
     return <TaskTableCard task={task} />;
   }
@@ -174,7 +199,7 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
   const collaboratorOverflow = Math.max(taskProps.collaborators.length - 2, 0);
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={handleOpenPage}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -266,16 +291,22 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
             </div>
           )}
 
-          <Dialog open={showDetails} onOpenChange={setShowDetails}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="sm">
-                {taskProps.userHasEditAccess ? (
-                  <>Manage</>
-                ) : (
-                  <>View</>
-                )} {" Details"}
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleOpenPage}
+              className="gap-1"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Open
+            </Button>
+            <Dialog open={showDetails} onOpenChange={setShowDetails}>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
+                  {taskProps.userHasEditAccess ? "Manage" : "View"} Details
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
               <DialogHeader className="flex flex-row justify-between">
                 <div>
@@ -284,11 +315,23 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
                     {taskProps.key} • {taskProps.project}
                   </DialogDescription>
                 </div>
-                {taskProps.userHasEditAccess && (
+                {taskProps.userHasEditAccess && !taskProps.isTaskSummary && (
                   <div className="px-2 flex flex-row space-x-2">
-                    {/* @jitt Please replace with actual update and delete functionality */}
-                    <Button variant="outline">Update</Button>
-                    <Button variant="destructive">Delete</Button>
+                    <Button
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowUpdateDialog(true);
+                      }}
+                    >
+                      Update
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDelete}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 )}
               </DialogHeader>
@@ -365,7 +408,17 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
+
+        {showUpdateDialog && currentTask && (
+          <TaskUpdateDialog
+            task={currentTask}
+            open={showUpdateDialog}
+            onOpenChange={setShowUpdateDialog}
+            onTaskUpdated={handleTaskUpdate}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -373,7 +426,10 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
 
 // Table variant component (simplified version of the existing TaskTableRow)
 function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
+  const router = useRouter();
   const taskProps = getTaskProperties(task);
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [currentTask, setCurrentTask] = useState<TaskResponse | null>(taskProps.isTaskSummary ? null : task as TaskResponse);
   const subtasks = taskProps.subtasks as SubtaskResponse[];
   const total = subtasks.length;
   const done = subtasks.filter((subtask) => subtask.status === 'COMPLETED').length;
@@ -409,10 +465,27 @@ function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
     fetchFiles();
   }, [taskProps.id, taskProps.projectId, taskProps.isTaskSummary]);
 
+  const handleOpenPage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/tasks/${taskProps.id}`);
+  };
+
+  const handleTaskUpdate = (updatedTask: TaskResponse) => {
+    setCurrentTask(updatedTask);
+    setShowUpdateDialog(false);
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    alert("Please open the task detail page to delete");
+  };
+
   return (
+    <>
     <div
-      className="grid gap-3 py-4 transition hover:bg-accent/50 hover:text-accent-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)] sm:py-5"
+      className="grid gap-3 py-4 transition hover:bg-accent/50 hover:text-accent-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)] sm:py-5 cursor-pointer"
       data-testid="table-row"
+      onClick={handleOpenPage}
     >
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -517,13 +590,48 @@ function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
           </span>
         )}
       </div>
-      {taskProps.userHasEditAccess && (
-        <div className="flex flex-row space-x-2">
-          {/* @Jitt Please replace with actual update and delete functionality */}
-          <Button variant="outline">Update</Button>
-          <Button variant="destructive">Delete</Button>
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleOpenPage}
+          className="gap-1"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Open
+        </Button>
+        {taskProps.userHasEditAccess && !taskProps.isTaskSummary && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowUpdateDialog(true);
+              }}
+            >
+              Update
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+            >
+              Delete
+            </Button>
+          </>
+        )}
+      </div>
     </div>
+
+    {showUpdateDialog && currentTask && (
+      <TaskUpdateDialog
+        task={currentTask}
+        open={showUpdateDialog}
+        onOpenChange={setShowUpdateDialog}
+        onTaskUpdated={handleTaskUpdate}
+      />
+    )}
+    </>
   );
 }

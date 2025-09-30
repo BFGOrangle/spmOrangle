@@ -459,6 +459,13 @@ export default function TasksPage() {
     setTasks(prevTasks => [newTask, ...prevTasks]);
   };
 
+  const handleTaskUpdated = (updatedTask: TaskResponse) => {
+    // Update the task in the list
+    setTasks(prevTasks =>
+      prevTasks.map(task => task.id === updatedTask.id ? updatedTask : task)
+    );
+  };
+
   // Use only real tasks - no fallback to demo data
   const displayTasks = tasks;
 
@@ -784,7 +791,7 @@ export default function TasksPage() {
                       <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-2.5 py-2.5">
                         {tasks.length ? (
                           tasks.map((task) => (
-                            <TaskCard key={task.id} task={task} variant="board" />
+                            <TaskCard key={task.id} task={task} variant="board" onTaskUpdated={handleTaskUpdated} />
                           ))
                         ) : (
                           <div className="rounded-lg border border-dashed border-border/70 p-3 text-center text-xs text-muted-foreground">
@@ -824,7 +831,7 @@ export default function TasksPage() {
             <CardContent className="divide-border flex flex-col divide-y">
               {filteredTasks.length > 0 ? (
                 filteredTasks.map((task) => (
-                  <TaskCard key={task.id} task={task} variant="table" />
+                  <TaskCard key={task.id} task={task} variant="table" onTaskUpdated={handleTaskUpdated} />
                 ))
               ) : (
                 <div className="flex items-center justify-center py-16">

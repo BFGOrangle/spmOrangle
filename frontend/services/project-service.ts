@@ -75,6 +75,15 @@ export interface UpdateSubtaskRequest {
   taskType?: 'BUG' | 'FEATURE' | 'CHORE' | 'RESEARCH';
 }
 
+export interface UpdateTaskRequest {
+  taskId: number;
+  title?: string;
+  description?: string;
+  status?: 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
+  taskType?: 'BUG' | 'FEATURE' | 'CHORE' | 'RESEARCH';
+  tags?: string[];
+}
+
 export interface CreateFileUpload{
   taskId: number;
   projectId: number;
@@ -183,6 +192,13 @@ export class ProjectService {
    */
   async deleteSubtask(subtaskId: number, currentUserId: number): Promise<void> {
     return this.authenticatedClient.delete(`/api/subtasks/${subtaskId}`);
+  }
+
+  /**
+   * Update a task
+   */
+  async updateTask(updateData: UpdateTaskRequest): Promise<TaskResponse> {
+    return this.authenticatedClient.put('/api/tasks', updateData);
   }
 
   /**

@@ -21,6 +21,7 @@ public class UpdateTaskResponseDto {
     private final String description;
     private final Status status;
     private final List<String> tags;
+    private final boolean userHasEditAccess;
     private final OffsetDateTime updatedAt;
     private final Long updatedBy;
 }

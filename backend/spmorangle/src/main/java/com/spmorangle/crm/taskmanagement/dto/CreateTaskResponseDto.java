@@ -21,6 +21,7 @@ public class CreateTaskResponseDto {
     private final Status status;
     private final TaskType taskType;
     private final List<String> tags;
+    private final boolean userHasEditAccess;
     private final Long createdBy;
     private final OffsetDateTime createdAt;
     private final List<Long> assignedUserIds;
