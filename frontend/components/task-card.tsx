@@ -159,9 +159,15 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated, onTaskUpda
   };
 
   const handleSubtaskUpdated = (updatedSubtask: SubtaskResponse) => {
-    const updatedSubtasks = subtasks.map(st => 
+    const updatedSubtasks = subtasks.map(st =>
       st.id === updatedSubtask.id ? updatedSubtask : st
     );
+    setSubtasks(updatedSubtasks);
+    onSubtaskUpdated?.(taskProps.id, updatedSubtasks);
+  };
+
+  const handleSubtaskDeleted = (subtaskId: number) => {
+    const updatedSubtasks = subtasks.filter(st => st.id !== subtaskId);
     setSubtasks(updatedSubtasks);
     onSubtaskUpdated?.(taskProps.id, updatedSubtasks);
   };
@@ -375,6 +381,7 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated, onTaskUpda
                       subtasks={subtasks}
                       onSubtaskCreated={handleSubtaskCreated}
                       onSubtaskUpdated={handleSubtaskUpdated}
+                      onSubtaskDeleted={handleSubtaskDeleted}
                     />
                   </div>
                 )}

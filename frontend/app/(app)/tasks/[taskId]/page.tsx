@@ -191,6 +191,10 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
     ));
   };
 
+  const handleSubtaskDeleted = (subtaskId: number) => {
+    setSubtasks(subtasks.filter(st => st.id !== subtaskId));
+  };
+
   if (loading) {
     return (
       <SidebarInset>
@@ -291,6 +295,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
                     subtasks={subtasks}
                     onSubtaskCreated={handleSubtaskCreated}
                     onSubtaskUpdated={handleSubtaskUpdated}
+                    onSubtaskDeleted={handleSubtaskDeleted}
                   />
                 </CardContent>
               </Card>
