@@ -5,6 +5,8 @@ import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.SubtaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.UpdateTaskDto;
+import com.spmorangle.crm.taskmanagement.dto.UpdateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
@@ -86,6 +88,7 @@ public class TaskServiceImpl implements TaskService {
                 .status(savedTask.getStatus())
                 .assignedUserIds(assignedUserIds)
                 .tags(savedTask.getTags())
+                .userHasEditAccess(true) // Creator always has edit access
                 .createdBy(savedTask.getCreatedBy())
                 .createdAt(savedTask.getCreatedAt())
                 .build();
@@ -124,21 +127,76 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public UpdateTaskResponseDto updateTask(UpdateTaskDto updateTaskDto, Long currentUserId) {
+        log.info("Updating task: {} by user: {}", updateTaskDto.getTaskId(), currentUserId);
+
+        Task task = taskRepository.findById(updateTaskDto.getTaskId())
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+
+        // Only owner or collaborators can update the task
+        if (!canUserUpdateOrDeleteTask(updateTaskDto.getTaskId(), currentUserId)) {
+            throw new RuntimeException("Only task owner or collaborators can update the task");
+        }
+
+        // Update only fields that are present in the DTO
+        if (updateTaskDto.getTitle() != null) {
+            task.setTitle(updateTaskDto.getTitle());
+        }
+
+        if (updateTaskDto.getDescription() != null) {
+            task.setDescription(updateTaskDto.getDescription());
+        }
+
+        if (updateTaskDto.getStatus() != null) {
+            task.setStatus(updateTaskDto.getStatus());
+        }
+
+        if (updateTaskDto.getTaskType() != null) {
+            task.setTaskType(updateTaskDto.getTaskType());
+        }
+
+        if (updateTaskDto.getTags() != null) {
+            task.setTags(updateTaskDto.getTags());
+        }
+
+        task.setUpdatedBy(currentUserId);
+        task.setUpdatedAt(OffsetDateTime.now());
+
+        Task updatedTask = taskRepository.save(task);
+        log.info("Task {} updated successfully", updatedTask.getId());
+
+        return UpdateTaskResponseDto.builder()
+                .id(updatedTask.getId())
+                .projectId(updatedTask.getProjectId())
+                .ownerId(updatedTask.getOwnerId())
+                .taskType(updatedTask.getTaskType())
+                .title(updatedTask.getTitle())
+                .description(updatedTask.getDescription())
+                .status(updatedTask.getStatus())
+                .tags(updatedTask.getTags())
+                .userHasEditAccess(true) // User who just updated has edit access
+                .updatedAt(updatedTask.getUpdatedAt())
+                .updatedBy(updatedTask.getUpdatedBy())
+                .build();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteTask(Long taskId, Long currentUserId) {
         log.info("Deleting task: {} by user: {}", taskId, currentUserId);
-        
+
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
-        
+
         // Only owner can delete the task
         if (!task.getOwnerId().equals(currentUserId)) {
             throw new RuntimeException("Only task owner can delete the task");
         }
-        
+
         task.setDeleteInd(true);
         task.setUpdatedBy(currentUserId);
         task.setUpdatedAt(OffsetDateTime.now());
-        
+
         taskRepository.save(task);
         log.info("Task {} marked as deleted", taskId);
     }

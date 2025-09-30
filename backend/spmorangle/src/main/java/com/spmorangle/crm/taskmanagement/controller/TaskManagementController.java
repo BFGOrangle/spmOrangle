@@ -136,6 +136,20 @@ public class TaskManagementController {
     }
 
     /**
+     * Update a task
+     * @param updateTaskDto
+     * @return UpdateTaskResponseDto
+     */
+    @PutMapping
+    public ResponseEntity<UpdateTaskResponseDto> updateTask(
+            @Valid @RequestBody UpdateTaskDto updateTaskDto) {
+        User user = userContextService.getRequestingUser();
+        log.info("Updating task: {} by user: {}", updateTaskDto.getTaskId(), user.getId());
+        UpdateTaskResponseDto response = taskService.updateTask(updateTaskDto, user.getId());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * Delete a task
      * @param taskId
      */

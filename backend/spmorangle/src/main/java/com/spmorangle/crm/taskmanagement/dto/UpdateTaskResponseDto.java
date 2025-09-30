@@ -12,17 +12,16 @@ import java.util.List;
 @Getter
 @Builder
 @AllArgsConstructor
-public class CreateTaskResponseDto {
+public class UpdateTaskResponseDto {
     private final Long id;
     private final Long projectId;
     private final Long ownerId;
+    private final TaskType taskType;
     private final String title;
     private final String description;
     private final Status status;
-    private final TaskType taskType;
     private final List<String> tags;
     private final boolean userHasEditAccess;
-    private final Long createdBy;
-    private final OffsetDateTime createdAt;
-    private final List<Long> assignedUserIds;
+    private final OffsetDateTime updatedAt;
+    private final Long updatedBy;
 }

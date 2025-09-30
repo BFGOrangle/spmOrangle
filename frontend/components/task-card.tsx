@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -13,11 +14,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  CalendarDays,
   Clock4,
-  MoreHorizontal,
   Paperclip,
-  Users as UsersIcon,
+  ExternalLink,
 } from "lucide-react";
 import { TaskSummary, TaskPriority, TaskStatus } from "@/lib/mvp-data";
 import { TaskResponse, SubtaskResponse } from "@/services/project-service";
@@ -25,17 +24,15 @@ import { SubtaskList } from "./subtask-list";
 import { CommentSection } from "./comment-section";
 import { fileService, FileResponse } from "@/services/file-service";
 import { FileList } from "./file-icon";
+import { TaskUpdateDialog } from "./task-update-dialog";
 
 // Status and priority styles (moved from tasks page)
 const statusStyles: Record<TaskStatus, string> = {
-  Todo: "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-500/40 dark:bg-slate-500/20 dark:text-slate-100",
-  "In Progress":
-    "border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/20 dark:text-sky-100",
-  Blocked:
-    "border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-100",
-  Review:
-    "border-purple-300 bg-purple-100 text-purple-700 dark:border-purple-500/40 dark:bg-purple-500/20 dark:text-purple-100",
-  Done: "border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/20 dark:text-emerald-100",
+  Todo: "border-border bg-muted text-foreground",
+  "In Progress": "border-border bg-muted text-foreground",
+  Blocked: "border-border bg-muted text-foreground",
+  Review: "border-border bg-muted text-foreground",
+  Done: "border-border bg-muted text-foreground",
 };
 
 const priorityStyles: Record<TaskPriority, { badge: string; text: string }> = {
@@ -103,6 +100,7 @@ const getTaskProperties = (task: TaskSummary | TaskResponse) => {
     project: isTaskSummary ? (task as TaskSummary).project : ((task as TaskResponse).projectId ? `Project ${(task as TaskResponse).projectId}` : 'Personal Task'),
     subtasks: 'subtasks' in task && task.subtasks ? task.subtasks : [],
     projectId: isTaskSummary ? null : (task as TaskResponse).projectId,
+    tags: isTaskSummary ? [] : ((task as TaskResponse).tags || []),
     isTaskSummary
   };
 };
@@ -111,11 +109,15 @@ interface TaskCardProps {
   task: TaskSummary | TaskResponse;
   variant?: 'board' | 'table';
   onSubtaskUpdated?: (taskId: number | string, subtasks: SubtaskResponse[]) => void;
+  onTaskUpdated?: (updatedTask: TaskResponse) => void;
 }
 
-export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCardProps) {
+export function TaskCard({ task, variant = 'board', onSubtaskUpdated, onTaskUpdated }: TaskCardProps) {
+  const router = useRouter();
   const taskProps = getTaskProperties(task);
   const [showDetails, setShowDetails] = useState(false);
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [currentTask, setCurrentTask] = useState<TaskResponse | null>(taskProps.isTaskSummary ? null : task as TaskResponse);
   const [subtasks, setSubtasks] = useState<SubtaskResponse[]>(taskProps.subtasks as SubtaskResponse[]);
   const [files, setFiles] = useState<FileResponse[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
@@ -152,9 +154,15 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
   };
 
   const handleSubtaskUpdated = (updatedSubtask: SubtaskResponse) => {
-    const updatedSubtasks = subtasks.map(st => 
+    const updatedSubtasks = subtasks.map(st =>
       st.id === updatedSubtask.id ? updatedSubtask : st
     );
+    setSubtasks(updatedSubtasks);
+    onSubtaskUpdated?.(taskProps.id, updatedSubtasks);
+  };
+
+  const handleSubtaskDeleted = (subtaskId: number) => {
+    const updatedSubtasks = subtasks.filter(st => st.id !== subtaskId);
     setSubtasks(updatedSubtasks);
     onSubtaskUpdated?.(taskProps.id, updatedSubtasks);
   };
@@ -166,75 +174,112 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
     return { total, done, progress };
   };
 
+  const handleOpenPage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/tasks/${taskProps.id}`);
+  };
+
+  const handleTaskUpdate = (updatedTask: TaskResponse) => {
+    setCurrentTask(updatedTask);
+    setSubtasks(updatedTask.subtasks || []);
+    setShowUpdateDialog(false);
+    onTaskUpdated?.(updatedTask);
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // For now, just navigate to tasks page - actual delete will be on detail page
+    alert("Please open the task detail page to delete");
+  };
+
   if (variant === 'table') {
     return <TaskTableCard task={task} />;
   }
 
   const { total, done, progress } = getSubtaskSummary();
-  const collaboratorOverflow = Math.max(taskProps.collaborators.length - 2, 0);
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <span>{taskProps.key}</span>
+    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={handleOpenPage}>
+      <CardHeader className="pb-2 pt-3 px-3 space-y-2">
+        {/* Header: Key + Priority + Type Badge */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[0.65rem] font-semibold text-muted-foreground">
+              {taskProps.key}
+            </span>
             <Badge
               variant="outline"
-              className={`border-none px-1 py-0 text-[0.6rem] ${priorityStyles[taskProps.priority].badge}`}
+              className="text-[0.55rem] px-1 py-0 bg-muted border-muted-foreground/20"
             >
-              {taskProps.priority}
+              {taskProps.isTaskSummary ? 'Task' : (task as TaskResponse).taskType || 'TASK'}
             </Badge>
           </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <CalendarDays className="h-3 w-3" aria-hidden="true" />
-            <span>{formatDate(taskProps.dueDate)}</span>
+          <Badge
+            variant="outline"
+            className={`border-none px-1.5 py-0 text-[0.55rem] ${priorityStyles[taskProps.priority].badge}`}
+          >
+            {taskProps.priority.toUpperCase()}
+          </Badge>
+        </div>
+
+        {/* Title */}
+        <h3 className="text-xs font-medium leading-snug line-clamp-2 text-foreground">
+          {taskProps.title}
+        </h3>
+
+        {/* Assignee Section */}
+        <div className="flex items-center gap-1.5 text-[0.65rem] text-muted-foreground">
+          <span className="font-medium">ASSIGNEE:</span>
+          <div className="flex items-center gap-1">
+            <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary/10 text-[0.55rem] font-semibold text-primary">
+              {getInitials(taskProps.owner)}
+            </div>
+            <span className="font-medium">{taskProps.owner}</span>
+            {taskProps.collaborators.length > 0 && (
+              <>
+                <span>, </span>
+                <span>{taskProps.collaborators.slice(0, 2).join(', ')}</span>
+                {taskProps.collaborators.length > 2 && (
+                  <span className="text-muted-foreground/70">
+                    , +{taskProps.collaborators.length - 2} more
+                  </span>
+                )}
+              </>
+            )}
           </div>
         </div>
 
-        <h3 className="text-sm font-semibold leading-tight mb-2">{taskProps.title}</h3>
-
-        <div className="flex items-center gap-2 mb-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-            {getInitials(taskProps.owner)}
-          </div>
-          <span className="text-xs font-medium truncate">{taskProps.owner}</span>
-        </div>
-
-        {taskProps.collaborators.length > 0 && (
-          <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-            <UsersIcon className="h-3 w-3" aria-hidden="true" />
-            <div className="flex items-center -space-x-1">
-              {taskProps.collaborators.slice(0, 2).map((name) => (
-                <span
-                  key={name}
-                  className="flex h-5 w-5 items-center justify-center rounded-full border border-background bg-secondary text-[0.6rem] font-semibold text-secondary-foreground shadow-sm"
-                >
-                  {getInitials(name)}
+        {/* Tags Section */}
+        {taskProps.tags && taskProps.tags.length > 0 && (
+          <div className="flex items-center gap-1.5 text-[0.65rem] text-muted-foreground">
+            <span className="font-medium">TAGS:</span>
+            <div className="flex flex-wrap gap-1">
+              {taskProps.tags.slice(0, 3).map((tag, index) => (
+                <span key={index} className="font-medium">
+                  {tag}{index < Math.min(taskProps.tags!.length - 1, 2) ? ',' : ''}
                 </span>
               ))}
-              {collaboratorOverflow > 0 ? (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-muted-foreground/50 bg-background text-[0.6rem] font-semibold text-muted-foreground">
-                  +{collaboratorOverflow}
+              {taskProps.tags.length > 3 && (
+                <span className="text-muted-foreground/70">
+                  +{taskProps.tags.length - 3} more
                 </span>
-              ) : null}
+              )}
             </div>
           </div>
         )}
       </CardHeader>
 
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 pb-2 px-3">
+        {/* Progress bar for subtasks */}
         {total > 0 && (
-          <div className="space-y-1 mb-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">
-                {done}/{total}
-              </span>
-              <span className="text-muted-foreground">{progress}%</span>
+          <div className="space-y-1 mb-2">
+            <div className="flex items-center justify-between text-[0.6rem] text-muted-foreground">
+              <span>Subtasks: {done}/{total}</span>
+              <span>{progress}%</span>
             </div>
-            <div className="h-1.5 w-full rounded-full bg-muted">
+            <div className="h-1 w-full rounded-full bg-muted">
               <div
-                className="h-1.5 rounded-full bg-primary transition-all"
+                className="h-1 rounded-full bg-primary transition-all"
                 style={{ width: `${progress}%` }}
                 aria-hidden="true"
               />
@@ -242,38 +287,35 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          {/* Show file icons instead of just attachment count */}
-          {!isLoadingFiles && files.length > 0 && (
-            <div className="flex items-center gap-2">
-              <FileList files={files} maxDisplay={3} size="sm" />
-            </div>
-          )}
-
-          {/* Show loading state for files */}
-          {isLoadingFiles && !taskProps.isTaskSummary && (
-            <div className="flex items-center gap-1">
-              <div className="animate-pulse h-4 w-4 bg-muted rounded"></div>
-              <div className="animate-pulse h-4 w-8 bg-muted rounded"></div>
-            </div>
-          )}
-
-          {/* Fallback to old attachment count for TaskSummary */}
-          {taskProps.isTaskSummary && taskProps.attachments > 0 && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Paperclip className="h-3 w-3" aria-hidden="true" />
-              <span>{taskProps.attachments}</span>
-            </div>
-          )}
+        {/* Footer with attachments */}
+        <div className="flex items-center justify-between text-[0.6rem] text-muted-foreground">
+          <div className="flex items-center gap-2">
+            {!isLoadingFiles && files.length > 0 && (
+              <div className="flex items-center gap-1">
+                <Paperclip className="h-3 w-3" />
+                <span>{files.length} attachment{files.length > 1 ? 's' : ''}</span>
+              </div>
+            )}
+            {isLoadingFiles && !taskProps.isTaskSummary && (
+              <div className="animate-pulse h-3 w-8 bg-muted rounded"></div>
+            )}
+            {taskProps.isTaskSummary && taskProps.attachments > 0 && (
+              <div className="flex items-center gap-1">
+                <Paperclip className="h-3 w-3" />
+                <span>{taskProps.attachments} attachment{taskProps.attachments > 1 ? 's' : ''}</span>
+              </div>
+            )}
+          </div>
 
           <Dialog open={showDetails} onOpenChange={setShowDetails}>
             <DialogTrigger asChild>
-              <Button variant="ghost" size="sm">
-                {taskProps.userHasEditAccess ? (
-                  <>Manage</>
-                ) : (
-                  <>View</>
-                )} {" Details"}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 px-2 text-[0.6rem] hover:bg-muted"
+                onClick={(e) => e.stopPropagation()}
+              >
+                View Details
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
@@ -284,11 +326,23 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
                     {taskProps.key} • {taskProps.project}
                   </DialogDescription>
                 </div>
-                {taskProps.userHasEditAccess && (
+                {taskProps.userHasEditAccess && !taskProps.isTaskSummary && (
                   <div className="px-2 flex flex-row space-x-2">
-                    {/* @jitt Please replace with actual update and delete functionality */}
-                    <Button variant="outline">Update</Button>
-                    <Button variant="destructive">Delete</Button>
+                    <Button
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowUpdateDialog(true);
+                      }}
+                    >
+                      Update
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDelete}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 )}
               </DialogHeader>
@@ -332,6 +386,7 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
                       subtasks={subtasks}
                       onSubtaskCreated={handleSubtaskCreated}
                       onSubtaskUpdated={handleSubtaskUpdated}
+                      onSubtaskDeleted={handleSubtaskDeleted}
                     />
                   </div>
                 )}
@@ -367,13 +422,25 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated }: TaskCard
           </Dialog>
         </div>
       </CardContent>
+
+      {showUpdateDialog && currentTask && (
+        <TaskUpdateDialog
+          task={currentTask}
+          open={showUpdateDialog}
+          onOpenChange={setShowUpdateDialog}
+          onTaskUpdated={handleTaskUpdate}
+        />
+      )}
     </Card>
   );
 }
 
 // Table variant component (simplified version of the existing TaskTableRow)
 function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
+  const router = useRouter();
   const taskProps = getTaskProperties(task);
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [currentTask, setCurrentTask] = useState<TaskResponse | null>(taskProps.isTaskSummary ? null : task as TaskResponse);
   const subtasks = taskProps.subtasks as SubtaskResponse[];
   const total = subtasks.length;
   const done = subtasks.filter((subtask) => subtask.status === 'COMPLETED').length;
@@ -409,10 +476,27 @@ function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
     fetchFiles();
   }, [taskProps.id, taskProps.projectId, taskProps.isTaskSummary]);
 
+  const handleOpenPage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/tasks/${taskProps.id}`);
+  };
+
+  const handleTaskUpdate = (updatedTask: TaskResponse) => {
+    setCurrentTask(updatedTask);
+    setShowUpdateDialog(false);
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    alert("Please open the task detail page to delete");
+  };
+
   return (
+    <>
     <div
-      className="grid gap-3 py-4 transition hover:bg-accent/50 hover:text-accent-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)] sm:py-5"
+      className="grid gap-3 py-4 transition hover:bg-accent/50 hover:text-accent-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)] sm:py-5 cursor-pointer"
       data-testid="table-row"
+      onClick={handleOpenPage}
     >
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -517,13 +601,48 @@ function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
           </span>
         )}
       </div>
-      {taskProps.userHasEditAccess && (
-        <div className="flex flex-row space-x-2">
-          {/* @Jitt Please replace with actual update and delete functionality */}
-          <Button variant="outline">Update</Button>
-          <Button variant="destructive">Delete</Button>
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleOpenPage}
+          className="gap-1"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Open
+        </Button>
+        {taskProps.userHasEditAccess && !taskProps.isTaskSummary && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowUpdateDialog(true);
+              }}
+            >
+              Update
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+            >
+              Delete
+            </Button>
+          </>
+        )}
+      </div>
     </div>
+
+    {showUpdateDialog && currentTask && (
+      <TaskUpdateDialog
+        task={currentTask}
+        open={showUpdateDialog}
+        onOpenChange={setShowUpdateDialog}
+        onTaskUpdated={handleTaskUpdate}
+      />
+    )}
+    </>
   );
 }

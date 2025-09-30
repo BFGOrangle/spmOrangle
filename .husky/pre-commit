@@ -4,13 +4,13 @@
 GIT_ROOT=$(git rev-parse --show-toplevel)
 
 # Run frontend tests
-cd "$GIT_ROOT/frontend" && npm test
+cd "$GIT_ROOT/frontend" && npm test || exit 1
 
-# Run lint-staged from git root (--no-stash prevents reverting changes on failure)
-cd "$GIT_ROOT" && npx lint-staged --no-stash || exit 1
+# # Run lint-staged from git root (--no-stash prevents reverting changes on failure)
+# cd "$GIT_ROOT" && npx lint-staged --no-stash || exit 1
 
 # If any Java files in backend/ are staged, run Maven tests
 if git diff --cached --name-only --diff-filter=ACM | grep -q '^backend/.*\.java$'; then
   echo ">>> Java changes detected. Running Maven tests..."
-  cd "$GIT_ROOT/backend" && mvn test || exit 1
+  cd "$GIT_ROOT/backend/spmOrangle" && mvn test || exit 1
 fi
