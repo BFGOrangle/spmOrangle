@@ -49,6 +49,14 @@ jobs:
         env:
           CI: true
 
+      - name: Coverage Report
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always() && github.event_name == 'pull_request'
+        with:
+          working-directory: ./frontend
+          json-summary-path: ./coverage/coverage-summary.json
+          json-final-path: ./coverage/coverage-final.json
+
       - name: Build application
         run: npm run build
 
