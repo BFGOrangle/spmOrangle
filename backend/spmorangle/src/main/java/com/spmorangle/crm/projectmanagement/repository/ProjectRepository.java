@@ -1,6 +1,7 @@
 package com.spmorangle.crm.projectmanagement.repository;
 
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -24,4 +25,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
            "LEFT JOIN ProjectMember pm ON p.id = pm.projectId " +
            "WHERE p.deleteInd = false AND (p.ownerId = :userId OR pm.userId = :userId)")
     List<Project> findUserProjects(@Param("userId") Long userId);
+
+    @Query("SELECT p FROM Project p WHERE p.id IN :projectIds")
+    List<Project> findByIdIn(@Param("projectIds") Set<Long> projectIds);
 }

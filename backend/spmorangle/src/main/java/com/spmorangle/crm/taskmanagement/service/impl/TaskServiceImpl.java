@@ -13,10 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -96,10 +93,11 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting tasks for project: {}", projectId);
         List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
+        Long projectOwnerId = projectService.getOwnerId(projectId);
         return tasks.stream()
                 .map((task) -> {
                     boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
-                    boolean userHasDeleteAccess = task.getProjectId() != null && projectService.getOwnerId(task.getProjectId()).equals(userId);
+                    boolean userHasDeleteAccess = userId.equals(projectOwnerId);
                     return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess);
                 })
                 .toList();
@@ -118,9 +116,18 @@ public class TaskServiceImpl implements TaskService {
     public List<TaskResponseDto> getAllUserTasks(Long userId) {
         log.info("Getting all tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findUserTasks(userId);
+        
+        Set<Long> projectIds = tasks.stream()
+                .map(Task::getProjectId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        
+        Map<Long, Long> projectOwnerMap = projectService.getProjectOwners(projectIds);
+        
         return tasks.stream()
                 .map(task -> {
-                    boolean userHasDeleteAccess = task.getProjectId() != null && projectService.getOwnerId(task.getProjectId()).equals(userId);
+                    boolean userHasDeleteAccess = task.getProjectId() != null 
+                        && userId.equals(projectOwnerMap.get(task.getProjectId()));
                     return mapToTaskResponseDto(task, true, userHasDeleteAccess);
                 })
                 .collect(Collectors.toList());
