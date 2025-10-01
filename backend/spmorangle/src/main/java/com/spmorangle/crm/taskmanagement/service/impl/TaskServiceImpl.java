@@ -5,7 +5,6 @@ import com.spmorangle.crm.taskmanagement.dto.*;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
-import com.spmorangle.crm.taskmanagement.service.CommentService;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +27,6 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final CollaboratorService collaboratorService;
     private final SubtaskService subtaskService;
-    private final CommentService commentService;
     private final ProjectService projectService;
 
     @Override
@@ -198,24 +196,6 @@ public class TaskServiceImpl implements TaskService {
             throw new RuntimeException("Only project owner or collaborators can delete the task");
         }
 
-        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(taskId);
-        // Delete all associated subtasks
-        if (subtasks != null && !subtasks.isEmpty()) {
-            for (SubtaskResponseDto subtask : subtasks) {
-                subtaskService.deleteSubtask(subtask.getId(), currentUserId);
-                log.info("Deleted subtask {} of task {}", subtask.getId(), taskId);
-            }
-        }
-        // TODO: Delete comments
-        // List<CommentResponseDto> comments = commentService.getTaskComments(taskId);
-        // // Delete all associated comments
-        // if (comments != null && !comments.isEmpty()) {
-        //     for (CommentResponseDto comment : comments) {
-        //         commentService.deleteComment(comment.getId());
-        //         log.info("Deleted comment {} of task {}", comment.getId(), taskId);
-        //     }
-        // }
-
         task.setDeleteInd(true);
         task.setUpdatedBy(currentUserId);
         task.setUpdatedAt(OffsetDateTime.now());
@@ -240,12 +220,10 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
         // Only project owner can delete the task
+        // TODO: potentially handle more than one owner?
         Long projectId = task.getProjectId();
         Long projectOwnerId = projectService.getOwnerId(projectId);
-        if (task.getProjectId() != null && projectOwnerId.equals(userId)) {
-            return true;
-        }
-        return collaboratorService.isUserTaskCollaborator(taskId, userId);
+        return task.getProjectId() != null && projectOwnerId.equals(userId);
     }
 
 

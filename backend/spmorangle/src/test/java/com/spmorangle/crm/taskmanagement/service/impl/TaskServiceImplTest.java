@@ -1,5 +1,6 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
+import com.spmorangle.crm.projectmanagement.service.ProjectService;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
@@ -52,6 +53,9 @@ class TaskServiceImplTest {
 
     @Mock
     private SubtaskService subtaskService;
+
+    @Mock
+    private ProjectService projectService;
 
     @InjectMocks
     private TaskServiceImpl taskService;
@@ -777,7 +781,7 @@ class TaskServiceImplTest {
             Long currentUserId = 123L;
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
-
+            when(taskRepository.findById(1L)).thenReturn(Optional.of(savedTask));
             // When
             CreateTaskResponseDto result = taskService.createTask(validCreateTaskDto, specifiedOwnerId, currentUserId);
 
@@ -814,6 +818,7 @@ class TaskServiceImplTest {
             Long currentUserId = 123L;
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(taskRepository.findById(savedTask.getId())).thenReturn(Optional.of(savedTask));
             when(collaboratorService.addCollaborator(any(AddCollaboratorRequestDto.class)))
                     .thenReturn(AddCollaboratorResponseDto.builder()
                             .taskId(1L)
@@ -853,6 +858,7 @@ class TaskServiceImplTest {
                     .build();
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(taskRepository.findById(1L)).thenReturn(Optional.of(savedTask));
 
             // When
             CreateTaskResponseDto result = taskService.createTask(dtoWithEmptyAssignedUserIds, specifiedOwnerId, currentUserId);
@@ -880,6 +886,7 @@ class TaskServiceImplTest {
                     .build();
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(taskRepository.findById(1L)).thenReturn(Optional.of(savedTask));
 
             // When
             CreateTaskResponseDto result = taskService.createTask(dtoWithNullAssignedUserIds, specifiedOwnerId, currentUserId);
@@ -897,6 +904,8 @@ class TaskServiceImplTest {
             Long currentUserId = 123L;
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(taskRepository.findById(savedTask.getId())).thenReturn(Optional.of(savedTask));
+
             when(collaboratorService.addCollaborator(argThat(request ->
                     request != null && request.getCollaboratorId().equals(789L))))
                     .thenThrow(new RuntimeException("Assignment failed for user 789"));
@@ -939,6 +948,7 @@ class TaskServiceImplTest {
             minimalSavedTask.setCreatedAt(fixedDateTime);
 
             when(taskRepository.save(any(Task.class))).thenReturn(minimalSavedTask);
+            when(taskRepository.findById(minimalSavedTask.getId())).thenReturn(Optional.of(minimalSavedTask));
 
             // When
             CreateTaskResponseDto result = taskService.createTask(minimalDto, specifiedOwnerId, currentUserId);
@@ -966,6 +976,7 @@ class TaskServiceImplTest {
             Long currentUserId = 123L;
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(taskRepository.findById(savedTask.getId())).thenReturn(Optional.of(savedTask));
 
             // When
             taskService.createTask(validCreateTaskDto, specifiedOwnerId, currentUserId);
@@ -1002,6 +1013,7 @@ class TaskServiceImplTest {
                 task.setCreatedAt(fixedDateTime);
 
                 when(taskRepository.save(any(Task.class))).thenReturn(task);
+                when(taskRepository.findById(task.getId())).thenReturn(Optional.of(task));
 
                 // When
                 CreateTaskResponseDto result = taskService.createTask(dto, specifiedOwnerId, currentUserId);
@@ -1037,6 +1049,7 @@ class TaskServiceImplTest {
                 task.setCreatedAt(fixedDateTime);
 
                 when(taskRepository.save(any(Task.class))).thenReturn(task);
+                when(taskRepository.findById(task.getId())).thenReturn(Optional.of(task));
 
                 // When
                 CreateTaskResponseDto result = taskService.createTask(dto, specifiedOwnerId, currentUserId);
@@ -1070,6 +1083,7 @@ class TaskServiceImplTest {
             taskWithNullTags.setCreatedAt(fixedDateTime);
 
             when(taskRepository.save(any(Task.class))).thenReturn(taskWithNullTags);
+            when(taskRepository.findById(taskWithNullTags.getId())).thenReturn(Optional.of(taskWithNullTags));
 
             // When
             CreateTaskResponseDto result = taskService.createTask(dtoWithNullTags, specifiedOwnerId, currentUserId);
@@ -1094,6 +1108,7 @@ class TaskServiceImplTest {
             taskWithEmptyTags.setCreatedAt(fixedDateTime);
 
             when(taskRepository.save(any(Task.class))).thenReturn(taskWithEmptyTags);
+            when(taskRepository.findById(taskWithEmptyTags.getId())).thenReturn(Optional.of(taskWithEmptyTags));
 
             // When
             CreateTaskResponseDto resultEmpty = taskService.createTask(dtoWithEmptyTags, specifiedOwnerId, currentUserId);
@@ -1113,6 +1128,7 @@ class TaskServiceImplTest {
             Long currentUserId = 123L;
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(taskRepository.findById(savedTask.getId())).thenReturn(Optional.of(savedTask));
 
             // When & Then - Should not throw any exception
             assertThatCode(() -> taskService.createTask(validCreateTaskDto, specifiedOwnerId, currentUserId))
@@ -1162,6 +1178,7 @@ class TaskServiceImplTest {
             Long currentUserId = 123L;
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(taskRepository.findById(savedTask.getId())).thenReturn(Optional.of(savedTask));
 
             // When
             CreateTaskResponseDto result = taskService.createTask(validCreateTaskDto, currentUserId);
@@ -1198,6 +1215,7 @@ class TaskServiceImplTest {
             Long currentUserId = 123L;
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(taskRepository.findById(savedTask.getId())).thenReturn(Optional.of(savedTask));
 
             // When
             CreateTaskResponseDto result = taskService.createTask(validCreateTaskDto, currentUserId);
@@ -1238,6 +1256,7 @@ class TaskServiceImplTest {
                     .build();
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(taskRepository.findById(savedTask.getId())).thenReturn(Optional.of(savedTask));
 
             // When
             CreateTaskResponseDto result = taskService.createTask(dtoWithEmptyAssignedUserIds, currentUserId);
@@ -1267,6 +1286,7 @@ class TaskServiceImplTest {
                     .build();
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+            when(taskRepository.findById(savedTask.getId())).thenReturn(Optional.of(savedTask));
 
             // When
             CreateTaskResponseDto result = taskService.createTask(dtoWithDifferentOwnerId, currentUserId);
@@ -1303,6 +1323,7 @@ class TaskServiceImplTest {
             minimalSavedTask.setCreatedBy(currentUserId);
 
             when(taskRepository.save(any(Task.class))).thenReturn(minimalSavedTask);
+            when(taskRepository.findById(minimalSavedTask.getId())).thenReturn(Optional.of(minimalSavedTask));
 
             // When
             CreateTaskResponseDto result = taskService.createTask(minimalDto, currentUserId);
