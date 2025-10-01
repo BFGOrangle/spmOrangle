@@ -48,6 +48,7 @@ export interface TaskResponseDto {
   status: TaskStatus;
   tags?: string[];
   userHasEditAccess: boolean;
+  userHasDeleteAccess: boolean;
   createdAt: string;
   updatedAt?: string;
   createdBy: number;
