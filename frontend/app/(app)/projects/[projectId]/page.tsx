@@ -259,6 +259,11 @@ export default function ProjectTasksPage() {
     );
   };
 
+  const handleTaskDeleted = (taskId: number) => {
+    // Remove the task from the list
+    setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
+  };
+
   const totals = useMemo(() => {
     const taskCount = tasks.length;
     const completedCount = tasks.filter(task => task.status === 'COMPLETED').length;
@@ -507,6 +512,7 @@ export default function ProjectTasksPage() {
                                     key={task.id}
                                     task={task}
                                     onTaskUpdated={handleTaskUpdated}
+                                    onTaskDeleted={handleTaskDeleted}
                                   />
                                 ))}
                                 {columnTasks.length === 0 && (

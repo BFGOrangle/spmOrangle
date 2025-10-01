@@ -8,9 +8,10 @@ import { TaskCard } from "./task-card";
 interface DraggableTaskCardProps {
   task: TaskResponse;
   onTaskUpdated?: (updatedTask: TaskResponse) => void;
+  onTaskDeleted?: (taskId: number) => void;
 }
 
-export function DraggableTaskCard({ task, onTaskUpdated }: DraggableTaskCardProps) {
+export function DraggableTaskCard({ task, onTaskUpdated, onTaskDeleted }: DraggableTaskCardProps) {
   const {
     attributes,
     listeners,
@@ -28,7 +29,7 @@ export function DraggableTaskCard({ task, onTaskUpdated }: DraggableTaskCardProp
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <TaskCard task={task} variant="board" onTaskUpdated={onTaskUpdated} />
+      <TaskCard task={task} variant="board" onTaskUpdated={onTaskUpdated} onTaskDeleted={onTaskDeleted} />
     </div>
   );
 }

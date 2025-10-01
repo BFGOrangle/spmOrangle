@@ -14,17 +14,28 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Clock4,
   Paperclip,
   ExternalLink,
 } from "lucide-react";
 import { TaskSummary, TaskPriority, TaskStatus } from "@/lib/mvp-data";
-import { TaskResponse, SubtaskResponse } from "@/services/project-service";
+import { TaskResponse, SubtaskResponse, projectService } from "@/services/project-service";
 import { SubtaskList } from "./subtask-list";
 import { CommentSection } from "./comment-section";
 import { fileService, FileResponse } from "@/services/file-service";
 import { FileList } from "./file-icon";
 import { TaskUpdateDialog } from "./task-update-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 // Status and priority styles (moved from tasks page)
 const statusStyles: Record<TaskStatus, string> = {
@@ -89,6 +100,7 @@ const getTaskProperties = (task: TaskSummary | TaskResponse) => {
     title: task.title,
     description: task.description || '',
     userHasEditAccess: task.userHasEditAccess,
+    userHasDeleteAccess: task.userHasDeleteAccess,
     status: isTaskSummary ? task.status : mapBackendStatus((task as TaskResponse).status),
     key: isTaskSummary ? (task as TaskSummary).key : `TASK-${task.id}`,
     priority: isTaskSummary ? (task as TaskSummary).priority : 'Medium' as TaskPriority,
@@ -110,13 +122,16 @@ interface TaskCardProps {
   variant?: 'board' | 'table';
   onSubtaskUpdated?: (taskId: number | string, subtasks: SubtaskResponse[]) => void;
   onTaskUpdated?: (updatedTask: TaskResponse) => void;
+  onTaskDeleted?: (taskId: number) => void;
 }
 
-export function TaskCard({ task, variant = 'board', onSubtaskUpdated, onTaskUpdated }: TaskCardProps) {
+export function TaskCard({ task, variant = 'board', onSubtaskUpdated, onTaskUpdated, onTaskDeleted }: TaskCardProps) {
   const router = useRouter();
+  const { toast } = useToast();
   const taskProps = getTaskProperties(task);
   const [showDetails, setShowDetails] = useState(false);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [currentTask, setCurrentTask] = useState<TaskResponse | null>(taskProps.isTaskSummary ? null : task as TaskResponse);
   const [subtasks, setSubtasks] = useState<SubtaskResponse[]>(taskProps.subtasks as SubtaskResponse[]);
   const [files, setFiles] = useState<FileResponse[]>([]);
@@ -186,14 +201,33 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated, onTaskUpda
     onTaskUpdated?.(updatedTask);
   };
 
-  const handleDelete = async (e: React.MouseEvent) => {
+  const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // For now, just navigate to tasks page - actual delete will be on detail page
-    alert("Please open the task detail page to delete");
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
+      await projectService.deleteTask(Number(taskProps.id));
+      toast({
+        title: "Task deleted",
+        description: "The task has been successfully deleted.",
+      });
+      setShowDeleteDialog(false);
+      onTaskDeleted?.(Number(taskProps.id));
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      toast({
+        title: "Failed to delete task",
+        description: error instanceof Error ? error.message : "An error occurred while deleting the task.",
+        variant: "destructive",
+      });
+      setShowDeleteDialog(false);
+    }
   };
 
   if (variant === 'table') {
-    return <TaskTableCard task={task} />;
+    return <TaskTableCard task={task} onTaskUpdated={onTaskUpdated} onTaskDeleted={onTaskDeleted} />;
   }
 
   const { total, done, progress } = getSubtaskSummary();
@@ -339,7 +373,7 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated, onTaskUpda
                     </Button>
                     <Button
                       variant="destructive"
-                      onClick={handleDelete}
+                      onClick={handleDeleteClick}
                     >
                       Delete
                     </Button>
@@ -431,15 +465,37 @@ export function TaskCard({ task, variant = 'board', onSubtaskUpdated, onTaskUpda
           onTaskUpdated={handleTaskUpdate}
         />
       )}
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this task? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
 
 // Table variant component (simplified version of the existing TaskTableRow)
-function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
+function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSummary | TaskResponse; onTaskUpdated?: (updatedTask: TaskResponse) => void; onTaskDeleted?: (taskId: number) => void; }) {
   const router = useRouter();
+  const { toast } = useToast();
   const taskProps = getTaskProperties(task);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [currentTask, setCurrentTask] = useState<TaskResponse | null>(taskProps.isTaskSummary ? null : task as TaskResponse);
   const subtasks = taskProps.subtasks as SubtaskResponse[];
   const total = subtasks.length;
@@ -484,11 +540,32 @@ function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
   const handleTaskUpdate = (updatedTask: TaskResponse) => {
     setCurrentTask(updatedTask);
     setShowUpdateDialog(false);
+    onTaskUpdated?.(updatedTask);
   };
 
-  const handleDelete = async (e: React.MouseEvent) => {
+  const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    alert("Please open the task detail page to delete");
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
+      await projectService.deleteTask(Number(taskProps.id));
+      toast({
+        title: "Task deleted",
+        description: "The task has been successfully deleted.",
+      });
+      setShowDeleteDialog(false);
+      onTaskDeleted?.(Number(taskProps.id));
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      toast({
+        title: "Failed to delete task",
+        description: error instanceof Error ? error.message : "An error occurred while deleting the task.",
+        variant: "destructive",
+      });
+      setShowDeleteDialog(false);
+    }
   };
 
   return (
@@ -611,25 +688,29 @@ function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
           <ExternalLink className="h-3 w-3" />
           Open
         </Button>
-        {taskProps.userHasEditAccess && !taskProps.isTaskSummary && (
+        {!taskProps.isTaskSummary && (
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowUpdateDialog(true);
-              }}
-            >
-              Update
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleDelete}
-            >
-              Delete
-            </Button>
+            {taskProps.userHasEditAccess && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowUpdateDialog(true);
+                }}
+              >
+                Update
+              </Button>
+            )}
+            {taskProps.userHasDeleteAccess && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteClick}
+              >
+                Delete
+              </Button>
+            )}
           </>
         )}
       </div>
@@ -643,6 +724,26 @@ function TaskTableCard({ task }: { task: TaskSummary | TaskResponse }) {
         onTaskUpdated={handleTaskUpdate}
       />
     )}
+
+    <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Task</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this task? This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleDeleteConfirm}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </>
   );
 }

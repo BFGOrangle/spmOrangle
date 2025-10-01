@@ -25,6 +25,17 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/mvp-data";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Status and priority styles
 const statusStyles: Record<TaskStatus, string> = {
@@ -100,12 +111,14 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
   const taskId = parseInt(resolvedParams.taskId);
   const router = useRouter();
   const { currentUser } = useCurrentUser();
+  const { toast } = useToast();
   const [task, setTask] = useState<TaskResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [files, setFiles] = useState<FileResponse[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [subtasks, setSubtasks] = useState<SubtaskResponse[]>([]);
 
   useEffect(() => {
@@ -166,17 +179,29 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
     setShowUpdateDialog(false);
   };
 
-  const handleDelete = async () => {
-    if (!task || !currentUser) return;
+  const handleDeleteClick = () => {
+    setShowDeleteDialog(true);
+  };
 
-    if (!confirm("Are you sure you want to delete this task?")) return;
+  const handleDeleteConfirm = async () => {
+    if (!task || !currentUser) return;
 
     try {
       await projectService.deleteTask(task.id);
+      toast({
+        title: "Task deleted",
+        description: "The task has been successfully deleted.",
+      });
+      setShowDeleteDialog(false);
       router.push('/tasks');
     } catch (error) {
       console.error("Error deleting task:", error);
-      alert("Failed to delete task");
+      toast({
+        title: "Failed to delete task",
+        description: error instanceof Error ? error.message : "An error occurred while deleting the task.",
+        variant: "destructive",
+      });
+      setShowDeleteDialog(false);
     }
   };
 
@@ -255,18 +280,20 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
               </p>
             </div>
           </div>
-          {task.userHasEditAccess && (
-            <div className="flex gap-2">
+          <div className="flex gap-2">
+            {task.userHasEditAccess && (
               <Button size="sm" variant="outline" onClick={() => setShowUpdateDialog(true)}>
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Task
               </Button>
-              <Button size="sm" variant="destructive" onClick={handleDelete}>
+            )}
+            {task.userHasDeleteAccess && (
+              <Button size="sm" variant="destructive" onClick={handleDeleteClick}>
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
@@ -415,6 +442,26 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
           onTaskUpdated={handleTaskUpdated}
         />
       )}
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this task? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarInset>
   );
 }
