@@ -585,6 +585,11 @@ export default function TasksPage() {
     );
   };
 
+  const handleTaskDeleted = (taskId: number) => {
+    // Remove the task from the list
+    setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
+  };
+
   // Use only real tasks - no fallback to demo data
   const displayTasks = tasks;
 
@@ -931,6 +936,7 @@ export default function TasksPage() {
                                         key={task.id}
                                         task={task}
                                         onTaskUpdated={handleTaskUpdated}
+                                        onTaskDeleted={handleTaskDeleted}
                                       />
                                     ))}
                                     {columnTasks.length === 0 && (
@@ -983,7 +989,7 @@ export default function TasksPage() {
             <CardContent className="divide-border flex flex-col divide-y">
               {filteredTasks.length > 0 ? (
                 filteredTasks.map((task) => (
-                  <TaskCard key={task.id} task={task} variant="table" onTaskUpdated={handleTaskUpdated} />
+                  <TaskCard key={task.id} task={task} variant="table" onTaskUpdated={handleTaskUpdated} onTaskDeleted={handleTaskDeleted} />
                 ))
               ) : (
                 <div className="flex items-center justify-center py-16">

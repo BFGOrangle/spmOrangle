@@ -87,11 +87,9 @@ export function SubtaskUpdateDialog({
         return;
       }
 
-      const currentUserId = 1; // TODO: Get from auth context
       const updatedSubtask = await projectService.updateSubtask(
         subtask.id,
         updateRequest,
-        currentUserId
       );
       onSubtaskUpdated(updatedSubtask);
       onOpenChange(false);

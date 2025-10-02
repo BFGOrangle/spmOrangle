@@ -307,7 +307,8 @@ describe("TasksPage", () => {
         createdAt: "2024-12-01T00:00:00Z",
         createdBy: 1,
         projectId: undefined,
-        userHasEditAccess: true
+        userHasEditAccess: true,
+        userHasDeleteAccess: false
       };
 
       mockProjectService.getAllUserTasks.mockResolvedValue([minimalTask]);
@@ -330,7 +331,8 @@ describe("TasksPage", () => {
         createdAt: "2024-12-01T00:00:00Z",
         createdBy: 1,
         projectId: 1,
-        userHasEditAccess: false
+        userHasEditAccess: false,
+        userHasDeleteAccess: false
       };
 
       mockProjectService.getAllUserTasks.mockResolvedValue([invalidStatusTask]);
@@ -386,7 +388,8 @@ describe("TasksPage", () => {
         ownerId: 3,
         createdAt: "2024-12-01T15:00:00Z",
         createdBy: 3,
-        userHasEditAccess: true
+        userHasEditAccess: true,
+        userHasDeleteAccess: false
       };
 
       const mockTasksData: TaskResponse[] = demoTasks.map((task, index) => ({
@@ -404,7 +407,8 @@ describe("TasksPage", () => {
         createdAt: task.dueDate || '2024-12-01T00:00:00Z',
         createdBy: 1,
         updatedAt: task.lastUpdated || '2024-12-01T00:00:00Z',
-        userHasEditAccess: task.userHasEditAccess
+        userHasEditAccess: task.userHasEditAccess,
+        userHasDeleteAccess: task.userHasDeleteAccess
       }));
 
       const updatedTasks = [...mockTasksData, newTask];
@@ -467,7 +471,8 @@ describe("mapBackendStatus function", () => {
         createdAt: "2024-12-01T00:00:00Z",
         createdBy: 1,
         projectId: 1,
-        userHasEditAccess: true
+        userHasEditAccess: true,
+        userHasDeleteAccess: false
       };
 
       mockProjectService.getAllUserTasks.mockResolvedValue([mockTask]);

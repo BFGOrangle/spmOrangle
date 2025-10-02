@@ -32,6 +32,7 @@ export type TaskSummary = {
   project: string;
   owner: string;
   userHasEditAccess: boolean;
+  userHasDeleteAccess: boolean;
   collaborators: string[];
   status: TaskStatus;
   priority: TaskPriority;
@@ -101,6 +102,7 @@ export const demoTasks: TaskSummary[] = [
     project: "Cross-platform Mobile App",
     owner: "Alicia Keys",
     userHasEditAccess: true,
+    userHasDeleteAccess: false,
     collaborators: ["Marcus Lee", "Priya Patel"],
     status: "In Progress",
     priority: "High",
@@ -134,6 +136,7 @@ export const demoTasks: TaskSummary[] = [
     project: "Revenue Intelligence",
     owner: "Daniel Cho",
     userHasEditAccess: false,
+    userHasDeleteAccess: false,
     collaborators: ["Julia Sato", "Jamal Carter"],
     status: "Review",
     priority: "Medium",
@@ -167,6 +170,7 @@ export const demoTasks: TaskSummary[] = [
     project: "Data Quality Refresh",
     owner: "Marcus Lee",
     userHasEditAccess: true,
+    userHasDeleteAccess: false,
     collaborators: ["Alicia Keys", "Julia Sato"],
     status: "Blocked",
     priority: "High",
@@ -200,6 +204,7 @@ export const demoTasks: TaskSummary[] = [
     project: "Customer Onboarding",
     owner: "Priya Patel",
     userHasEditAccess: true,
+    userHasDeleteAccess: false,
     collaborators: ["Alicia Keys"],
     status: "Todo",
     priority: "Medium",
@@ -228,6 +233,7 @@ export const demoTasks: TaskSummary[] = [
     project: "Data Quality Refresh",
     owner: "Julia Sato",
     userHasEditAccess: false,
+    userHasDeleteAccess: false,
     collaborators: ["Marcus Lee", "Daniel Cho"],
     status: "In Progress",
     priority: "High",
@@ -266,6 +272,7 @@ export const demoTasks: TaskSummary[] = [
     project: "Revenue Intelligence",
     owner: "Jamal Carter",
     userHasEditAccess: true,
+    userHasDeleteAccess: false,
     collaborators: [],
     status: "Done",
     priority: "Low",

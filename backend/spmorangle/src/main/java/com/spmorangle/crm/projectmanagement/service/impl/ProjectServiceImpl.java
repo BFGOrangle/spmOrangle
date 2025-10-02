@@ -1,7 +1,10 @@
 package com.spmorangle.crm.projectmanagement.service.impl;
 
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.spmorangle.common.converter.UserConverter;
@@ -107,5 +110,21 @@ public class ProjectServiceImpl implements ProjectService {
                 .taskCount(taskCount)
                 .completedTaskCount(completedTaskCount)
                 .build();
+    }
+
+    @Override
+    public Long getOwnerId(Long projectId) {
+        return projectRepository.findById(projectId)
+                .map(Project::getOwnerId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+    }
+
+    @Override
+    public Map<Long, Long> getProjectOwners(Set<Long> projectIds) {
+        if (projectIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return projectRepository.findAllById(projectIds).stream()
+                .collect(Collectors.toMap(Project::getId, Project::getOwnerId));
     }
 }

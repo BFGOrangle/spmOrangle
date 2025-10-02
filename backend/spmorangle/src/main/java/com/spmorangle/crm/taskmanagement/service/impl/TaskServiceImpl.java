@@ -1,12 +1,7 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
-import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
-import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
-import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
-import com.spmorangle.crm.taskmanagement.dto.SubtaskResponseDto;
-import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
-import com.spmorangle.crm.taskmanagement.dto.UpdateTaskDto;
-import com.spmorangle.crm.taskmanagement.dto.UpdateTaskResponseDto;
+import com.spmorangle.crm.projectmanagement.service.ProjectService;
+import com.spmorangle.crm.taskmanagement.dto.*;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
@@ -18,10 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -32,6 +24,7 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final CollaboratorService collaboratorService;
     private final SubtaskService subtaskService;
+    private final ProjectService projectService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -89,6 +82,7 @@ public class TaskServiceImpl implements TaskService {
                 .assignedUserIds(assignedUserIds)
                 .tags(savedTask.getTags())
                 .userHasEditAccess(true) // Creator always has edit access
+                .userHasDeleteAccess(canUserDeleteTask(savedTask.getId(), currentUserId))
                 .createdBy(savedTask.getCreatedBy())
                 .createdAt(savedTask.getCreatedAt())
                 .build();
@@ -99,10 +93,12 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting tasks for project: {}", projectId);
         List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
+        Long projectOwnerId = projectService.getOwnerId(projectId);
         return tasks.stream()
                 .map((task) -> {
                     boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
-                    return mapToTaskResponseDto(task, userHasWriteAccess);
+                    boolean userHasDeleteAccess = userId.equals(projectOwnerId);
+                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess);
                 })
                 .toList();
     }
@@ -112,7 +108,7 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting personal tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
         return tasks.stream()
-                .map(task -> mapToTaskResponseDto(task, true))
+                .map(task -> mapToTaskResponseDto(task, true, true))
                 .collect(Collectors.toList());
     }
 
@@ -120,8 +116,20 @@ public class TaskServiceImpl implements TaskService {
     public List<TaskResponseDto> getAllUserTasks(Long userId) {
         log.info("Getting all tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findUserTasks(userId);
+        
+        Set<Long> projectIds = tasks.stream()
+                .map(Task::getProjectId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        
+        Map<Long, Long> projectOwnerMap = projectService.getProjectOwners(projectIds);
+        
         return tasks.stream()
-                .map(task -> mapToTaskResponseDto(task, true))
+                .map(task -> {
+                    boolean userHasDeleteAccess = task.getProjectId() != null 
+                        && userId.equals(projectOwnerMap.get(task.getProjectId()));
+                    return mapToTaskResponseDto(task, true, userHasDeleteAccess);
+                })
                 .collect(Collectors.toList());
     }
 
@@ -134,7 +142,7 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
         // Only owner or collaborators can update the task
-        if (!canUserUpdateOrDeleteTask(updateTaskDto.getTaskId(), currentUserId)) {
+        if (!canUserUpdateTask(updateTaskDto.getTaskId(), currentUserId)) {
             throw new RuntimeException("Only task owner or collaborators can update the task");
         }
 
@@ -175,11 +183,13 @@ public class TaskServiceImpl implements TaskService {
                 .status(updatedTask.getStatus())
                 .tags(updatedTask.getTags())
                 .userHasEditAccess(true) // User who just updated has edit access
+                .userHasDeleteAccess(canUserDeleteTask(updatedTask.getId(), currentUserId))
                 .updatedAt(updatedTask.getUpdatedAt())
                 .updatedBy(updatedTask.getUpdatedBy())
                 .build();
     }
 
+    // only for managers
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteTask(Long taskId, Long currentUserId) {
@@ -188,9 +198,9 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
-        // Only owner can delete the task
-        if (!task.getOwnerId().equals(currentUserId)) {
-            throw new RuntimeException("Only task owner can delete the task");
+        // Only manager of the project can delete the task
+        if (!canUserDeleteTask(taskId, currentUserId)) {
+            throw new RuntimeException("Only project owner or collaborators can delete the task");
         }
 
         task.setDeleteInd(true);
@@ -202,7 +212,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public boolean canUserUpdateOrDeleteTask(Long taskId, Long userId) {
+    public boolean canUserUpdateTask(Long taskId, Long userId) {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
         if (task.getOwnerId().equals(userId)) {
@@ -211,8 +221,21 @@ public class TaskServiceImpl implements TaskService {
         return collaboratorService.isUserTaskCollaborator(taskId, userId);
     }
 
+    @Override
+    public boolean canUserDeleteTask(Long taskId, Long userId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
 
-    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess) {
+        // Only project owner can delete the task
+        // TODO: potentially handle more than one owner?
+        Long projectId = task.getProjectId();
+        Long projectOwnerId = projectService.getOwnerId(projectId);
+        return task.getProjectId() != null && projectOwnerId.equals(userId);
+    }
+
+
+
+    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess, boolean userHasDeleteAccess) {
         // Load subtasks for this task
         List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId());
         
@@ -226,6 +249,7 @@ public class TaskServiceImpl implements TaskService {
                 .status(task.getStatus())
                 .tags(task.getTags())
                 .userHasEditAccess(userHasEditAccess)
+                .userHasDeleteAccess(userHasDeleteAccess)
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .createdBy(task.getCreatedBy())

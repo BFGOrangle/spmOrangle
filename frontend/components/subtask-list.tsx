@@ -90,8 +90,7 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
       };
 
       // For now, use a dummy user ID. In a real app, this would come from auth context
-      const currentUserId = 1;
-      const createdSubtask = await projectService.createSubtask(subtaskData, currentUserId);
+      const createdSubtask = await projectService.createSubtask(subtaskData);
       
       onSubtaskCreated(createdSubtask);
       setShowCreateDialog(false);
@@ -112,11 +111,9 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
 
   const handleStatusChange = async (subtaskId: number, newStatus: string) => {
     try {
-      const currentUserId = 1;
       const updatedSubtask = await projectService.updateSubtask(
         subtaskId,
         { status: newStatus as SubtaskStatus },
-        currentUserId
       );
       onSubtaskUpdated(updatedSubtask);
     } catch (error) {
@@ -149,8 +146,7 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
     if (!confirm("Are you sure you want to delete this subtask?")) return;
 
     try {
-      const currentUserId = 1; // TODO: Get from auth context
-      await projectService.deleteSubtask(subtaskId, currentUserId);
+      await projectService.deleteSubtask(subtaskId);
 
       // Notify parent to remove from state
       if (onSubtaskDeleted) {
