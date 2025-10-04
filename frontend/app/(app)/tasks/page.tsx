@@ -405,6 +405,9 @@ export default function TasksPage() {
   type SortBy = "due" | "status" | "updated";
   const [sortBy, setSortBy] = useState<SortBy>("due");
 
+  // Get current user ID, fallback to 1 for now
+  const currentUserId = currentUser?.backendStaffId || 1;
+
   // Drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -935,6 +938,7 @@ export default function TasksPage() {
                                       <DraggableTaskCard
                                         key={task.id}
                                         task={task}
+                                        currentUserId={currentUserId}
                                         onTaskUpdated={handleTaskUpdated}
                                         onTaskDeleted={handleTaskDeleted}
                                       />
@@ -957,7 +961,7 @@ export default function TasksPage() {
                 <DragOverlay>
                   {activeTask ? (
                     <div className="rotate-3 scale-105">
-                      <TaskCard task={activeTask} variant="board" />
+                      <TaskCard task={activeTask} variant="board" currentUserId={currentUserId} />
                     </div>
                   ) : null}
                 </DragOverlay>
@@ -989,7 +993,7 @@ export default function TasksPage() {
             <CardContent className="divide-border flex flex-col divide-y">
               {filteredTasks.length > 0 ? (
                 filteredTasks.map((task) => (
-                  <TaskCard key={task.id} task={task} variant="table" onTaskUpdated={handleTaskUpdated} onTaskDeleted={handleTaskDeleted} />
+                  <TaskCard key={task.id} task={task} variant="table" currentUserId={currentUserId} onTaskUpdated={handleTaskUpdated} onTaskDeleted={handleTaskDeleted} />
                 ))
               ) : (
                 <div className="flex items-center justify-center py-16">
