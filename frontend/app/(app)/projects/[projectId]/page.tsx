@@ -46,6 +46,7 @@ import { projectService, ProjectResponse, TaskResponse } from "@/services/projec
 import { TaskCreationDialog } from "@/components/task-creation-dialog";
 import { TaskCard } from "@/components/task-card";
 import { DraggableTaskCard } from "@/components/draggable-task-card";
+import { useCurrentUser } from "@/contexts/user-context";
 import { cn } from "@/lib/utils";
 
 // Map backend status to frontend status
@@ -84,26 +85,18 @@ const statusStyles: Record<TaskStatus, string> = {
   Done: "border-border bg-background",
 };
 
-const TaskBoardCard = ({ task }: { task: TaskResponse }) => {
-  return (
-    <TaskCard task={task} variant="board" />
-  );
-};
-
-const TaskTableRow = ({ task }: { task: TaskResponse }) => {
-  return (
-    <TaskCard task={task} variant="table" />
-  );
-};
-
 export default function ProjectTasksPage() {
   const params = useParams();
   const projectId = parseInt(params.projectId as string);
+  const { currentUser } = useCurrentUser();
 
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [tasks, setTasks] = useState<TaskResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Get current user ID, fallback to 1 for now
+  const currentUserId = currentUser?.backendStaffId || 1;
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | "All">("All");
   const [selectedAssignee, setSelectedAssignee] = useState<string>("all"); // "all" or ownerId as string
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -511,6 +504,7 @@ export default function ProjectTasksPage() {
                                   <DraggableTaskCard
                                     key={task.id}
                                     task={task}
+                                    currentUserId={currentUserId}
                                     onTaskUpdated={handleTaskUpdated}
                                     onTaskDeleted={handleTaskDeleted}
                                   />
@@ -533,7 +527,7 @@ export default function ProjectTasksPage() {
             <DragOverlay>
               {activeTask ? (
                 <div className="rotate-3 scale-105">
-                  <TaskCard task={activeTask} variant="board" />
+                  <TaskCard task={activeTask} variant="board" currentUserId={currentUserId} />
                 </div>
               ) : null}
             </DragOverlay>
@@ -564,7 +558,7 @@ export default function ProjectTasksPage() {
             <CardContent className="divide-border flex flex-col divide-y">
               {filteredTasks.length > 0 ? (
                 filteredTasks.map((task) => (
-                  <TaskTableRow key={task.id} task={task} />
+                  <TaskCard key={task.id} task={task} variant="table" currentUserId={currentUserId} />
                 ))
               ) : (
                 <div className="py-8 text-center text-muted-foreground">
