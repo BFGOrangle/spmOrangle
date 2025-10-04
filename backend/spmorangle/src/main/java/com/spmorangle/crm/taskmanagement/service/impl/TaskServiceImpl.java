@@ -240,11 +240,14 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
-        // Only project owner can delete the task
-        // TODO: potentially handle more than one owner?
         Long projectId = task.getProjectId();
+        
+        if (projectId == null) {
+            return task.getOwnerId().equals(userId);
+        }
+        
         Long projectOwnerId = projectService.getOwnerId(projectId);
-        return task.getProjectId() != null && projectOwnerId.equals(userId);
+        return projectOwnerId.equals(userId);
     }
 
 
