@@ -2,10 +2,12 @@ package com.spmorangle.crm.taskmanagement.service.impl;
 
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
 import com.spmorangle.crm.taskmanagement.dto.*;
+import com.spmorangle.crm.taskmanagement.model.Tag;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
+import com.spmorangle.crm.taskmanagement.service.TagService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ public class TaskServiceImpl implements TaskService {
     private final CollaboratorService collaboratorService;
     private final SubtaskService subtaskService;
     private final ProjectService projectService;
+    private final TagService tagService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -45,7 +48,12 @@ public class TaskServiceImpl implements TaskService {
         task.setTitle(createTaskDto.getTitle());
         task.setDescription(createTaskDto.getDescription());
         task.setStatus(createTaskDto.getStatus());
-        task.setTags(createTaskDto.getTags());
+        
+        // Convert tag strings to Tag entities
+        if (createTaskDto.getTags() != null && !createTaskDto.getTags().isEmpty()) {
+            task.setTags(tagService.findOrCreateTags(createTaskDto.getTags()));
+        }
+        
         task.setCreatedBy(taskOwnerId);
         task.setCreatedAt(OffsetDateTime.now());
         
@@ -80,7 +88,9 @@ public class TaskServiceImpl implements TaskService {
                 .description(savedTask.getDescription())
                 .status(savedTask.getStatus())
                 .assignedUserIds(assignedUserIds)
-                .tags(savedTask.getTags())
+                .tags(savedTask.getTags() != null 
+                        ? savedTask.getTags().stream().map(com.spmorangle.crm.taskmanagement.model.Tag::getTagName).toList() 
+                        : null)
                 .userHasEditAccess(true) // Creator always has edit access
                 .userHasDeleteAccess(canUserDeleteTask(savedTask.getId(), currentUserId))
                 .createdBy(savedTask.getCreatedBy())
@@ -164,7 +174,8 @@ public class TaskServiceImpl implements TaskService {
         }
 
         if (updateTaskDto.getTags() != null) {
-            task.setTags(updateTaskDto.getTags());
+            task.getTags().clear();
+            task.getTags().addAll(tagService.findOrCreateTags(updateTaskDto.getTags()));
         }
 
         task.setUpdatedBy(currentUserId);
@@ -181,7 +192,10 @@ public class TaskServiceImpl implements TaskService {
                 .title(updatedTask.getTitle())
                 .description(updatedTask.getDescription())
                 .status(updatedTask.getStatus())
-                .tags(updatedTask.getTags())
+                                .status(updatedTask.getStatus())
+                .tags(updatedTask.getTags() != null 
+                        ? updatedTask.getTags().stream().map(com.spmorangle.crm.taskmanagement.model.Tag::getTagName).toList() 
+                        : null)
                 .userHasEditAccess(true) // User who just updated has edit access
                 .userHasDeleteAccess(canUserDeleteTask(updatedTask.getId(), currentUserId))
                 .updatedAt(updatedTask.getUpdatedAt())
@@ -247,7 +261,9 @@ public class TaskServiceImpl implements TaskService {
                 .title(task.getTitle())
                 .description(task.getDescription())
                 .status(task.getStatus())
-                .tags(task.getTags())
+                .tags(task.getTags() != null 
+                        ? task.getTags().stream().map(Tag::getTagName).toList() 
+                        : null)
                 .userHasEditAccess(userHasEditAccess)
                 .userHasDeleteAccess(userHasDeleteAccess)
                 .createdAt(task.getCreatedAt())
