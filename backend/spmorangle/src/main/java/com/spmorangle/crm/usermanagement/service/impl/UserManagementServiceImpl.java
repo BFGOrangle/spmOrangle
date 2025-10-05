@@ -171,4 +171,13 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .toList();
     }
 
+    @Override
+    public List<UserResponseDto> getCollaborators(){
+        log.info("Getting users to display collaborators");
+        List<User> users = userRepository.findAll();
+        return users.stream()
+                .map(UserConverter::convert)
+                .toList();
+    }
+
 }

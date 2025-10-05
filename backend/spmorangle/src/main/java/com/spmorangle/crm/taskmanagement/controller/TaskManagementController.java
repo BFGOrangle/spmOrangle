@@ -97,6 +97,12 @@ public class TaskManagementController {
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
+    @GetMapping("/collaborators")
+    public ResponseEntity<List<UserResponseDto>> getCollaborators(){
+        List<UserResponseDto> collaborators = userManagementService.getCollaborators();
+        return ResponseEntity.status(HttpStatus.OK).body(collaborators);
+    }
+
     /**
      * Get tasks for a project
      * @param projectId

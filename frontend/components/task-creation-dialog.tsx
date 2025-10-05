@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,12 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { projectService, CreateTaskRequest, TaskResponse } from "@/services/project-service";
 import { userManagementService } from "@/services/user-management-service";
 import { fileService } from "@/services/file-service";
 import { useCurrentUser } from "@/contexts/user-context";
 import { UserResponseDto } from "@/types/user";
-import { User, Crown } from "lucide-react";
+import { User, Crown, Loader2, X } from "lucide-react";
+import { tagService } from "@/services/tag-service";
 
 // Helper for file upload
 async function uploadFiles({ files, taskId, projectId }: { files: FileList | File[], taskId: number, projectId: number }) {
@@ -89,12 +92,22 @@ export function TaskCreationDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [tagsError, setTagsError] = useState<string | null>(null);
+  const [loadingTags, setLoadingTags] = useState(false);
   
   // New state for task assignment and project selection
   const [projectMembers, setProjectMembers] = useState<UserResponseDto[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [selectedAssignee, setSelectedAssignee] = useState<number | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(projectId || null);
+
+  // Collaborator management state
+  const [availableCollaborators, setAvailableCollaborators] = useState<UserResponseDto[]>([]);
+  const [loadingCollaborators, setLoadingCollaborators] = useState(false);
+  const [collaboratorsError, setCollaboratorsError] = useState<string | null>(null);
+  const [isCollaboratorDialogOpen, setIsCollaboratorDialogOpen] = useState(false);
+  const [draftCollaboratorIds, setDraftCollaboratorIds] = useState<number[]>([]);
 
   const isManager = currentUser?.role === 'MANAGER';
   const isPersonalTask = selectedProjectId === null || selectedProjectId === 0;
@@ -104,12 +117,129 @@ export function TaskCreationDialog({
   // Get the current user's ID consistently
   const currentUserId = currentUser?.backendStaffId || parseInt(currentUser?.id || '1');
 
+  const selectedCollaboratorIds = formData.assignedUserIds ?? [];
+
+  const selectedCollaborators = useMemo(() => {
+    if (!selectedCollaboratorIds.length || !availableCollaborators.length) {
+      return [] as UserResponseDto[];
+    }
+
+    const selectedSet = new Set(selectedCollaboratorIds);
+    return availableCollaborators.filter((collaborator) =>
+      selectedSet.has(collaborator.id),
+    );
+  }, [availableCollaborators, selectedCollaboratorIds]);
+
+  const missingCollaboratorIds = useMemo(() => {
+    if (!selectedCollaboratorIds.length) {
+      return [] as number[];
+    }
+
+    const knownIds = new Set(availableCollaborators.map((collaborator) => collaborator.id));
+    return selectedCollaboratorIds.filter((id) => !knownIds.has(id));
+  }, [availableCollaborators, selectedCollaboratorIds]);
+
+  const normalizeTag = (tag: string) => tag.trim().toLowerCase();
+
+  const tagSuggestions = useMemo(() => {
+    if (!availableTags.length) {
+      return [] as string[];
+    }
+
+    const selectedTags = new Set((formData.tags ?? []).map((tag) => normalizeTag(tag)));
+
+    return availableTags
+      .filter((tag) => !selectedTags.has(normalizeTag(tag)))
+      .slice(0, 10);
+  }, [availableTags, formData.tags]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let isActive = true;
+
+    const loadTags = async () => {
+      try {
+        setLoadingTags(true);
+        setTagsError(null);
+        const tags = await tagService.getTags();
+        if (isActive) {
+          const tagNames = tags.map((tag) => tag.tagName);
+          setAvailableTags(tagNames);
+        }
+      } catch (err) {
+        console.error('Error loading tags:', err);
+        if (isActive) {
+          setTagsError('Failed to load tag suggestions.');
+        }
+      } finally {
+        if (isActive) {
+          setLoadingTags(false);
+        }
+      }
+    };
+
+    loadTags();
+
+    return () => {
+      isActive = false;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let isActive = true;
+
+    const loadCollaborators = async () => {
+      try {
+        setLoadingCollaborators(true);
+        setCollaboratorsError(null);
+        const collaborators = await userManagementService.getCollaborators();
+        if (isActive) {
+          setAvailableCollaborators(collaborators);
+        }
+      } catch (err) {
+        console.error('Error loading collaborators:', err);
+        if (isActive) {
+          setCollaboratorsError('Failed to load collaborators. You can still create the task and add them later.');
+        }
+      } finally {
+        if (isActive) {
+          setLoadingCollaborators(false);
+        }
+      }
+    };
+
+    loadCollaborators();
+
+    return () => {
+      isActive = false;
+    };
+  }, [open]);
+
   // Load project members when dialog opens and projectId is available
   useEffect(() => {
     if (open && selectedProjectId && canAssignToOthers) {
       loadProjectMembers();
     }
   }, [open, selectedProjectId, canAssignToOthers]);
+
+  useEffect(() => {
+    if (!open) {
+      setIsCollaboratorDialogOpen(false);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (isCollaboratorDialogOpen) {
+      setDraftCollaboratorIds(selectedCollaboratorIds);
+    }
+  }, [isCollaboratorDialogOpen, selectedCollaboratorIds]);
 
   const loadProjectMembers = async () => {
     if (!selectedProjectId) return;
@@ -123,6 +253,101 @@ export function TaskCreationDialog({
       setError('Failed to load project members. You can still create the task without assignment.');
     } finally {
       setLoadingMembers(false);
+    }
+  };
+
+  const toggleDraftCollaborator = (collaboratorId: number) => {
+    setDraftCollaboratorIds((prev) => {
+      if (prev.includes(collaboratorId)) {
+        return prev.filter((id) => id !== collaboratorId);
+      }
+      return [...prev, collaboratorId];
+    });
+  };
+
+  const handleCollaboratorSelectionSave = () => {
+    const uniqueIds = Array.from(new Set(draftCollaboratorIds));
+    setFormData((prev) => ({
+      ...prev,
+      assignedUserIds: uniqueIds,
+    }));
+    setIsCollaboratorDialogOpen(false);
+  };
+
+  const handleCollaboratorSelectionClear = () => {
+    setDraftCollaboratorIds([]);
+    setFormData((prev) => ({
+      ...prev,
+      assignedUserIds: [],
+    }));
+  };
+
+  const handleRemoveSelectedCollaborator = (collaboratorId: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      assignedUserIds: (prev.assignedUserIds ?? []).filter((id) => id !== collaboratorId),
+    }));
+  };
+
+  const addTag = (tag: string) => {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      return;
+    }
+
+    setFormData((prev) => {
+      const currentTags = prev.tags ?? [];
+      if (currentTags.some((existing) => normalizeTag(existing) === normalizeTag(trimmedTag))) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        tags: [...currentTags, trimmedTag],
+      };
+    });
+  };
+
+  const ensureManagedTagsExist = async (tagNames: string[]) => {
+    if (!isManager || !tagNames.length) {
+      return;
+    }
+
+    setTagsError(null);
+
+    const existing = new Set(availableTags.map((tag) => normalizeTag(tag)));
+    let encounteredError = false;
+
+    for (const tagName of tagNames) {
+      const trimmedTagName = tagName.trim();
+      if (!trimmedTagName) {
+        continue;
+      }
+
+      const normalizedTag = normalizeTag(trimmedTagName);
+      if (existing.has(normalizedTag)) {
+        continue;
+      }
+
+      try {
+        const createdTag = await tagService.createTag({ tagName: trimmedTagName });
+        existing.add(normalizeTag(createdTag.tagName));
+        setAvailableTags((prev) => {
+          const alreadyHasTag = prev.some((existingTag) => normalizeTag(existingTag) === normalizeTag(createdTag.tagName));
+          if (alreadyHasTag) {
+            return prev;
+          }
+
+          return [...prev, createdTag.tagName].sort((a, b) => a.localeCompare(b));
+        });
+      } catch (creationError) {
+        encounteredError = true;
+        console.error('Error creating tag:', creationError);
+      }
+    }
+
+    if (encounteredError) {
+      setTagsError('Some tags could not be saved globally. They will still be added to the task.');
     }
   };
 
@@ -147,13 +372,19 @@ export function TaskCreationDialog({
       const assigneeId = selectedAssignee || currentUserId;
       const shouldUseManagerEndpoint = canAssignToOthers && selectedAssignee && selectedAssignee !== currentUserId;
 
+      const uniqueCollaboratorIds = Array.from(new Set(selectedCollaboratorIds));
+
       const taskData: CreateTaskRequest = {
         ...formData,
+        assignedUserIds:
+          uniqueCollaboratorIds.length > 0 ? uniqueCollaboratorIds : undefined,
         ownerId: assigneeId,
         title: formData.title!,
         taskType: formData.taskType!,
         projectId: isPersonalTask ? undefined : selectedProjectId!,
       };
+
+      await ensureManagedTagsExist(taskData.tags ?? []);
 
       console.log('Creating task with data:', taskData);
       console.log('Using manager endpoint:', shouldUseManagerEndpoint);
@@ -212,13 +443,34 @@ export function TaskCreationDialog({
   };
 
   const handleTagsChange = (value: string) => {
-    const tags = value.split(',').map(tag => tag.trim()).filter(Boolean);
-    setFormData(prev => ({ ...prev, tags }));
+    const rawTags = value
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    const dedupedTags = Array.from(
+      new Map(rawTags.map((tag) => [normalizeTag(tag), tag])).values(),
+    );
+
+    setFormData((prev) => ({ ...prev, tags: dedupedTags }));
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[525px]">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          className="sm:max-w-[525px]"
+          onInteractOutside={(event) => {
+            if (isCollaboratorDialogOpen) {
+              event.preventDefault();
+            }
+          }}
+          onEscapeKeyDown={(event) => {
+            if (isCollaboratorDialogOpen) {
+              event.preventDefault();
+            }
+          }}
+        >
         <DialogHeader>
           <DialogTitle>
             Create New Task
@@ -439,13 +691,120 @@ export function TaskCreationDialog({
             <p className="text-xs text-muted-foreground">
               Separate multiple tags with commas
             </p>
-          </div>
+            {loadingTags ? (
+              <p className="text-xs text-muted-foreground">Loading tag suggestions…</p>
+            ) : (
+              tagSuggestions.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {tagSuggestions.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => addTag(tag)}
+                      className="focus:outline-none"
+                      aria-label={`Add tag ${tag}`}
+                    >
+                      <Badge variant="outline" className="cursor-pointer px-2 py-1 text-xs">
+                        + {tag}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              )
+            )}
+            {tagsError && (
+              <p className="text-xs text-destructive">{tagsError}</p>
+            )}
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="attachments">Attachments</Label>
-            <Input
-              id="attachments"
-              type="file"
+        <div className="space-y-2">
+          <Label>Collaborators</Label>
+          {selectedCollaborators.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {selectedCollaborators.map((collaborator) => {
+                const label =
+                  collaborator.fullName ||
+                  collaborator.email ||
+                  `User ID: ${collaborator.id}`;
+
+                return (
+                  <Badge
+                    key={collaborator.id}
+                    variant="secondary"
+                    className="flex items-center gap-2 px-2 py-1 text-xs"
+                  >
+                    <span className="font-medium">{label}</span>
+                    <button
+                      type="button"
+                      className="p-0 leading-none text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRemoveSelectedCollaborator(collaborator.id)}
+                      aria-label={`Remove collaborator ${label}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                );
+              })}
+              {missingCollaboratorIds.map((id) => (
+                <Badge
+                  key={`missing-${id}`}
+                  variant="secondary"
+                  className="flex items-center gap-2 px-2 py-1 text-xs"
+                >
+                  <span className="font-medium">User ID: {id}</span>
+                  <button
+                    type="button"
+                    className="p-0 leading-none text-muted-foreground hover:text-destructive"
+                    onClick={() => handleRemoveSelectedCollaborator(id)}
+                    aria-label={`Remove collaborator with ID ${id}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No collaborators selected. You can add collaborators now or after this task is created.
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCollaboratorDialogOpen(true)}
+              disabled={loadingCollaborators}
+            >
+              {loadingCollaborators ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Loading...
+                </>
+              ) : (
+                "Select Collaborators"
+              )}
+            </Button>
+            {selectedCollaboratorIds.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={handleCollaboratorSelectionClear}
+              >
+                Clear selection
+              </Button>
+            )}
+          </div>
+          {collaboratorsError && (
+            <p className="text-xs text-destructive">{collaboratorsError}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="attachments">Attachments</Label>
+          <Input
+            id="attachments"
+            type="file"
               multiple
               onChange={e => setSelectedFiles(e.target.files)}
             />
@@ -482,6 +841,83 @@ export function TaskCreationDialog({
           </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+
+      <Dialog
+        modal={false}
+        open={isCollaboratorDialogOpen}
+        onOpenChange={setIsCollaboratorDialogOpen}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Select Collaborators</DialogTitle>
+            <DialogDescription>
+              Choose team members to collaborate on this task. You can update collaborators at any time after the task is created.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {loadingCollaborators ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading collaborators...
+              </div>
+            ) : collaboratorsError ? (
+              <p className="text-sm text-destructive">{collaboratorsError}</p>
+            ) : availableCollaborators.length > 0 ? (
+              <ScrollArea className="max-h-[320px] pr-1">
+                <div className="space-y-2">
+                  {availableCollaborators.map((collaborator) => {
+                    const isSelected = draftCollaboratorIds.includes(collaborator.id);
+
+                    return (
+                      <Button
+                        key={collaborator.id}
+                        type="button"
+                        variant={isSelected ? "default" : "outline"}
+                        className="w-full justify-start gap-3"
+                        onClick={() => toggleDraftCollaborator(collaborator.id)}
+                      >
+                        <span className="flex flex-col items-start">
+                          <span className="text-sm font-medium">{collaborator.fullName}</span>
+                          <span className="text-xs text-muted-foreground">ID: {collaborator.id} · {collaborator.email}</span>
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No collaborators available yet. You can still create the task and manage collaborators later.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCollaboratorDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <div className="flex items-center gap-2">
+              {draftCollaboratorIds.length > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={handleCollaboratorSelectionClear}
+                >
+                  Clear All
+                </Button>
+              )}
+              <Button type="button" onClick={handleCollaboratorSelectionSave}>
+                Save selection
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

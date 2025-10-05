@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,9 @@ import { FileList } from "./file-icon";
 import { TaskUpdateDialog } from "./task-update-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { TaskCollaboratorManagement } from "./task-collaborator-management";
+import { useQuery } from "@tanstack/react-query";
+import { userManagementService } from "@/services/user-management-service";
+import type { UserResponseDto } from "@/types/user";
 
 // Status and priority styles (moved from tasks page)
 const statusStyles: Record<TaskStatus, string> = {
@@ -165,10 +168,65 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
     fetchFiles();
   }, [taskProps.id, taskProps.projectId, taskProps.isTaskSummary]);
   // For now, convert collaborator names to IDs (mock mapping)
-  const [collaboratorIds, setCollaboratorIds] = useState<number[]>(() => {
-    // Convert existing collaborator names to mock IDs for demo
-    return taskProps.collaborators.map((_, index) => index + 2); // Start from ID 2
+  const { data: collaboratorDirectory = [] } = useQuery<UserResponseDto[]>({
+    queryKey: ["tasks", "collaborators", "available"],
+    queryFn: () => userManagementService.getCollaborators(),
+    staleTime: 5 * 60 * 1000,
   });
+
+  const collaboratorLookup = useMemo(() => {
+    return new Map(collaboratorDirectory.map((collaborator) => [collaborator.id, collaborator]));
+  }, [collaboratorDirectory]);
+
+  const [collaboratorIds, setCollaboratorIds] = useState<number[]>(() => {
+    if (!taskProps.isTaskSummary && 'assignedUserIds' in task) {
+      return (task as TaskResponse).assignedUserIds ?? [];
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    if (!taskProps.isTaskSummary && 'assignedUserIds' in task) {
+      setCollaboratorIds((task as TaskResponse).assignedUserIds ?? []);
+    }
+  }, [taskProps.isTaskSummary, task]);
+
+  const collaboratorDisplayNames = useMemo(() => {
+    if (taskProps.isTaskSummary) {
+      return taskProps.collaborators;
+    }
+
+    if (!collaboratorIds.length) {
+      return [] as string[];
+    }
+
+    return collaboratorIds.map((id) => {
+      const collaborator = collaboratorLookup.get(id);
+      return collaborator?.fullName || collaborator?.email || `User ${id}`;
+    });
+  }, [taskProps.isTaskSummary, taskProps.collaborators, collaboratorIds, collaboratorLookup]);
+
+  const collaboratorAvatars = useMemo(() => {
+    return collaboratorDisplayNames.slice(0, 2).map((name, index) => {
+      const fallbackId = taskProps.isTaskSummary
+        ? `${taskProps.id}-collaborator-${index}`
+        : collaboratorIds[index] ?? `${taskProps.id}-collaborator-${index}`;
+
+      const initials = name
+        .split(" ")
+        .map((part) => part.trim()[0])
+        .filter(Boolean)
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
+
+      return {
+        key: fallbackId,
+        label: name,
+        initials: initials || name.charAt(0).toUpperCase(),
+      };
+    });
+  }, [collaboratorDisplayNames, collaboratorIds, taskProps.id, taskProps.isTaskSummary]);
 
   const handleSubtaskCreated = (newSubtask: SubtaskResponse) => {
     const updatedSubtasks = [...subtasks, newSubtask];
@@ -239,7 +297,7 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
   }
 
   const { total, done, progress } = getSubtaskSummary();
-  const collaboratorOverflow = Math.max(collaboratorIds.length - 2, 0);
+  const collaboratorOverflow = Math.max(collaboratorDisplayNames.length - 2, 0);
 
   return (
     <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={handleOpenPage}>
@@ -278,13 +336,13 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
               {getInitials(taskProps.owner)}
             </div>
             <span className="font-medium">{taskProps.owner}</span>
-            {taskProps.collaborators.length > 0 && (
+            {collaboratorDisplayNames.length > 0 && (
               <>
                 <span>, </span>
-                <span>{taskProps.collaborators.slice(0, 2).join(', ')}</span>
-                {taskProps.collaborators.length > 2 && (
+                <span>{collaboratorDisplayNames.slice(0, 2).join(', ')}</span>
+                {collaboratorDisplayNames.length > 2 && (
                   <span className="text-muted-foreground/70">
-                    , +{taskProps.collaborators.length - 2} more
+                    , +{collaboratorDisplayNames.length - 2} more
                   </span>
                 )}
               </>
@@ -301,21 +359,21 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
           <span className="text-xs font-medium truncate">{taskProps.owner}</span>
         </div>
 
-        {collaboratorIds.length > 0 && (
+        {collaboratorDisplayNames.length > 0 && (
           <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
             <UsersIcon className="h-3 w-3" aria-hidden="true" />
             <div className="flex items-center -space-x-1">
-              {collaboratorIds.slice(0, 2).map((id) => (
+              {collaboratorAvatars.map(({ key, initials }) => (
                 <span
-                  key={id}
+                  key={key}
                   className="flex h-5 w-5 items-center justify-center rounded-full border border-background bg-secondary text-[0.6rem] font-semibold text-secondary-foreground shadow-sm"
                 >
-                  {id}
+                  {initials}
                 </span>
               ))}
-              {taskProps.tags.length > 3 && (
+              {collaboratorOverflow > 0 && (
                 <span className="text-muted-foreground/70">
-                  +{taskProps.tags.length - 3} more
+                  +{collaboratorOverflow} more
                 </span>
               )}
             </div>
@@ -445,14 +503,29 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
 
                   {collaboratorIds.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
-                      {collaboratorIds.map((collaboratorId) => (
-                        <div key={collaboratorId} className="flex items-center gap-2 px-3 py-1 bg-secondary rounded-full">
-                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                            {collaboratorId}
-                          </div>
-                          <span className="text-sm">User ID: {collaboratorId}</span>
+                  {collaboratorIds.map((collaboratorId) => {
+                    const collaborator = collaboratorLookup.get(collaboratorId);
+                    const collaboratorLabel =
+                      collaborator?.fullName ||
+                      collaborator?.email ||
+                      `User ${collaboratorId}`;
+                    const initials = collaboratorLabel
+                      .split(" ")
+                      .map((part) => part.trim()[0])
+                      .filter(Boolean)
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase();
+
+                    return (
+                      <div key={collaboratorId} className="flex items-center gap-2 px-3 py-1 bg-secondary rounded-full">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                          {initials || collaboratorId}
                         </div>
-                      ))}
+                        <span className="text-sm">{collaboratorLabel}</span>
+                      </div>
+                    );
+                  })}
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">No collaborators assigned</p>
@@ -548,7 +621,38 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
   const total = subtasks.length;
   const done = subtasks.filter((subtask) => subtask.status === 'COMPLETED').length;
   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
-  const collaboratorOverflow = Math.max(taskProps.collaborators.length - 3, 0);
+
+  const { data: collaboratorDirectory = [] } = useQuery<UserResponseDto[]>({
+    queryKey: ["tasks", "collaborators", "available"],
+    queryFn: () => userManagementService.getCollaborators(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const collaboratorLookup = useMemo(() => {
+    return new Map(collaboratorDirectory.map((collaborator) => [collaborator.id, collaborator]));
+  }, [collaboratorDirectory]);
+
+  const collaboratorIds = useMemo(() => {
+    if (taskProps.isTaskSummary) {
+      return [] as number[];
+    }
+
+    const sourceTask = currentTask ?? (task as TaskResponse);
+    return sourceTask.assignedUserIds ?? [];
+  }, [taskProps.isTaskSummary, currentTask, task]);
+
+  const collaboratorDisplayNames = useMemo(() => {
+    if (taskProps.isTaskSummary) {
+      return taskProps.collaborators;
+    }
+
+    return collaboratorIds.map((id) => {
+      const collaborator = collaboratorLookup.get(id);
+      return collaborator?.fullName || collaborator?.email || `User ${id}`;
+    });
+  }, [taskProps.isTaskSummary, taskProps.collaborators, collaboratorIds, collaboratorLookup]);
+
+  const collaboratorOverflow = Math.max(collaboratorDisplayNames.length - 3, 0);
 
   // Add file state for table variant
   const [files, setFiles] = useState<FileResponse[]>([]);
@@ -651,9 +755,9 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center -space-x-2">
-          {taskProps.collaborators.slice(0, 3).map((name) => (
+          {collaboratorDisplayNames.slice(0, 3).map((name, index) => (
             <span
-              key={name}
+              key={`${taskProps.id}-table-collaborator-${index}`}
               className="flex h-8 w-8 items-center justify-center rounded-full border border-background bg-secondary text-[0.65rem] font-semibold text-secondary-foreground shadow-sm"
             >
               {getInitials(name)}
@@ -666,9 +770,9 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
           ) : null}
         </div>
         <span className="text-xs text-muted-foreground">
-          {taskProps.collaborators.length
-            ? `${taskProps.collaborators.length} collaborator${
-                taskProps.collaborators.length > 1 ? "s" : ""
+          {collaboratorDisplayNames.length
+            ? `${collaboratorDisplayNames.length} collaborator${
+                collaboratorDisplayNames.length > 1 ? "s" : ""
               }`
             : "No collaborators"}
         </span>

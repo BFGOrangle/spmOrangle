@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,9 @@ import { fileService, FileResponse } from "@/services/file-service";
 import { FileList } from "@/components/file-icon";
 import { TaskUpdateDialog } from "@/components/task-update-dialog";
 import { useCurrentUser } from "@/contexts/user-context";
+import { TaskCollaboratorManagement } from "@/components/task-collaborator-management";
+import { userManagementService } from "@/services/user-management-service";
+import type { UserResponseDto } from "@/types/user";
 import {
   type TaskPriority,
   type TaskStatus,
@@ -120,6 +123,38 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [subtasks, setSubtasks] = useState<SubtaskResponse[]>([]);
+  const [collaboratorIds, setCollaboratorIds] = useState<number[]>([]);
+  const [availableCollaborators, setAvailableCollaborators] = useState<UserResponseDto[]>([]);
+  const [loadingCollaborators, setLoadingCollaborators] = useState(false);
+  const [collaboratorsError, setCollaboratorsError] = useState<string | null>(null);
+
+  const derivedCurrentUserId =
+    currentUser?.backendStaffId ??
+    (currentUser?.id ? Number.parseInt(currentUser.id, 10) : undefined);
+  const currentUserId =
+    typeof derivedCurrentUserId === 'number' && !Number.isNaN(derivedCurrentUserId)
+      ? derivedCurrentUserId
+      : undefined;
+
+  const selectedCollaborators = useMemo(() => {
+    if (!collaboratorIds.length || !availableCollaborators.length) {
+      return [] as UserResponseDto[];
+    }
+
+    const collaboratorSet = new Set(collaboratorIds);
+    return availableCollaborators.filter((collaborator) =>
+      collaboratorSet.has(collaborator.id),
+    );
+  }, [availableCollaborators, collaboratorIds]);
+
+  const missingCollaboratorIds = useMemo(() => {
+    if (!collaboratorIds.length) {
+      return [] as number[];
+    }
+
+    const knownIds = new Set(availableCollaborators.map((collaborator) => collaborator.id));
+    return collaboratorIds.filter((id) => !knownIds.has(id));
+  }, [availableCollaborators, collaboratorIds]);
 
   useEffect(() => {
     const loadTask = async () => {
@@ -140,6 +175,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
 
         setTask(foundTask);
         setSubtasks(foundTask.subtasks || []);
+        setCollaboratorIds(foundTask.assignedUserIds || []);
       } catch (err) {
         console.error('Error loading task:', err);
         setError("Failed to load task");
@@ -173,9 +209,50 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
     fetchFiles();
   }, [task]);
 
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    let isActive = true;
+
+    const loadCollaborators = async () => {
+      try {
+        setLoadingCollaborators(true);
+        setCollaboratorsError(null);
+        const collaborators = await userManagementService.getCollaborators();
+        if (isActive) {
+          setAvailableCollaborators(collaborators);
+        }
+      } catch (err) {
+        console.error('Error loading collaborators:', err);
+        if (isActive) {
+          setCollaboratorsError('Failed to load collaborators. You can still manage them using the button above.');
+        }
+      } finally {
+        if (isActive) {
+          setLoadingCollaborators(false);
+        }
+      }
+    };
+
+    loadCollaborators();
+
+    return () => {
+      isActive = false;
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (task) {
+      setCollaboratorIds(task.assignedUserIds ?? []);
+    }
+  }, [task?.assignedUserIds, task?.id]);
+
   const handleTaskUpdated = (updatedTask: TaskResponse) => {
     setTask(updatedTask);
     setSubtasks(updatedTask.subtasks || []);
+    setCollaboratorIds(updatedTask.assignedUserIds || []);
     setShowUpdateDialog(false);
   };
 
@@ -217,6 +294,13 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
 
   const handleSubtaskDeleted = (subtaskId: number) => {
     setSubtasks(subtasks.filter(st => st.id !== subtaskId));
+  };
+
+  const handleCollaboratorsChange = (updatedIds: number[]) => {
+    setCollaboratorIds(updatedIds);
+    setTask((prev) =>
+      prev ? { ...prev, assignedUserIds: updatedIds } : prev,
+    );
   };
 
   if (loading) {
@@ -387,6 +471,75 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
                     <p className="text-xs text-muted-foreground">Task Owner</p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold">Collaborators</h3>
+                  {currentUserId ? (
+                    <TaskCollaboratorManagement
+                      taskId={task.id}
+                      currentCollaboratorIds={collaboratorIds}
+                      currentUserId={currentUserId}
+                      onCollaboratorsChange={handleCollaboratorsChange}
+                    />
+                  ) : (
+                    <Button type="button" variant="outline" size="sm" disabled>
+                      Manage
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Team members collaborating on this task
+                </p>
+              </CardHeader>
+              <CardContent>
+                {loadingCollaborators ? (
+                  <p className="text-sm text-muted-foreground">Loading collaborators…</p>
+                ) : collaboratorIds.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedCollaborators.map((collaborator) => (
+                      <div
+                        key={collaborator.id}
+                        className="flex items-center justify-between rounded-md border px-3 py-2"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+                            {getInitials(collaborator.fullName || `User ${collaborator.id}`)}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">{collaborator.fullName}</span>
+                            <span className="text-xs text-muted-foreground">{collaborator.email}</span>
+                          </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground">ID: {collaborator.id}</span>
+                      </div>
+                    ))}
+                    {missingCollaboratorIds.map((id) => (
+                      <div
+                        key={`collaborator-${id}`}
+                        className="flex items-center justify-between rounded-md border px-3 py-2"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+                            {id}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">Collaborator ID {id}</span>
+                            <span className="text-xs text-muted-foreground">Details unavailable</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No collaborators assigned.</p>
+                )}
+                {collaboratorsError && (
+                  <p className="mt-2 text-xs text-destructive">{collaboratorsError}</p>
+                )}
               </CardContent>
             </Card>
 
