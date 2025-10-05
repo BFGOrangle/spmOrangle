@@ -139,8 +139,7 @@ public class TaskServiceImpl implements TaskService {
         
         return tasks.stream()
                 .map(task -> {
-                    boolean userHasDeleteAccess = task.getProjectId() != null 
-                        && userId.equals(projectOwnerMap.get(task.getProjectId()));
+                    boolean userHasDeleteAccess = task.getProjectId() == null || userId.equals(projectOwnerMap.get(task.getProjectId()));
                     return mapToTaskResponseDto(task, true, userHasDeleteAccess);
                 })
                 .collect(Collectors.toList());

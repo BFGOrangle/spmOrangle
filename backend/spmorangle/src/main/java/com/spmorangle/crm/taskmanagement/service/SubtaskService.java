@@ -19,4 +19,8 @@ public interface SubtaskService {
     void deleteSubtask(Long subtaskId, Long currentUserId);
     
     SubtaskResponseDto getSubtaskById(Long subtaskId);
+
+    boolean canUserUpdateSubtask(Long subtaskId, Long userId);
+
+    boolean canUserDeleteSubtask(Long subtaskId, Long userId);
 }

@@ -13,6 +13,8 @@ import com.spmorangle.crm.taskmanagement.dto.UpdateSubtaskDto;
 import com.spmorangle.crm.taskmanagement.model.Subtask;
 import com.spmorangle.crm.taskmanagement.repository.SubtaskRepository;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
+import com.spmorangle.crm.projectmanagement.service.ProjectService;
+import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,8 @@ import lombok.extern.slf4j.Slf4j;
 public class SubtaskServiceImpl implements SubtaskService {
 
     private final SubtaskRepository subtaskRepository;
+    private final ProjectService projectService;
+    private final CollaboratorService collaboratorService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -74,6 +78,10 @@ public class SubtaskServiceImpl implements SubtaskService {
     @Transactional(rollbackFor = Exception.class)
     public SubtaskResponseDto updateSubtask(Long subtaskId, UpdateSubtaskDto updateSubtaskDto, Long currentUserId) {
         log.info("Updating subtask: {} by user: {}", subtaskId, currentUserId);
+
+        if (!canUserUpdateSubtask(subtaskId, currentUserId)) {
+            throw new RuntimeException("Only project owner or collaborators can update the subtask");
+        }
         
         Subtask subtask = subtaskRepository.findByIdAndNotDeleted(subtaskId);
         if (subtask == null) {
@@ -107,7 +115,11 @@ public class SubtaskServiceImpl implements SubtaskService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteSubtask(Long subtaskId, Long currentUserId) {
         log.info("Deleting subtask: {} by user: {}", subtaskId, currentUserId);
-        
+
+        if (!canUserDeleteSubtask(subtaskId, currentUserId)) {
+            throw new RuntimeException("Only project owner can delete the subtask");
+        }
+
         Subtask subtask = subtaskRepository.findByIdAndNotDeleted(subtaskId);
         if (subtask == null) {
             throw new RuntimeException("Subtask not found with ID: " + subtaskId);
@@ -148,5 +160,40 @@ public class SubtaskServiceImpl implements SubtaskService {
                 .createdBy(subtask.getCreatedBy())
                 .updatedBy(subtask.getUpdatedBy())
                 .build();
+    }
+
+    @Override
+    public boolean canUserUpdateSubtask(Long subtaskId, Long userId) {
+        Subtask subtask = subtaskRepository.findByIdAndNotDeleted(subtaskId);
+        if (subtask == null) {
+            throw new RuntimeException("Subtask not found with ID: " + subtaskId);
+        }
+
+        Long projectId = subtask.getProjectId();
+        Long taskId = subtask.getTaskId();
+
+        if (projectId == null) {
+            return subtask.getCreatedBy().equals(userId);
+        }
+
+        // check if is a collaborator of the task
+        return collaboratorService.isUserTaskCollaborator(taskId, userId);
+
+    }
+
+    @Override
+    public boolean canUserDeleteSubtask(Long subtaskId, Long userId) {
+        Subtask subtask = subtaskRepository.findByIdAndNotDeleted(subtaskId);
+        if (subtask == null) {
+            throw new RuntimeException("Subtask not found with ID: " + subtaskId);
+        }
+
+        Long projectId = subtask.getProjectId();
+
+        if (projectId == null) {
+            return subtask.getCreatedBy().equals(userId);
+        }
+
+        return projectService.getOwnerId(projectId).equals(userId);
     }
 }
