@@ -1,19 +1,24 @@
 package com.spmorangle.crm.taskmanagement.model;
 
 import java.time.OffsetDateTime;
-import java.util.List;
+import java.util.Set;
 
 import org.hibernate.annotations.ColumnDefault;
 
 import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -67,6 +72,12 @@ public class Task {
     @Column(name = "updated_by", nullable = true)
     private Long updatedBy;
 
-    @Column(name = "tags", nullable = true)
-    private List<String> tags;
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+        name = "task_tag",
+        schema = "syncup",
+        joinColumns = @JoinColumn(name = "task_id"),
+        inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    private Set<Tag> tags;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +23,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
 import { projectService, TaskResponse, UpdateTaskRequest } from "@/services/project-service";
+import { tagService } from "@/services/tag-service";
+import { useCurrentUser } from "@/contexts/user-context";
+import { TaskCollaboratorManagement } from "@/components/task-collaborator-management";
+import { userManagementService } from "@/services/user-management-service";
+import type { UserResponseDto } from "@/types/user";
 
 interface TaskUpdateDialogProps {
   task: TaskResponse;
@@ -59,11 +64,157 @@ export function TaskUpdateDialog({
   const [tagInput, setTagInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [loadingTags, setLoadingTags] = useState(false);
+  const [tagsError, setTagsError] = useState<string | null>(null);
+
+  const [collaboratorIds, setCollaboratorIds] = useState<number[]>(
+    task.assignedUserIds ?? [],
+  );
+  const [availableCollaborators, setAvailableCollaborators] = useState<UserResponseDto[]>([]);
+  const [loadingCollaborators, setLoadingCollaborators] = useState(false);
+  const [collaboratorsError, setCollaboratorsError] = useState<string | null>(null);
+
+  const { currentUser } = useCurrentUser();
+  const isManager = currentUser?.role === 'MANAGER';
+  const derivedCurrentUserId =
+    currentUser?.backendStaffId ??
+    (currentUser?.id ? Number.parseInt(currentUser.id, 10) : undefined);
+  const currentUserId =
+    typeof derivedCurrentUserId === 'number' && !Number.isNaN(derivedCurrentUserId)
+      ? derivedCurrentUserId
+      : undefined;
+
+  const normalizeTag = (value: string) => value.trim().toLowerCase();
+
+  const tagSuggestions = useMemo(() => {
+    if (!availableTags.length) {
+      return [] as string[];
+    }
+
+    const selectedTags = new Set(tags.map((tag) => normalizeTag(tag)));
+
+    return availableTags
+      .filter((tag) => !selectedTags.has(normalizeTag(tag)))
+      .slice(0, 10);
+  }, [availableTags, tags]);
+
+  const selectedCollaborators = useMemo(() => {
+    if (!collaboratorIds.length || !availableCollaborators.length) {
+      return [] as UserResponseDto[];
+    }
+
+    const collaboratorSet = new Set(collaboratorIds);
+    return availableCollaborators.filter((collaborator) =>
+      collaboratorSet.has(collaborator.id),
+    );
+  }, [availableCollaborators, collaboratorIds]);
+
+  const missingCollaboratorIds = useMemo(() => {
+    if (!collaboratorIds.length) {
+      return [] as number[];
+    }
+
+    const knownIds = new Set(availableCollaborators.map((collaborator) => collaborator.id));
+    return collaboratorIds.filter((id) => !knownIds.has(id));
+  }, [availableCollaborators, collaboratorIds]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let isActive = true;
+
+    const loadTags = async () => {
+      try {
+        setLoadingTags(true);
+        setTagsError(null);
+        const tagsResponse = await tagService.getTags();
+        if (isActive) {
+          setAvailableTags(tagsResponse.map((tag) => tag.tagName));
+        }
+      } catch (err) {
+        console.error('Error loading tags:', err);
+        if (isActive) {
+          setTagsError('Failed to load tag suggestions.');
+        }
+      } finally {
+        if (isActive) {
+          setLoadingTags(false);
+        }
+      }
+    };
+
+    loadTags();
+
+    return () => {
+      isActive = false;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    setCollaboratorIds(task.assignedUserIds ?? []);
+  }, [task.assignedUserIds, task.id]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let isActive = true;
+
+    const loadCollaborators = async () => {
+      try {
+        setLoadingCollaborators(true);
+        setCollaboratorsError(null);
+        const collaborators = await userManagementService.getCollaborators();
+        if (isActive) {
+          setAvailableCollaborators(collaborators);
+        }
+      } catch (err) {
+        console.error('Error loading collaborators:', err);
+        if (isActive) {
+          setCollaboratorsError(
+            'Failed to load collaborators. You can still manage them, but collaborator names may be unavailable.',
+          );
+        }
+      } finally {
+        if (isActive) {
+          setLoadingCollaborators(false);
+        }
+      }
+    };
+
+    loadCollaborators();
+
+    return () => {
+      isActive = false;
+    };
+  }, [open]);
+
+  const addTag = (value: string) => {
+    const trimmedTag = value.trim();
+    if (!trimmedTag) {
+      return false;
+    }
+
+    let tagWasAdded = false;
+
+    setTags((prev) => {
+      if (prev.some((existing) => normalizeTag(existing) === normalizeTag(trimmedTag))) {
+        return prev;
+      }
+
+      tagWasAdded = true;
+      return [...prev, trimmedTag];
+    });
+
+    return tagWasAdded;
+  };
 
   const handleAddTag = () => {
-    const trimmedTag = tagInput.trim();
-    if (trimmedTag && !tags.includes(trimmedTag)) {
-      setTags([...tags, trimmedTag]);
+    if (addTag(tagInput)) {
       setTagInput('');
     }
   };
@@ -72,10 +223,57 @@ export function TaskUpdateDialog({
     setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
+  const handleCollaboratorsChange = (updatedIds: number[]) => {
+    setCollaboratorIds(updatedIds);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAddTag();
+    }
+  };
+
+  const ensureManagedTagsExist = async (tagNames: string[]) => {
+    if (!isManager || !tagNames.length) {
+      return;
+    }
+
+    setTagsError(null);
+
+    const existing = new Set(availableTags.map((tag) => normalizeTag(tag)));
+    let encounteredError = false;
+
+    for (const tagName of tagNames) {
+      const trimmedName = tagName.trim();
+      if (!trimmedName) {
+        continue;
+      }
+
+      const normalized = normalizeTag(trimmedName);
+      if (existing.has(normalized)) {
+        continue;
+      }
+
+      try {
+        const createdTag = await tagService.createTag({ tagName: trimmedName });
+        existing.add(normalizeTag(createdTag.tagName));
+        setAvailableTags((prev) => {
+          const alreadyExists = prev.some((existingTag) => normalizeTag(existingTag) === normalizeTag(createdTag.tagName));
+          if (alreadyExists) {
+            return prev;
+          }
+
+          return [...prev, createdTag.tagName].sort((a, b) => a.localeCompare(b));
+        });
+      } catch (err) {
+        encounteredError = true;
+        console.error('Error creating tag:', err);
+      }
+    }
+
+    if (encounteredError) {
+      setTagsError('Some tags could not be saved globally. They will still be added to the task.');
     }
   };
 
@@ -113,6 +311,7 @@ export function TaskUpdateDialog({
 
       if (tagsChanged) {
         updateRequest.tags = tags;
+        await ensureManagedTagsExist(tags);
       }
 
       const updatedTask = await projectService.updateTask(updateRequest);
@@ -196,13 +395,63 @@ export function TaskUpdateDialog({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
           </div>
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="tags">Tags</Label>
-            <div className="flex gap-2">
-              <Input
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label>Collaborators</Label>
+            {currentUserId ? (
+              <TaskCollaboratorManagement
+                taskId={task.id}
+                currentCollaboratorIds={collaboratorIds}
+                currentUserId={currentUserId}
+                onCollaboratorsChange={handleCollaboratorsChange}
+              />
+            ) : (
+              <Button type="button" variant="outline" size="sm" disabled>
+                Manage Collaborators
+              </Button>
+            )}
+          </div>
+          {loadingCollaborators ? (
+            <p className="text-sm text-muted-foreground">Loading collaborators…</p>
+          ) : collaboratorIds.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {selectedCollaborators.map((collaborator) => (
+                <Badge
+                  key={collaborator.id}
+                  variant="secondary"
+                  className="flex flex-col gap-0 px-2 py-1 text-xs leading-snug"
+                >
+                  <span className="font-medium">{collaborator.fullName}</span>
+                  <span className="text-[10px] text-muted-foreground">{collaborator.email}</span>
+                </Badge>
+              ))}
+              {missingCollaboratorIds.map((id) => (
+                <Badge
+                  key={`collaborator-${id}`}
+                  variant="secondary"
+                  className="px-2 py-1 text-xs"
+                >
+                  User ID: {id}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No collaborators assigned yet. Use “Manage Collaborators” to add team members.
+            </p>
+          )}
+          {collaboratorsError && (
+            <p className="text-xs text-destructive">{collaboratorsError}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tags">Tags</Label>
+          <div className="flex gap-2">
+            <Input
                 id="tags"
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
@@ -217,6 +466,30 @@ export function TaskUpdateDialog({
                 Add
               </Button>
             </div>
+            {loadingTags ? (
+              <p className="text-xs text-muted-foreground">Loading tag suggestions…</p>
+            ) : (
+              tagSuggestions.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {tagSuggestions.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => addTag(tag)}
+                      className="focus:outline-none"
+                      aria-label={`Add tag ${tag}`}
+                    >
+                      <Badge variant="outline" className="cursor-pointer px-2 py-1 text-xs">
+                        + {tag}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              )
+            )}
+            {tagsError && (
+              <p className="text-xs text-destructive">{tagsError}</p>
+            )}
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {tags.map((tag) => (

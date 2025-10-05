@@ -114,6 +114,13 @@ export class UserManagementService {
   async getUsersByIds(userIds: number[]): Promise<UserResponseDto[]> {
     return this.authenticatedClient.post<UserResponseDto[]>("/api/user/batch", userIds);
   }
+
+  /**
+   * Get list of available collaborators (authenticated)
+   */
+  async getCollaborators(): Promise<UserResponseDto[]> {
+    return this.authenticatedClient.get<UserResponseDto[]>("/api/tasks/collaborators");
+  }
 }
 
 // Export a singleton instance

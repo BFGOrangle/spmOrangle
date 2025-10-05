@@ -8,10 +8,12 @@ import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
+import com.spmorangle.crm.taskmanagement.model.Tag;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
+import com.spmorangle.crm.taskmanagement.service.TagService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -25,9 +27,12 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -57,6 +62,9 @@ class TaskServiceImplTest {
     @Mock
     private ProjectService projectService;
 
+    @Mock
+    private TagService tagService;
+
     @InjectMocks
     private TaskServiceImpl taskService;
 
@@ -83,7 +91,7 @@ class TaskServiceImplTest {
     }
 
     private Task createTestTask(Long id, Long projectId, Long ownerId, String title,
-                               String description, Status status, List<String> tags) {
+                               String description, Status status, List<String> tagNames) {
         Task task = new Task();
         task.setId(id);
         task.setProjectId(projectId);
@@ -92,12 +100,23 @@ class TaskServiceImplTest {
         task.setTitle(title);
         task.setDescription(description);
         task.setStatus(status);
-        task.setTags(tags);
+        task.setTags(createTagsFromNames(tagNames));
         task.setCreatedBy(ownerId);
         task.setCreatedAt(fixedDateTime);
         task.setUpdatedAt(fixedDateTime);
         task.setUpdatedBy(ownerId);
         return task;
+    }
+
+    private Set<Tag> createTagsFromNames(List<String> tagNames) {
+        if (tagNames == null) {
+            return null;
+        }
+        return tagNames.stream().map(name -> {
+            Tag tag = new Tag();
+            tag.setTagName(name);
+            return tag;
+        }).collect(Collectors.toCollection(java.util.LinkedHashSet::new));
     }
 
     @Nested
@@ -127,7 +146,7 @@ class TaskServiceImplTest {
             assertThat(firstTask.getTitle()).isEqualTo("Task 1");
             assertThat(firstTask.getDescription()).isEqualTo("Description 1");
             assertThat(firstTask.getStatus()).isEqualTo(Status.TODO);
-            assertThat(firstTask.getTags()).containsExactly("tag1", "tag2");
+            assertThat(firstTask.getTags()).containsExactlyInAnyOrder("tag1", "tag2");
             assertThat(firstTask.getCreatedBy()).isEqualTo(201L);
             assertThat(firstTask.getCreatedAt()).isEqualTo(fixedDateTime);
 
@@ -136,7 +155,7 @@ class TaskServiceImplTest {
             assertThat(secondTask.getId()).isEqualTo(2L);
             assertThat(secondTask.getProjectId()).isEqualTo(102L);
             assertThat(secondTask.getStatus()).isEqualTo(Status.IN_PROGRESS);
-            assertThat(secondTask.getTags()).containsExactly("tag3");
+            assertThat(secondTask.getTags()).containsExactlyInAnyOrder("tag3");
 
             // Verify third task
             TaskResponseDto thirdTask = result.get(2);
@@ -407,7 +426,7 @@ class TaskServiceImplTest {
             assertThat(result).hasSize(1);
             TaskResponseDto task = result.get(0);
             assertThat(task.getTags()).hasSize(50);
-            assertThat(task.getTags()).containsExactlyElementsOf(manyTags);
+            assertThat(task.getTags()).containsExactlyInAnyOrderElementsOf(manyTags);
         }
 
         @Test
@@ -425,7 +444,8 @@ class TaskServiceImplTest {
             // Then
             assertThat(result).hasSize(1);
             TaskResponseDto task = result.get(0);
-            assertThat(task.getTags()).containsExactlyElementsOf(duplicateTags);
+            // Sets automatically remove duplicates, so only unique values remain
+            assertThat(task.getTags()).containsExactlyInAnyOrder("duplicate", "unique", "another");
         }
 
         @Test
@@ -459,7 +479,7 @@ class TaskServiceImplTest {
 
             // Verify whitespace scenarios
             assertThat(result.get(3).getDescription()).isEqualTo("   ");
-            assertThat(result.get(3).getTags()).containsExactly("", "   ", "valid");
+            assertThat(result.get(3).getTags()).containsExactlyInAnyOrder("", "   ", "valid");
         }
 
         @Test
@@ -768,9 +788,13 @@ class TaskServiceImplTest {
             savedTask.setTitle("Test Task with Specified Owner");
             savedTask.setDescription("Test Description");
             savedTask.setStatus(Status.TODO);
-            savedTask.setTags(Arrays.asList("tag1", "tag2"));
+            savedTask.setTags(createTagsFromNames(Arrays.asList("tag1", "tag2")));
             savedTask.setCreatedBy(456L);
             savedTask.setCreatedAt(fixedDateTime);
+            
+            // Mock tagService to return Tag entities (lenient for tests that don't use tags)
+            lenient().when(tagService.findOrCreateTags(Arrays.asList("tag1", "tag2")))
+                    .thenReturn(createTagsFromNames(Arrays.asList("tag1", "tag2")));
         }
 
         @Test
@@ -794,7 +818,7 @@ class TaskServiceImplTest {
             assertThat(result.getDescription()).isEqualTo("Test Description");
             assertThat(result.getStatus()).isEqualTo(Status.TODO);
             assertThat(result.getTaskType()).isEqualTo(TaskType.FEATURE);
-            assertThat(result.getTags()).containsExactly("tag1", "tag2");
+            assertThat(result.getTags()).containsExactlyInAnyOrder("tag1", "tag2");
             assertThat(result.getCreatedBy()).isEqualTo(456L);
             assertThat(result.getCreatedAt()).isEqualTo(fixedDateTime);
 
@@ -806,7 +830,9 @@ class TaskServiceImplTest {
                 Objects.equals(task.getDescription(), "Test Description") &&
                 Objects.equals(task.getStatus(), Status.TODO) &&
                 Objects.equals(task.getTaskType(), TaskType.FEATURE) &&
-                Objects.equals(task.getTags(), Arrays.asList("tag1", "tag2"))
+                task.getTags() != null &&
+                task.getTags().stream().map(com.spmorangle.crm.taskmanagement.model.Tag::getTagName).collect(Collectors.toSet())
+                    .equals(Set.of("tag1", "tag2"))
             ));
         }
 
@@ -1103,7 +1129,7 @@ class TaskServiceImplTest {
             taskWithEmptyTags.setOwnerId(456L);
             taskWithEmptyTags.setTitle("Task with empty tags");
             taskWithEmptyTags.setTaskType(TaskType.FEATURE);
-            taskWithEmptyTags.setTags(Collections.emptyList());
+            taskWithEmptyTags.setTags(new HashSet<>());
             taskWithEmptyTags.setCreatedBy(456L);
             taskWithEmptyTags.setCreatedAt(fixedDateTime);
 
@@ -1166,9 +1192,13 @@ class TaskServiceImplTest {
             savedTask.setTitle("Test Task with Current User as Owner");
             savedTask.setDescription("Test Description");
             savedTask.setStatus(Status.TODO);
-            savedTask.setTags(Arrays.asList("tag1", "tag2"));
+            savedTask.setTags(createTagsFromNames(Arrays.asList("tag1", "tag2")));
             savedTask.setCreatedBy(123L);
             savedTask.setCreatedAt(fixedDateTime);
+            
+            // Mock tagService to return Tag entities (lenient for tests that don't use tags)
+            lenient().when(tagService.findOrCreateTags(Arrays.asList("tag1", "tag2")))
+                    .thenReturn(createTagsFromNames(Arrays.asList("tag1", "tag2")));
         }
 
         @Test
@@ -1192,7 +1222,7 @@ class TaskServiceImplTest {
             assertThat(result.getDescription()).isEqualTo("Test Description");
             assertThat(result.getStatus()).isEqualTo(Status.TODO);
             assertThat(result.getTaskType()).isEqualTo(TaskType.FEATURE);
-            assertThat(result.getTags()).containsExactly("tag1", "tag2");
+            assertThat(result.getTags()).containsExactlyInAnyOrder("tag1", "tag2");
             assertThat(result.getCreatedBy()).isEqualTo(123L);
             assertThat(result.getCreatedAt()).isEqualTo(fixedDateTime);
 
@@ -1204,7 +1234,9 @@ class TaskServiceImplTest {
                 Objects.equals(task.getDescription(), "Test Description") &&
                 Objects.equals(task.getStatus(), Status.TODO) &&
                 Objects.equals(task.getTaskType(), TaskType.FEATURE) &&
-                Objects.equals(task.getTags(), Arrays.asList("tag1", "tag2"))
+                task.getTags() != null &&
+                task.getTags().stream().map(com.spmorangle.crm.taskmanagement.model.Tag::getTagName).collect(Collectors.toSet())
+                    .equals(Set.of("tag1", "tag2"))
             ));
         }
 
