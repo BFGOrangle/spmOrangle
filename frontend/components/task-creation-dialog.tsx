@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,12 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { projectService, CreateTaskRequest, TaskResponse } from "@/services/project-service";
 import { userManagementService } from "@/services/user-management-service";
 import { fileService } from "@/services/file-service";
 import { useCurrentUser } from "@/contexts/user-context";
 import { UserResponseDto } from "@/types/user";
 import { User, Crown } from "lucide-react";
+import { tagService } from "@/services/tag-service";
 
 // Helper for file upload
 async function uploadFiles({ files, taskId, projectId }: { files: FileList | File[], taskId: number, projectId: number }) {
@@ -89,6 +91,9 @@ export function TaskCreationDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [tagsError, setTagsError] = useState<string | null>(null);
+  const [loadingTags, setLoadingTags] = useState(false);
   
   // New state for task assignment and project selection
   const [projectMembers, setProjectMembers] = useState<UserResponseDto[]>([]);
@@ -103,6 +108,55 @@ export function TaskCreationDialog({
 
   // Get the current user's ID consistently
   const currentUserId = currentUser?.backendStaffId || parseInt(currentUser?.id || '1');
+
+  const normalizeTag = (tag: string) => tag.trim().toLowerCase();
+
+  const tagSuggestions = useMemo(() => {
+    if (!availableTags.length) {
+      return [] as string[];
+    }
+
+    const selectedTags = new Set((formData.tags ?? []).map((tag) => normalizeTag(tag)));
+
+    return availableTags
+      .filter((tag) => !selectedTags.has(normalizeTag(tag)))
+      .slice(0, 10);
+  }, [availableTags, formData.tags]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let isActive = true;
+
+    const loadTags = async () => {
+      try {
+        setLoadingTags(true);
+        setTagsError(null);
+        const tags = await tagService.getTags();
+        if (isActive) {
+          const tagNames = tags.map((tag) => tag.tagName);
+          setAvailableTags(tagNames);
+        }
+      } catch (err) {
+        console.error('Error loading tags:', err);
+        if (isActive) {
+          setTagsError('Failed to load tag suggestions.');
+        }
+      } finally {
+        if (isActive) {
+          setLoadingTags(false);
+        }
+      }
+    };
+
+    loadTags();
+
+    return () => {
+      isActive = false;
+    };
+  }, [open]);
 
   // Load project members when dialog opens and projectId is available
   useEffect(() => {
@@ -123,6 +177,68 @@ export function TaskCreationDialog({
       setError('Failed to load project members. You can still create the task without assignment.');
     } finally {
       setLoadingMembers(false);
+    }
+  };
+
+  const addTag = (tag: string) => {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      return;
+    }
+
+    setFormData((prev) => {
+      const currentTags = prev.tags ?? [];
+      if (currentTags.some((existing) => normalizeTag(existing) === normalizeTag(trimmedTag))) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        tags: [...currentTags, trimmedTag],
+      };
+    });
+  };
+
+  const ensureManagedTagsExist = async (tagNames: string[]) => {
+    if (!isManager || !tagNames.length) {
+      return;
+    }
+
+    setTagsError(null);
+
+    const existing = new Set(availableTags.map((tag) => normalizeTag(tag)));
+    let encounteredError = false;
+
+    for (const tagName of tagNames) {
+      const trimmedTagName = tagName.trim();
+      if (!trimmedTagName) {
+        continue;
+      }
+
+      const normalizedTag = normalizeTag(trimmedTagName);
+      if (existing.has(normalizedTag)) {
+        continue;
+      }
+
+      try {
+        const createdTag = await tagService.createTag({ tagName: trimmedTagName });
+        existing.add(normalizeTag(createdTag.tagName));
+        setAvailableTags((prev) => {
+          const alreadyHasTag = prev.some((existingTag) => normalizeTag(existingTag) === normalizeTag(createdTag.tagName));
+          if (alreadyHasTag) {
+            return prev;
+          }
+
+          return [...prev, createdTag.tagName].sort((a, b) => a.localeCompare(b));
+        });
+      } catch (creationError) {
+        encounteredError = true;
+        console.error('Error creating tag:', creationError);
+      }
+    }
+
+    if (encounteredError) {
+      setTagsError('Some tags could not be saved globally. They will still be added to the task.');
     }
   };
 
@@ -154,6 +270,8 @@ export function TaskCreationDialog({
         taskType: formData.taskType!,
         projectId: isPersonalTask ? undefined : selectedProjectId!,
       };
+
+      await ensureManagedTagsExist(taskData.tags ?? []);
 
       console.log('Creating task with data:', taskData);
       console.log('Using manager endpoint:', shouldUseManagerEndpoint);
@@ -212,8 +330,16 @@ export function TaskCreationDialog({
   };
 
   const handleTagsChange = (value: string) => {
-    const tags = value.split(',').map(tag => tag.trim()).filter(Boolean);
-    setFormData(prev => ({ ...prev, tags }));
+    const rawTags = value
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    const dedupedTags = Array.from(
+      new Map(rawTags.map((tag) => [normalizeTag(tag), tag])).values(),
+    );
+
+    setFormData((prev) => ({ ...prev, tags: dedupedTags }));
   };
 
   return (
@@ -439,6 +565,30 @@ export function TaskCreationDialog({
             <p className="text-xs text-muted-foreground">
               Separate multiple tags with commas
             </p>
+            {loadingTags ? (
+              <p className="text-xs text-muted-foreground">Loading tag suggestions…</p>
+            ) : (
+              tagSuggestions.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {tagSuggestions.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => addTag(tag)}
+                      className="focus:outline-none"
+                      aria-label={`Add tag ${tag}`}
+                    >
+                      <Badge variant="outline" className="cursor-pointer px-2 py-1 text-xs">
+                        + {tag}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              )
+            )}
+            {tagsError && (
+              <p className="text-xs text-destructive">{tagsError}</p>
+            )}
           </div>
 
           <div className="space-y-2">

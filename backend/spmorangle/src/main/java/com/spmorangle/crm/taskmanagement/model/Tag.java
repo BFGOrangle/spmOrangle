@@ -10,7 +10,7 @@ import java.util.Objects;
 @Getter
 @Setter
 @Entity
-@Table(name = "tag", schema = "public")
+@Table(name = "tag", schema = "syncup")
 public class Tag {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

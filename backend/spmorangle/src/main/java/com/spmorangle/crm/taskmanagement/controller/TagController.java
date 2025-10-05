@@ -24,7 +24,7 @@ public class TagController {
     @GetMapping()
     public ResponseEntity<List<TagDto>> getTags(){
         List<TagDto> allTags = tagService.getTags();
-        return ResponseEntity.status(HttpStatus.FOUND).body(allTags);
+        return ResponseEntity.status(HttpStatus.OK).body(allTags);
     }
 
     @PreAuthorize("hasRole('MANAGER')")

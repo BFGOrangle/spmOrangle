@@ -45,6 +45,20 @@ jest.mock('../../services/file-service', () => ({
   },
 }));
 
+jest.mock('../../services/tag-service', () => ({
+  tagService: {
+    getTags: jest.fn(() => Promise.resolve([
+      { id: 1, tagName: 'frontend' },
+      { id: 2, tagName: 'backend' },
+      { id: 3, tagName: 'ui' },
+    ])),
+    createTag: jest.fn((request: any) => {
+      const tagName = typeof request === 'string' ? request : request.tagName;
+      return Promise.resolve({ id: Date.now(), tagName });
+    }),
+  },
+}));
+
 // Mock the user context
 jest.mock('../../contexts/user-context', () => ({
   useCurrentUser: jest.fn(() => ({
@@ -144,6 +158,7 @@ jest.mock('lucide-react', () => ({
 const { projectService } = require('../../services/project-service');
 const { userManagementService } = require('../../services/user-management-service');
 const { useCurrentUser } = require('../../contexts/user-context');
+const { tagService } = require('../../services/tag-service');
 
 describe('TaskCreationDialog', () => {
   const mockOnOpenChange = jest.fn();
@@ -151,10 +166,12 @@ describe('TaskCreationDialog', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    tagService.getTags.mockClear();
+    tagService.createTag.mockClear();
   });
 
   describe('Basic Dialog Functionality', () => {
-    it('renders dialog when open', () => {
+    it('renders dialog when open', async () => {
       render(
         <TaskCreationDialog 
           open={true} 
@@ -162,7 +179,11 @@ describe('TaskCreationDialog', () => {
           onTaskCreated={mockOnTaskCreated} 
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       expect(screen.getByRole('dialog')).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: /create new task/i })).toBeInTheDocument();
     });
@@ -187,14 +208,18 @@ describe('TaskCreationDialog', () => {
           onTaskCreated={mockOnTaskCreated} 
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       const cancelButton = screen.getByText(/cancel/i);
       fireEvent.click(cancelButton);
       
       expect(mockOnOpenChange).toHaveBeenCalledWith(false);
     });
 
-    it('renders form fields', () => {
+    it('renders form fields', async () => {
       render(
         <TaskCreationDialog 
           open={true} 
@@ -202,7 +227,11 @@ describe('TaskCreationDialog', () => {
           onTaskCreated={mockOnTaskCreated} 
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       expect(screen.getByPlaceholderText(/enter task title/i)).toBeInTheDocument();
       expect(screen.getByPlaceholderText(/enter task description/i)).toBeInTheDocument();
       expect(screen.getByText(/task type \*/i)).toBeInTheDocument();
@@ -210,7 +239,7 @@ describe('TaskCreationDialog', () => {
       expect(screen.getByPlaceholderText(/enter tags separated by commas/i)).toBeInTheDocument();
     });
 
-    it('allows file upload', () => {
+    it('allows file upload', async () => {
       render(
         <TaskCreationDialog 
           open={true} 
@@ -218,7 +247,11 @@ describe('TaskCreationDialog', () => {
           onTaskCreated={mockOnTaskCreated} 
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       const fileInput = screen.getByLabelText(/attachments/i);
       expect(fileInput).toBeInTheDocument();
       expect(fileInput).toHaveAttribute('type', 'file');
@@ -227,7 +260,7 @@ describe('TaskCreationDialog', () => {
   });
 
   describe('Manager Project Selection', () => {
-    it('shows project selector for manager when projectId is not provided', () => {
+    it('shows project selector for manager when projectId is not provided', async () => {
       render(
         <TaskCreationDialog 
           open={true} 
@@ -239,12 +272,16 @@ describe('TaskCreationDialog', () => {
           ]}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       expect(screen.getByText('Project')).toBeInTheDocument();
       expect(screen.getByText(/personal task \(no project\)/i)).toBeInTheDocument();
     });
 
-    it('shows manager privileges description', () => {
+    it('shows manager privileges description', async () => {
       render(
         <TaskCreationDialog 
           open={true} 
@@ -255,13 +292,17 @@ describe('TaskCreationDialog', () => {
           ]}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       expect(screen.getByText(/as a manager/i)).toBeInTheDocument();
       // The crown icon and assignment text only appear when there's a project with team members
       // For this test, let's just check that the basic manager description is shown
     });
 
-    it('does not show project selector when specific projectId is provided', () => {
+    it('does not show project selector when specific projectId is provided', async () => {
       render(
         <TaskCreationDialog 
           open={true} 
@@ -270,14 +311,18 @@ describe('TaskCreationDialog', () => {
           projectId={123}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       // Should not show project selection dropdown when projectId is specified
       expect(screen.queryByText(/select project or create personal task/i)).not.toBeInTheDocument();
     });
   });
 
   describe('Task Assignment for Managers', () => {
-    it('shows personal task assignment message', () => {
+    it('shows personal task assignment message', async () => {
       render(
         <TaskCreationDialog 
           open={true} 
@@ -286,7 +331,11 @@ describe('TaskCreationDialog', () => {
           availableProjects={[]}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       expect(screen.getByText(/this personal task will be assigned to you/i)).toBeInTheDocument();
       expect(screen.getByText(/john manager/i)).toBeInTheDocument();
     });
@@ -300,7 +349,11 @@ describe('TaskCreationDialog', () => {
           projectId={1}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       await waitFor(() => {
         expect(userManagementService.getProjectMembers).toHaveBeenCalledWith(1);
       });
@@ -315,7 +368,11 @@ describe('TaskCreationDialog', () => {
           projectId={1}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       await waitFor(() => {
         expect(screen.getByText(/assign to \*/i)).toBeInTheDocument();
         expect(screen.getByText(/myself \(john manager\)/i)).toBeInTheDocument();
@@ -333,7 +390,11 @@ describe('TaskCreationDialog', () => {
           projectId={1}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       await waitFor(() => {
         expect(screen.getByText(/failed to load project members/i)).toBeInTheDocument();
       });
@@ -353,7 +414,7 @@ describe('TaskCreationDialog', () => {
       });
     });
 
-    it('does not show project selection for staff', () => {
+    it('does not show project selection for staff', async () => {
       render(
         <TaskCreationDialog 
           open={true} 
@@ -364,12 +425,16 @@ describe('TaskCreationDialog', () => {
           ]}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       expect(screen.queryByText(/as a manager/i)).not.toBeInTheDocument();
       expect(screen.queryByTestId('crown-icon')).not.toBeInTheDocument();
     });
 
-    it('shows task will be assigned to staff member', () => {
+    it('shows task will be assigned to staff member', async () => {
       render(
         <TaskCreationDialog 
           open={true} 
@@ -378,7 +443,11 @@ describe('TaskCreationDialog', () => {
           projectId={1}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       expect(screen.getByText(/this project task will be assigned to you/i)).toBeInTheDocument();
       expect(screen.getByText(/jane staff/i)).toBeInTheDocument();
     });
@@ -405,7 +474,11 @@ describe('TaskCreationDialog', () => {
           onTaskCreated={mockOnTaskCreated}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       const titleInput = screen.getByPlaceholderText(/enter task title/i);
       const submitButton = screen.getByText(/create task/i);
       
@@ -424,6 +497,36 @@ describe('TaskCreationDialog', () => {
       });
     });
 
+    it('creates missing tags before submitting', async () => {
+      tagService.getTags.mockResolvedValueOnce([
+        { id: 1, tagName: 'frontend' },
+      ]);
+
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      const titleInput = screen.getByPlaceholderText(/enter task title/i);
+      const tagsInput = screen.getByPlaceholderText(/enter tags separated by commas/i);
+      const submitButton = screen.getByText(/create task/i);
+
+      fireEvent.change(titleInput, { target: { value: 'Tag Sync Task' } });
+      fireEvent.change(tagsInput, { target: { value: 'frontend, analytics' } });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(tagService.createTag).toHaveBeenCalledWith({ tagName: 'analytics' });
+      });
+
+      await waitFor(() => {
+        expect(projectService.createTask).toHaveBeenCalled();
+      });
+    });
+
     it('creates project task with manager assignment', async () => {
       render(
         <TaskCreationDialog 
@@ -433,7 +536,11 @@ describe('TaskCreationDialog', () => {
           projectId={1}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       const titleInput = screen.getByPlaceholderText(/enter task title/i);
       const submitButton = screen.getByText(/create task/i);
       
@@ -459,7 +566,11 @@ describe('TaskCreationDialog', () => {
           projectId={1}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       // Wait for project members to load
       await waitFor(() => {
         expect(userManagementService.getProjectMembers).toHaveBeenCalled();
@@ -485,7 +596,11 @@ describe('TaskCreationDialog', () => {
           onTaskCreated={mockOnTaskCreated}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       const submitButton = screen.getByText(/create task/i);
       fireEvent.click(submitButton);
       
@@ -506,6 +621,10 @@ describe('TaskCreationDialog', () => {
           onTaskCreated={mockOnTaskCreated}
         />
       );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
       
       const titleInput = screen.getByPlaceholderText(/enter task title/i);
       const submitButton = screen.getByText(/create task/i);
@@ -526,7 +645,11 @@ describe('TaskCreationDialog', () => {
           onTaskCreated={mockOnTaskCreated}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       const titleInput = screen.getByPlaceholderText(/enter task title/i);
       const submitButton = screen.getByText(/create task/i);
       
@@ -547,7 +670,11 @@ describe('TaskCreationDialog', () => {
           onTaskCreated={mockOnTaskCreated}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       const titleInput = screen.getByPlaceholderText(/enter task title/i);
       const descriptionInput = screen.getByPlaceholderText(/enter task description/i);
       const submitButton = screen.getByText(/create task/i);
@@ -565,7 +692,7 @@ describe('TaskCreationDialog', () => {
       expect(descriptionInput).toHaveValue('');
     });
 
-    it('handles tags input correctly', () => {
+    it('handles tags input correctly', async () => {
       render(
         <TaskCreationDialog 
           open={true} 
@@ -573,7 +700,11 @@ describe('TaskCreationDialog', () => {
           onTaskCreated={mockOnTaskCreated}
         />
       );
-      
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
       const tagsInput = screen.getByPlaceholderText(/enter tags separated by commas/i);
       fireEvent.change(tagsInput, { target: { value: 'frontend, react, typescript' } });
       

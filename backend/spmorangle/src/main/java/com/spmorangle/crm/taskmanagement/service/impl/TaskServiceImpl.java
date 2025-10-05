@@ -89,7 +89,7 @@ public class TaskServiceImpl implements TaskService {
                 .status(savedTask.getStatus())
                 .assignedUserIds(assignedUserIds)
                 .tags(savedTask.getTags() != null 
-                        ? savedTask.getTags().stream().map(com.spmorangle.crm.taskmanagement.model.Tag::getTagName).toList() 
+                        ? savedTask.getTags().stream().map(Tag::getTagName).toList()
                         : null)
                 .userHasEditAccess(true) // Creator always has edit access
                 .userHasDeleteAccess(canUserDeleteTask(savedTask.getId(), currentUserId))
@@ -99,6 +99,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<TaskResponseDto> getProjectTasks(Long userId, Long projectId) {
         log.info("Getting tasks for project: {}", projectId);
         List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
@@ -114,6 +115,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<TaskResponseDto> getPersonalTasks(Long userId) {
         log.info("Getting personal tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
@@ -123,6 +125,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<TaskResponseDto> getAllUserTasks(Long userId) {
         log.info("Getting all tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findUserTasks(userId);
@@ -194,7 +197,7 @@ public class TaskServiceImpl implements TaskService {
                 .status(updatedTask.getStatus())
                                 .status(updatedTask.getStatus())
                 .tags(updatedTask.getTags() != null 
-                        ? updatedTask.getTags().stream().map(com.spmorangle.crm.taskmanagement.model.Tag::getTagName).toList() 
+                        ? updatedTask.getTags().stream().map(Tag::getTagName).toList()
                         : null)
                 .userHasEditAccess(true) // User who just updated has edit access
                 .userHasDeleteAccess(canUserDeleteTask(updatedTask.getId(), currentUserId))
