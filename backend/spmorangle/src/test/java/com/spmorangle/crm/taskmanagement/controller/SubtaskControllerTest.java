@@ -386,6 +386,95 @@ public class SubtaskControllerTest {
 
             verify(subtaskService).deleteSubtask(eq(subtaskId), eq(123L));
         }
+
+        @Test
+        @DisplayName("Should return 500 when subtask not found")
+        void deleteSubtask_SubtaskNotFound_ReturnsInternalServerError() throws Exception {
+            // Given
+            Long nonExistentSubtaskId = 999L;
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            org.mockito.Mockito.doThrow(new RuntimeException("Subtask not found with ID: 999"))
+                    .when(subtaskService).deleteSubtask(eq(nonExistentSubtaskId), eq(123L));
+
+            // When & Then
+            mockMvc.perform(delete("/api/subtasks/{subtaskId}", nonExistentSubtaskId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isInternalServerError());
+        }
+
+        @Test
+        @DisplayName("Should return 500 when user is not authorized to delete")
+        void deleteSubtask_UnauthorizedUser_ReturnsInternalServerError() throws Exception {
+            // Given
+            Long subtaskId = 1L;
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            org.mockito.Mockito.doThrow(new RuntimeException("Only project owner can delete the subtask"))
+                    .when(subtaskService).deleteSubtask(eq(subtaskId), eq(123L));
+
+            // When & Then
+            mockMvc.perform(delete("/api/subtasks/{subtaskId}", subtaskId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isInternalServerError());
+        }
+
+        @Test
+        @DisplayName("Should pass correct user ID to service")
+        void deleteSubtask_VerifyCorrectUserId_PassedToService() throws Exception {
+            // Given
+            Long subtaskId = 5L;
+            User differentUser = new User();
+            differentUser.setId(456L);
+            differentUser.setUserName("differentuser");
+            differentUser.setEmail("different@example.com");
+            differentUser.setRoleType("USER");
+            differentUser.setCognitoSub(UUID.randomUUID());
+            
+            when(userContextService.getRequestingUser()).thenReturn(differentUser);
+            doNothing().when(subtaskService).deleteSubtask(eq(subtaskId), eq(456L));
+
+            // When & Then
+            mockMvc.perform(delete("/api/subtasks/{subtaskId}", subtaskId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isNoContent());
+
+            verify(subtaskService).deleteSubtask(eq(subtaskId), eq(456L));
+        }
+
+        @Test
+        @DisplayName("Should handle deletion of multiple subtasks sequentially")
+        void deleteSubtask_MultipleSubtasks_DeletedSequentially() throws Exception {
+            // Given
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            doNothing().when(subtaskService).deleteSubtask(eq(1L), eq(123L));
+            doNothing().when(subtaskService).deleteSubtask(eq(2L), eq(123L));
+            doNothing().when(subtaskService).deleteSubtask(eq(3L), eq(123L));
+
+            // When & Then - Delete first subtask
+            mockMvc.perform(delete("/api/subtasks/1")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isNoContent());
+
+            // Delete second subtask
+            mockMvc.perform(delete("/api/subtasks/2")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isNoContent());
+
+            // Delete third subtask
+            mockMvc.perform(delete("/api/subtasks/3")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isNoContent());
+
+            // Verify service was called three times
+            verify(subtaskService).deleteSubtask(eq(1L), eq(123L));
+            verify(subtaskService).deleteSubtask(eq(2L), eq(123L));
+            verify(subtaskService).deleteSubtask(eq(3L), eq(123L));
+        }
     }
 
     @Nested
