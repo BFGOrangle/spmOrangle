@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,8 +20,45 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
-import { UserPlus, UserMinus, Users as UsersIcon, Loader2 } from "lucide-react";
-import { createAuthenticatedRequestConfig } from "@/lib/auth-utils";
+import { useTaskCollaboratorMutations } from "@/hooks/use-task-collaborators";
+import {
+  CollaboratorApiError,
+  CollaboratorValidationError,
+} from "@/services/task-collaborator-api";
+import { userManagementService } from "@/services/user-management-service";
+import type { UserResponseDto } from "@/types/user";
+import { Loader2, UserMinus, UserPlus, Users as UsersIcon } from "lucide-react";
+
+function getCollaboratorErrorMessage(error: unknown): string {
+  if (!error) {
+    return "An unexpected error occurred.";
+  }
+
+  if (error instanceof CollaboratorValidationError) {
+    return (
+      error.validationErrors
+        ?.map(({ message }) => message)
+        .filter(Boolean)
+        .join(", ") || "Validation error"
+    );
+  }
+
+  if (error instanceof CollaboratorApiError) {
+    if (error.errors?.length) {
+      return error.errors
+        .map(({ message }) => message)
+        .filter(Boolean)
+        .join(", ");
+    }
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "An unexpected error occurred.";
+}
 
 interface TaskCollaboratorManagementProps {
   taskId: number;
@@ -28,6 +66,12 @@ interface TaskCollaboratorManagementProps {
   currentUserId: number;
   onCollaboratorsChange?: (collaboratorIds: number[]) => void;
 }
+
+const AVAILABLE_COLLABORATORS_QUERY_KEY = [
+  "tasks",
+  "collaborators",
+  "available",
+] as const;
 
 export function TaskCollaboratorManagement({
   taskId,
@@ -37,121 +81,147 @@ export function TaskCollaboratorManagement({
 }: TaskCollaboratorManagementProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Simple list of user IDs for testing (1-20)
-  const availableUserIds = Array.from({ length: 20 }, (_, i) => i + 1);
+  const {
+    data: collaborators = [],
+    isLoading: isCollaboratorsLoading,
+    error: collaboratorsError,
+  } = useQuery<UserResponseDto[]>({
+    queryKey: AVAILABLE_COLLABORATORS_QUERY_KEY,
+    queryFn: () => userManagementService.getCollaborators(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (collaboratorsError) {
+      toast({
+        title: "Unable to load collaborators",
+        description: getCollaboratorErrorMessage(collaboratorsError),
+        variant: "destructive",
+      });
+    }
+  }, [collaboratorsError]);
+
+  const collaboratorMap = useMemo(() => {
+    return new Map(collaborators.map((collaborator) => [collaborator.id, collaborator]));
+  }, [collaborators]);
+
+  const availableCollaborators = useMemo(() => {
+    return collaborators
+      .filter(
+        (collaborator) =>
+          !currentCollaboratorIds.includes(collaborator.id) &&
+          collaborator.id !== currentUserId,
+      )
+      .sort((a, b) => {
+        const nameA = (a.fullName || a.email || `User ${a.id}`).toLowerCase();
+        const nameB = (b.fullName || b.email || `User ${b.id}`).toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+  }, [collaborators, currentCollaboratorIds, currentUserId]);
+
+  useEffect(() => {
+    if (
+      selectedUserId &&
+      availableCollaborators.every(
+        (collaborator) => collaborator.id.toString() !== selectedUserId,
+      )
+    ) {
+      setSelectedUserId("");
+    }
+  }, [availableCollaborators, selectedUserId]);
+
+  const { addCollaboratorMutation, removeCollaboratorMutation } =
+    useTaskCollaboratorMutations();
+
+  const isMutationPending =
+    addCollaboratorMutation.isPending || removeCollaboratorMutation.isPending;
 
   const handleAddCollaborator = async () => {
-    if (!selectedUserId) return;
+    if (!selectedUserId || selectedUserId === "no-users") {
+      return;
+    }
 
-    const userId = parseInt(selectedUserId);
-    const payload = { taskId, collaboratorId: userId, assignedById: currentUserId };
-
-    setIsLoading(true);
-    console.log("Adding collaborator with payload:", payload);
+    const collaboratorId = Number.parseInt(selectedUserId, 10);
 
     try {
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-      const endpoint = `${apiBaseUrl}/api/tasks/collaborator`;
+      const response = await addCollaboratorMutation.mutateAsync({
+        taskId,
+        collaboratorId,
+        assignedById: currentUserId,
+      });
 
-      console.log("Making authenticated POST request to:", endpoint);
-
-      // Get authenticated request config
-      const requestConfig = await createAuthenticatedRequestConfig("POST", payload);
-      console.log("Request headers:", requestConfig.headers);
-
-      const response = await fetch(endpoint, requestConfig);
-
-      console.log("Response status:", response.status);
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Error response:", errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log("Success response:", result);
+      const collaborator = collaboratorMap.get(response.collaboratorId);
 
       toast({
         title: "Collaborator added",
-        description: `User ID ${userId} has been successfully added to the task.`,
+        description:
+          collaborator?.fullName
+            ? `${collaborator.fullName} has been added to the task.`
+            : `User ID ${response.collaboratorId} has been added to the task.`,
       });
 
       if (onCollaboratorsChange) {
-        onCollaboratorsChange([...currentCollaboratorIds, userId]);
+        const updatedCollaborators = Array.from(
+          new Set([...currentCollaboratorIds, response.collaboratorId]),
+        );
+        onCollaboratorsChange(updatedCollaborators);
       }
-      setSelectedUserId("");
 
+      setSelectedUserId("");
     } catch (error) {
-      console.error("Add collaborator error:", error);
       toast({
         title: "Error adding collaborator",
-        description: error instanceof Error ? error.message : "Failed to add collaborator to the task.",
+        description: getCollaboratorErrorMessage(error),
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleRemoveCollaborator = async (collaboratorId: number) => {
-    const payload = { taskId, collaboratorId, assignedById: currentUserId };
-
-    setIsLoading(true);
-    console.log("Removing collaborator with payload:", payload);
-
     try {
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-      const endpoint = `${apiBaseUrl}/api/tasks/collaborator`;
-
-      console.log("Making authenticated DELETE request to:", endpoint);
-
-      // Get authenticated request config
-      const requestConfig = await createAuthenticatedRequestConfig("DELETE", payload);
-      console.log("Request headers:", requestConfig.headers);
-
-      const response = await fetch(endpoint, requestConfig);
-
-      console.log("Response status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Error response:", errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      console.log("Remove collaborator success");
-
-      toast({
-        title: "Collaborator removed",
-        description: `User ID ${collaboratorId} has been successfully removed from the task.`,
+      await removeCollaboratorMutation.mutateAsync({
+        taskId,
+        collaboratorId,
+        assignedById: currentUserId,
       });
 
       if (onCollaboratorsChange) {
-        onCollaboratorsChange(currentCollaboratorIds.filter(id => id !== collaboratorId));
+        onCollaboratorsChange(
+          currentCollaboratorIds.filter((id) => id !== collaboratorId),
+        );
       }
 
+      const collaborator = collaboratorMap.get(collaboratorId);
+
+      toast({
+        title: "Collaborator removed",
+        description:
+          collaborator?.fullName
+            ? `${collaborator.fullName} has been removed from the task.`
+            : `User ID ${collaboratorId} has been removed from the task.`,
+      });
     } catch (error) {
-      console.error("Remove collaborator error:", error);
       toast({
         title: "Error removing collaborator",
-        description: error instanceof Error ? error.message : "Failed to remove collaborator from the task.",
+        description: getCollaboratorErrorMessage(error),
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const getAvailableUserIds = () => {
-    return availableUserIds.filter(userId =>
-      !currentCollaboratorIds.includes(userId) &&
-      userId !== currentUserId
-    );
-  };
+  const isAddDisabled =
+    !selectedUserId ||
+    selectedUserId === "no-users" ||
+    isMutationPending ||
+    isCollaboratorsLoading ||
+    availableCollaborators.length === 0;
+
+  const addButtonLabel = isMutationPending ? "Processing..." : "Add Collaborator";
+
+  const selectPlaceholder = isCollaboratorsLoading
+    ? "Loading collaborators..."
+    : "Select a collaborator to add";
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -175,25 +245,50 @@ export function TaskCollaboratorManagement({
             <h4 className="text-sm font-medium mb-3">Current Collaborators</h4>
             {currentCollaboratorIds.length > 0 ? (
               <div className="space-y-2">
-                {currentCollaboratorIds.map((collaboratorId) => (
-                  <div key={collaboratorId} className="flex items-center justify-between py-2 px-3 border rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground">
-                        {collaboratorId}
-                      </div>
-                      <span className="text-sm font-medium">User ID: {collaboratorId}</span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleRemoveCollaborator(collaboratorId)}
-                      disabled={isLoading}
+                {currentCollaboratorIds.map((collaboratorId) => {
+                  const collaborator = collaboratorMap.get(collaboratorId);
+                  const collaboratorLabel =
+                    collaborator?.fullName ||
+                    collaborator?.email ||
+                    `User ID: ${collaboratorId}`;
+                  const collaboratorInitials = collaboratorLabel
+                    .split(" ")
+                    .map((part) => part.trim()[0])
+                    .filter(Boolean)
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase();
+
+                  return (
+                    <div
+                      key={collaboratorId}
+                      className="flex items-center justify-between py-2 px-3 border rounded-lg"
                     >
-                      <UserMinus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground">
+                          {collaboratorInitials || collaboratorId}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{collaboratorLabel}</span>
+                          {collaborator?.email && collaborator?.fullName && (
+                            <span className="text-xs text-muted-foreground">
+                              {collaborator.email}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleRemoveCollaborator(collaboratorId)}
+                        disabled={isMutationPending}
+                      >
+                        <UserMinus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground py-4 text-center">
@@ -209,18 +304,29 @@ export function TaskCollaboratorManagement({
             <h4 className="text-sm font-medium mb-3">Add Collaborator</h4>
             <div className="space-y-3">
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a user ID to add" />
+                <SelectTrigger disabled={isCollaboratorsLoading || isMutationPending}>
+                  <SelectValue placeholder={selectPlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
-                  {getAvailableUserIds().map((userId) => (
-                    <SelectItem key={userId} value={userId.toString()}>
-                      User ID: {userId}
+                  {availableCollaborators.map((collaborator) => (
+                    <SelectItem
+                      key={collaborator.id}
+                      value={collaborator.id.toString()}
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">
+                          {collaborator.fullName || collaborator.email || `User ${collaborator.id}`}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          ID: {collaborator.id}
+                          {collaborator.email ? ` · ${collaborator.email}` : ""}
+                        </span>
+                      </div>
                     </SelectItem>
                   ))}
-                  {getAvailableUserIds().length === 0 && (
+                  {availableCollaborators.length === 0 && !isCollaboratorsLoading && (
                     <SelectItem value="no-users" disabled>
-                      No users available to add
+                      No collaborators available to add
                     </SelectItem>
                   )}
                 </SelectContent>
@@ -228,18 +334,18 @@ export function TaskCollaboratorManagement({
 
               <Button
                 onClick={handleAddCollaborator}
-                disabled={!selectedUserId || selectedUserId === "no-users" || isLoading}
+                disabled={isAddDisabled}
                 className="w-full"
               >
-                {isLoading ? (
+                {isMutationPending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Adding...
+                    {addButtonLabel}
                   </>
                 ) : (
                   <>
                     <UserPlus className="h-4 w-4 mr-2" />
-                    Add Collaborator
+                    {addButtonLabel}
                   </>
                 )}
               </Button>

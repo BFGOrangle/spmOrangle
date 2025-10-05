@@ -10,9 +10,7 @@ import {
   RemoveCollaboratorRequestDto,
 } from "@/types/collaborator";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-const TASK_COLLABORATOR_ENDPOINT = `${API_BASE_URL}/api/tasks/collaborator`;
+const TASK_COLLABORATOR_ENDPOINT = "/api/tasks/collaborator";
 
 export class CollaboratorApiError extends BaseApiError {
   constructor(

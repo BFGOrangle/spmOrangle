@@ -18,4 +18,5 @@ public interface UserManagementService {
     List<String> getUserTypes();
     List<UserResponseDto> getProjectMembers(Long projectId);
     List<UserResponseDto> getUsersByIds(List<Long> userIds);
+    List<UserResponseDto> getCollaborators();
 }

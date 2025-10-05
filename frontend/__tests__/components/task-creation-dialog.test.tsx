@@ -29,6 +29,11 @@ jest.mock('../../services/user-management-service', () => ({
       { id: 2, fullName: 'Jane Staff', email: 'jane@test.com' },
       { id: 3, fullName: 'Bob Developer', email: 'bob@test.com' },
     ])),
+    getCollaborators: jest.fn(() => Promise.resolve([
+      { id: 2, fullName: 'Jane Staff', email: 'jane@test.com', roleType: 'STAFF', cognitoSub: 'sub-2' },
+      { id: 3, fullName: 'Bob Developer', email: 'bob@test.com', roleType: 'STAFF', cognitoSub: 'sub-3' },
+      { id: 4, fullName: 'Alice Analyst', email: 'alice@test.com', roleType: 'STAFF', cognitoSub: 'sub-4' },
+    ])),
   },
 }));
 
@@ -153,6 +158,8 @@ jest.mock('../../components/ui/select', () => ({
 jest.mock('lucide-react', () => ({
   User: () => <span data-testid="user-icon">👤</span>,
   Crown: () => <span data-testid="crown-icon">👑</span>,
+  Loader2: () => <span data-testid="loader-icon">⏳</span>,
+  X: () => <span data-testid="x-icon">✕</span>,
 }));
 
 const { projectService } = require('../../services/project-service');
