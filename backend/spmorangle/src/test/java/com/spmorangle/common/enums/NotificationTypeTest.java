@@ -13,6 +13,7 @@ class NotificationTypeTest {
     @Test
     @DisplayName("Should have all comment event types")
     void testCommentEventTypes() {
+        assertNotNull(NotificationType.COMMENT_ADDED);
         assertNotNull(NotificationType.MENTION);
         assertNotNull(NotificationType.COMMENT_REPLY);
     }
@@ -48,10 +49,10 @@ class NotificationTypeTest {
     }
 
     @Test
-    @DisplayName("Should have exactly 12 notification types")
+    @DisplayName("Should have exactly 13 notification types")
     void testTotalNotificationTypesCount() {
         NotificationType[] types = NotificationType.values();
-        assertEquals(12, types.length);
+        assertEquals(13, types.length);
     }
 
     @Test
@@ -73,10 +74,11 @@ class NotificationTypeTest {
     @DisplayName("Should verify enum order")
     void testEnumOrder() {
         NotificationType[] types = NotificationType.values();
-        assertEquals(NotificationType.MENTION, types[0]);
-        assertEquals(NotificationType.COMMENT_REPLY, types[1]);
-        assertEquals(NotificationType.TASK_ASSIGNED, types[2]);
-        assertEquals(NotificationType.SECURITY_ALERT, types[11]);
+        assertEquals(NotificationType.COMMENT_ADDED, types[0]);
+        assertEquals(NotificationType.MENTION, types[1]);
+        assertEquals(NotificationType.COMMENT_REPLY, types[2]);
+        assertEquals(NotificationType.TASK_ASSIGNED, types[3]);
+        assertEquals(NotificationType.SECURITY_ALERT, types[12]);
     }
 
     @Test
