@@ -11,6 +11,32 @@ spring:
   jpa:
     database: POSTGRESQL
     open-in-view: false
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:admin}
+    password: ${RABBITMQ_PASSWORD:admin}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    listener:
+      simple:
+        acknowledge-mode: auto
+        prefetch: 1
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:your-email@gmail.com}
+    password: ${MAIL_PASSWORD:your-app-password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+    from: ${MAIL_FROM:noreply@spmorangle.com}
 
 aws:
   cognito:
@@ -31,6 +57,12 @@ springdoc:
     path: /swagger
     enabled: true
 
+app:
+  comments:
+    max-length: ${COMMENTS_MAX_LENGTH:2000}
+    allow-mentions: ${COMMENTS_ALLOW_MENTIONS:true}
+    require-moderation: ${COMMENTS_REQUIRE_MODERATION:false}
+
 supabase:
   storage:
     url: https://qkoobjhbvvysowdogmak.storage.supabase.co/storage/v1/s3
@@ -38,3 +70,9 @@ supabase:
     s3_aws_secret_access_key: ${AWS_S3_SECRET_ACCESS_KEY}
     region: ap-southeast-1
     bucket: syncup_bucket
+
+logging:
+  level:
+    org.springframework.amqp: DEBUG
+    com.spmorangle.crm.notification: DEBUG
+    com.spmorangle.crm.taskmanagement.service: DEBUG

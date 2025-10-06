@@ -149,7 +149,7 @@ public class SubtaskController {
         if ("ALL".equals(filter)) {
             comments = commentService.getSubtaskComments(subtaskId, user.getId());
         } else {
-            comments = commentService.getSubtaskCommentsWithFilters(subtaskId, authorId, resolved);
+            comments = commentService.getSubtaskCommentsWithFilters(subtaskId, authorId, resolved, user.getId());
         }
 
         return ResponseEntity.ok(comments);

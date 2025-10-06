@@ -15,14 +15,6 @@ public interface CommentService extends PermissionAware {
 
     void deleteComment(Long commentId, Long currentUserId);
 
-    List<CommentResponseDto> getTaskComments(Long taskId);
-
-    List<CommentResponseDto> getSubtaskComments(Long subtaskId);
-
-    List<CommentResponseDto> getCommentReplies(Long parentCommentId);
-
-    CommentResponseDto getCommentById(Long commentId);
-
     // Overloaded methods with current user context for proper permissions
     List<CommentResponseDto> getTaskComments(Long taskId, Long currentUserId);
 
@@ -34,9 +26,9 @@ public interface CommentService extends PermissionAware {
 
     List<CommentResponseDto> getUserMentions(Long userId);
 
-    List<CommentResponseDto> getTaskCommentsWithFilters(Long taskId, Long authorId, Boolean isResolved);
+    List<CommentResponseDto> getTaskCommentsWithFilters(Long taskId, Long authorId, Boolean isResolved, Long currentUserId);
 
-    List<CommentResponseDto> getSubtaskCommentsWithFilters(Long subtaskId, Long authorId, Boolean isResolved);
+    List<CommentResponseDto> getSubtaskCommentsWithFilters(Long subtaskId, Long authorId, Boolean isResolved, Long currentUserId);
 
     List<Long> getCommentAuthorsByTaskId(Long taskId);
 

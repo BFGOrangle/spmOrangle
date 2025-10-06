@@ -154,6 +154,7 @@ public class CommentControllerTest {
                     .andExpect(jsonPath("$.authorId").value(10L));
 
             verify(commentService).createComment(any(CreateCommentDto.class), eq(10L));
+            // Remove any event verification since you're using RabbitMQ now
         }
 
         @Test
@@ -397,7 +398,7 @@ public class CommentControllerTest {
         void getTaskComments_WithFilters_ShouldReturnFilteredComments() throws Exception {
             // Arrange
             List<CommentResponseDto> filteredComments = Arrays.asList(commentResponseDto);
-            when(commentService.getTaskCommentsWithFilters(1L, 10L, false))
+            when(commentService.getTaskCommentsWithFilters(1L, 10L, false, 10L))
                     .thenReturn(filteredComments);
 
             // Act & Assert
@@ -409,7 +410,7 @@ public class CommentControllerTest {
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$[0].id").value(1L));
 
-            verify(commentService).getTaskCommentsWithFilters(1L, 10L, false);
+            verify(commentService).getTaskCommentsWithFilters(1L, 10L, false, 10L);
         }
 
         @Test
@@ -462,7 +463,7 @@ public class CommentControllerTest {
         void getSubtaskComments_WithFilters_ShouldReturnFilteredComments() throws Exception {
             // Arrange
             List<CommentResponseDto> filteredComments = Arrays.asList(commentResponseDto);
-            when(commentService.getSubtaskCommentsWithFilters(10L, 10L, true))
+            when(commentService.getSubtaskCommentsWithFilters(10L, 10L, true, 10L))
                     .thenReturn(filteredComments);
 
             // Act & Assert
@@ -473,7 +474,7 @@ public class CommentControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray());
 
-            verify(commentService).getSubtaskCommentsWithFilters(10L, 10L, true);
+            verify(commentService).getSubtaskCommentsWithFilters(10L, 10L, true, 10L);
         }
     }
 
