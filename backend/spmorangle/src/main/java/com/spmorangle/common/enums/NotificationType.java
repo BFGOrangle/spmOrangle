@@ -2,6 +2,7 @@ package com.spmorangle.common.enums;
 
 public enum NotificationType {
     // Comment events
+    COMMENT_ADDED,
     MENTION,
     COMMENT_REPLY,
     

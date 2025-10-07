@@ -1,10 +1,11 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,15 +14,17 @@ import com.spmorangle.crm.taskmanagement.dto.CreateCommentDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateCommentResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateCommentDto;
 import com.spmorangle.crm.taskmanagement.model.TaskComment;
+import com.spmorangle.crm.taskmanagement.model.Task;
+import com.spmorangle.crm.taskmanagement.model.Subtask;
 import com.spmorangle.crm.taskmanagement.repository.TaskCommentRepository;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
+import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
 import com.spmorangle.crm.taskmanagement.repository.SubtaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CommentService;
-import com.spmorangle.crm.taskmanagement.event.CommentCreatedEvent;
-import com.spmorangle.crm.taskmanagement.event.CommentEditedEvent;
-import com.spmorangle.crm.taskmanagement.event.MentionEvent;
 import com.spmorangle.crm.taskmanagement.util.CommentPermissionHelper;
 import com.spmorangle.crm.usermanagement.service.UserManagementService;
+import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
+import com.spmorangle.crm.notification.messaging.dto.CommentNotificationMessageDto;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,12 +34,13 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class CommentServiceImpl implements CommentService {
 
-    private final ApplicationEventPublisher eventPublisher;
     private final CommentPermissionHelper permissionHelper;
     private final TaskCommentRepository taskCommentRepository;
     private final TaskRepository taskRepository;
+    private final TaskAssigneeRepository taskAssigneeRepository;
     private final SubtaskRepository subtaskRepository;
     private final UserManagementService userManagementService;
+    private final NotificationMessagePublisher notificationPublisher;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -82,14 +86,51 @@ public class CommentServiceImpl implements CommentService {
                  savedComment.getParentCommentId(),
                  savedComment.getContent().substring(0, Math.min(50, savedComment.getContent().length())));
 
-        // Publish event for future notification service
-        if (eventPublisher != null) {
-            eventPublisher.publishEvent(new CommentCreatedEvent(savedComment.getId(), currentUserId));
-
-            // Handle mentions
-            if (createCommentDto.getMentionedUserIds() != null && !createCommentDto.getMentionedUserIds().isEmpty()) {
-                eventPublisher.publishEvent(new MentionEvent(savedComment.getId(), currentUserId, createCommentDto.getMentionedUserIds()));
+        // Publish notification events via RabbitMQ
+        try {
+            String taskTitle = getTaskOrSubtaskTitle(createCommentDto.getTaskId(), createCommentDto.getSubtaskId());
+            List<Long> taskAssigneeIds = getTaskAssigneeIds(createCommentDto.getTaskId(), createCommentDto.getSubtaskId());
+            
+            CommentNotificationMessageDto message;
+            
+            if (createCommentDto.getParentCommentId() != null) {
+                // This is a reply - get parent comment author
+                TaskComment parentComment = taskCommentRepository.findById(createCommentDto.getParentCommentId())
+                        .orElse(null);
+                Long parentAuthorId = parentComment != null ? parentComment.getCreatedBy() : null;
+                
+                message = CommentNotificationMessageDto.forCommentReply(
+                    savedComment.getId(),
+                    currentUserId,
+                    savedComment.getContent(),
+                    createCommentDto.getParentCommentId(),
+                    parentAuthorId,
+                    createCommentDto.getTaskId(),
+                    taskTitle,
+                    createCommentDto.getMentionedUserIds(),
+                    taskAssigneeIds
+                );
+            } else {
+                // Regular comment
+                message = CommentNotificationMessageDto.forCommentCreated(
+                    savedComment.getId(),
+                    currentUserId,
+                    savedComment.getContent(),
+                    createCommentDto.getTaskId(),
+                    taskTitle,
+                    createCommentDto.getMentionedUserIds(),
+                    taskAssigneeIds
+                );
             }
+            
+            // Publish to RabbitMQ
+            notificationPublisher.publishCommentNotification(message);
+            log.info("Published notification message for comment ID: {}", savedComment.getId());
+            
+        } catch (Exception e) {
+            log.error("Failed to publish notification for comment ID: {} - Error: {}", 
+                     savedComment.getId(), e.getMessage(), e);
+            // Don't fail comment creation if notification publishing fails
         }
 
         return CreateCommentResponseDto.builder()
@@ -130,12 +171,45 @@ public class CommentServiceImpl implements CommentService {
 
         TaskComment savedComment = taskCommentRepository.save(comment);
 
-        // Publish event for future notification service
-        if (eventPublisher != null) {
-            eventPublisher.publishEvent(new CommentEditedEvent(savedComment.getId(), currentUserId));
+
+            
+        // Handle mentions via RabbitMQ (only notify NEW mentions, don't spam assignees)
+        try {
+            String taskTitle = getTaskOrSubtaskTitle(comment.getTaskId(), comment.getSubtaskId());
+            
+            // Compare old vs new mentions to only notify NEW mentions
+            Set<Long> oldMentions = new HashSet<>(comment.getMentionedUserIds() != null ? 
+                comment.getMentionedUserIds() : List.of());
+            Set<Long> newMentions = new HashSet<>(updateCommentDto.getMentionedUserIds() != null ? 
+                updateCommentDto.getMentionedUserIds() : List.of());
+
+            // Find newly added mentions
+            Set<Long> addedMentions = new HashSet<>(newMentions);
+            addedMentions.removeAll(oldMentions);
+
+            // Only notify newly mentioned users via RabbitMQ
+            if (!addedMentions.isEmpty()) {
+                CommentNotificationMessageDto message = CommentNotificationMessageDto.forMention(
+                    savedComment.getId(),
+                    currentUserId,
+                    savedComment.getContent(),
+                    comment.getTaskId(),
+                    taskTitle,
+                    addedMentions.stream().toList() // Convert to List
+                );
+                
+                notificationPublisher.publishCommentNotification(message);
+                log.info("Published mention notification for comment edit ID: {} with {} new mentions", 
+                        savedComment.getId(), addedMentions.size());
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to publish mention notification for comment edit ID: {} - Error: {}", 
+                     savedComment.getId(), e.getMessage(), e);
+            // Don't fail comment update if notification publishing fails
         }
 
-        return mapToCommentResponseDto(savedComment);
+        return mapToCommentResponseDto(savedComment, currentUserId);
     }
 
     @Override
@@ -158,29 +232,10 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public List<CommentResponseDto> getTaskComments(Long taskId) {
-        log.info("Getting comments for task: {}", taskId);
-        List<TaskComment> topLevelComments = taskCommentRepository.findTopLevelCommentsByTaskId(taskId);
-        log.info("Found {} top-level comments for task: {}", topLevelComments.size(), taskId);
-
-        List<CommentResponseDto> commentTree = buildCommentTree(topLevelComments);
-        log.info("Built comment tree with {} root comments for task: {}", commentTree.size(), taskId);
-
-        return commentTree;
-    }
-
-    @Override
     public List<CommentResponseDto> getTaskComments(Long taskId, Long currentUserId) {
         log.info("Getting comments for task: {} with user context: {}", taskId, currentUserId);
         List<TaskComment> topLevelComments = taskCommentRepository.findTopLevelCommentsByTaskId(taskId);
         return buildCommentTree(topLevelComments, currentUserId);
-    }
-
-    @Override
-    public List<CommentResponseDto> getSubtaskComments(Long subtaskId) {
-        log.info("Getting comments for subtask: {}", subtaskId);
-        List<TaskComment> topLevelComments = taskCommentRepository.findTopLevelCommentsBySubtaskId(subtaskId);
-        return buildCommentTree(topLevelComments);
     }
 
     @Override
@@ -191,29 +246,12 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public List<CommentResponseDto> getCommentReplies(Long parentCommentId) {
-        log.info("Getting replies for comment: {}", parentCommentId);
-        List<TaskComment> replies = taskCommentRepository.findRepliesByParentCommentId(parentCommentId);
-        return replies.stream()
-                .map(this::mapToCommentResponseDto)
-                .collect(Collectors.toList());
-    }
-
-    @Override
     public List<CommentResponseDto> getCommentReplies(Long parentCommentId, Long currentUserId) {
         log.info("Getting replies for comment: {} with user context: {}", parentCommentId, currentUserId);
         List<TaskComment> replies = taskCommentRepository.findRepliesByParentCommentId(parentCommentId);
         return replies.stream()
                 .map(reply -> mapToCommentResponseDto(reply, currentUserId))
                 .collect(Collectors.toList());
-    }
-
-    @Override
-    public CommentResponseDto getCommentById(Long commentId) {
-        log.info("Getting comment by ID: {}", commentId);
-        TaskComment comment = taskCommentRepository.findById(commentId)
-                .orElseThrow(() -> new RuntimeException("Comment not found"));
-        return mapToCommentResponseDto(comment);
     }
 
     @Override
@@ -229,28 +267,43 @@ public class CommentServiceImpl implements CommentService {
         log.info("Getting mentions for user: {}", userId);
         List<TaskComment> mentions = taskCommentRepository.findByMentionedUserId(userId);
         return mentions.stream()
-                .map(this::mapToCommentResponseDto)
+                .map(mention -> mapToCommentResponseDto(mention, userId))
                 .collect(Collectors.toList());
     }
 
     @Override
-    public List<CommentResponseDto> getTaskCommentsWithFilters(Long taskId, Long authorId, Boolean isResolved) {
-        log.info("Getting filtered comments for task: {}", taskId);
+    public List<CommentResponseDto> getTaskCommentsWithFilters(Long taskId, Long authorId, Boolean isResolved, Long currentUserId) {
+        log.info("Getting filtered comments for task: {} by user: {}", taskId, currentUserId);
+        
+        // Security check - ensure user can access this task's comments
+        if (!permissionHelper.canReadComments(currentUserId, taskId)) {
+            throw new RuntimeException("User not authorized to read task comments");
+        }
+        
         List<TaskComment> topLevelComments = taskCommentRepository.findTaskCommentsWithFilters(taskId, authorId, isResolved)
                 .stream()
                 .filter(comment -> comment.getParentCommentId() == null)
                 .collect(Collectors.toList());
-        return buildCommentTree(topLevelComments);
+        return buildCommentTree(topLevelComments, currentUserId);
     }
 
     @Override
-    public List<CommentResponseDto> getSubtaskCommentsWithFilters(Long subtaskId, Long authorId, Boolean isResolved) {
-        log.info("Getting filtered comments for subtask: {}", subtaskId);
+    public List<CommentResponseDto> getSubtaskCommentsWithFilters(Long subtaskId, Long authorId, Boolean isResolved, Long currentUserId) {
+        log.info("Getting filtered comments for subtask: {} by user: {}", subtaskId, currentUserId);
+        
+        // Security check - get subtask's parent task and check permissions
+        Subtask subtask = subtaskRepository.findById(subtaskId)
+            .orElseThrow(() -> new RuntimeException("Subtask not found with ID: " + subtaskId));
+        
+        if (!permissionHelper.canReadComments(currentUserId, subtask.getTaskId())) {
+            throw new RuntimeException("User not authorized to read subtask comments");
+        }
+        
         List<TaskComment> topLevelComments = taskCommentRepository.findSubtaskCommentsWithFilters(subtaskId, authorId, isResolved)
                 .stream()
                 .filter(comment -> comment.getParentCommentId() == null)
                 .collect(Collectors.toList());
-        return buildCommentTree(topLevelComments);
+        return buildCommentTree(topLevelComments, currentUserId);
     }
 
     @Override
@@ -313,10 +366,6 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
-    private List<CommentResponseDto> buildCommentTree(List<TaskComment> topLevelComments) {
-        return buildCommentTree(topLevelComments, null);
-    }
-
     private List<CommentResponseDto> buildCommentTree(List<TaskComment> topLevelComments, Long currentUserId) {
         return topLevelComments.stream()
                 .map(comment -> buildCommentDto(comment, currentUserId))
@@ -361,10 +410,6 @@ public class CommentServiceImpl implements CommentService {
                 .canReply(commentDto.isCanReply())
                 .canModerate(commentDto.isCanModerate())
                 .build();
-    }
-
-    private CommentResponseDto mapToCommentResponseDto(TaskComment comment) {
-        return mapToCommentResponseDto(comment, null);
     }
 
     private CommentResponseDto mapToCommentResponseDto(TaskComment comment, Long currentUserId) {
@@ -439,5 +484,31 @@ public class CommentServiceImpl implements CommentService {
         }
 
         log.debug("All mentioned users are valid project members");
+    }
+
+    private List<Long> getTaskAssigneeIds(Long taskId, Long subtaskId) {
+        if (taskId != null) {
+            // Get task assignees directly
+            return taskAssigneeRepository.findAssigneeIdsByTaskId(taskId);
+        } else if (subtaskId != null) {
+            // Get parent task assignees (since subtasks don't have separate assignees)
+            Subtask subtask = subtaskRepository.findById(subtaskId)
+                .orElseThrow(() -> new RuntimeException("Subtask not found with ID: " + subtaskId));
+            return taskAssigneeRepository.findAssigneeIdsByTaskId(subtask.getTaskId());
+        }
+        return List.of(); // Return empty list if neither taskId nor subtaskId is provided
+    }
+
+    private String getTaskOrSubtaskTitle(Long taskId, Long subtaskId) {
+        if (taskId != null) {
+            return taskRepository.findById(taskId)
+                .map(Task::getTitle)
+                .orElse("Unknown Task");
+        } else if (subtaskId != null) {
+            return subtaskRepository.findById(subtaskId)
+                .map(Subtask::getTitle)
+                .orElse("Unknown Subtask");
+        }
+        return "Unknown Item";
     }
 }

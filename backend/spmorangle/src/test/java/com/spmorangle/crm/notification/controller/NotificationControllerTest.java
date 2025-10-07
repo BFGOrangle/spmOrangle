@@ -2,29 +2,43 @@ package com.spmorangle.crm.notification.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spmorangle.common.enums.NotificationType;
+import com.spmorangle.common.model.User;
+import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.notification.dto.NotificationDto;
+import com.spmorangle.crm.notification.dto.NotificationFilterDto;
 import com.spmorangle.crm.notification.dto.UnreadCountDto;
 import com.spmorangle.crm.notification.enums.Channel;
 import com.spmorangle.crm.notification.enums.Priority;
+import com.spmorangle.crm.notification.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ActiveProfiles("test")
-@SpringBootTest
-@AutoConfigureMockMvc
+@WebMvcTest(NotificationController.class)
 @WithMockUser
 @DisplayName("NotificationController Test Cases")
 class NotificationControllerTest {
@@ -34,6 +48,81 @@ class NotificationControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @MockBean
+    private NotificationService notificationService;
+
+    @MockBean
+    private UserContextService userContextService;
+
+    private User testUser;
+    private List<NotificationDto> mockNotifications;
+    private UnreadCountDto unreadCountDto;
+
+    @BeforeEach
+    void setUp() {
+        // Setup test user
+        testUser = new User();
+        testUser.setId(1L);
+        testUser.setUserName("testuser");
+        testUser.setEmail("test@example.com");
+
+        // Setup mock notifications
+        NotificationDto notification1 = NotificationDto.builder()
+                .notificationId(1L)
+                .authorId(100L)
+                .targetId(1L)
+                .notificationType(NotificationType.MENTION)
+                .subject("You were mentioned")
+                .message("Sarah mentioned you in a comment")
+                .channels(Arrays.asList(Channel.IN_APP))
+                .readStatus(false)
+                .dismissedStatus(false)
+                .priority(Priority.HIGH)
+                .link("/tasks/123/comments")
+                .createdAt(OffsetDateTime.now().toInstant())
+                .build();
+
+        NotificationDto notification2 = NotificationDto.builder()
+                .notificationId(2L)
+                .authorId(101L)
+                .targetId(1L)
+                .notificationType(NotificationType.TASK_ASSIGNED)
+                .subject("New task assigned")
+                .message("You have been assigned to 'Fix login bug'")
+                .channels(Arrays.asList(Channel.IN_APP))
+                .readStatus(true)
+                .dismissedStatus(false)
+                .priority(Priority.MEDIUM)
+                .link("/tasks/456")
+                .createdAt(OffsetDateTime.now().toInstant())
+                .build();
+
+        mockNotifications = Arrays.asList(notification1, notification2);
+        List<NotificationDto> unreadOnlyNotifications = Arrays.asList(notification1); // Only unread notifications
+
+        // Setup unread count (notification1 is unread, so count is 1, but test expects it to match unread list size)
+        unreadCountDto = new UnreadCountDto(unreadOnlyNotifications.size());
+
+        // Mock the userContextService to return testUser
+        when(userContextService.getRequestingUser()).thenReturn(testUser);
+
+        // Mock the notificationService responses
+        // Default: all notifications
+        Page<NotificationDto> allNotificationsPage = new PageImpl<>(mockNotifications, PageRequest.of(0, 20), mockNotifications.size());
+        Page<NotificationDto> unreadNotificationsPage = new PageImpl<>(unreadOnlyNotifications, PageRequest.of(0, 20), unreadOnlyNotifications.size());
+
+        // Use answer to return different pages based on filter
+        when(notificationService.getNotificationsWithFilters(eq(1L), any(NotificationFilterDto.class), any()))
+            .thenAnswer(invocation -> {
+                NotificationFilterDto filter = invocation.getArgument(1);
+                return filter.isUnreadOnly() ? unreadNotificationsPage : allNotificationsPage;
+            });
+
+        when(notificationService.getUnreadCount(eq(1L))).thenReturn(unreadCountDto);
+        doNothing().when(notificationService).markAsRead(anyLong(), eq(1L));
+        doNothing().when(notificationService).markAllAsRead(eq(1L));
+    }
 
     @Test
     @DisplayName("Should get all notifications when unreadOnly is false")
@@ -118,14 +207,16 @@ class NotificationControllerTest {
     void testMarkAsRead() throws Exception {
         Long notificationId = 1L;
 
-        mockMvc.perform(patch("/api/notifications/{id}/read", notificationId))
+        mockMvc.perform(patch("/api/notifications/{id}/read", notificationId)
+                .with(csrf()))
             .andExpect(status().isNoContent());
     }
 
     @Test
     @DisplayName("Should mark all notifications as read")
     void testMarkAllAsRead() throws Exception {
-        mockMvc.perform(patch("/api/notifications/mark-all-read"))
+        mockMvc.perform(patch("/api/notifications/mark-all-read")
+                .with(csrf()))
             .andExpect(status().isNoContent());
     }
 
@@ -169,10 +260,12 @@ class NotificationControllerTest {
         mockMvc.perform(get("/api/notifications/unread-count"))
             .andExpect(status().isOk());
 
-        mockMvc.perform(patch("/api/notifications/1/read"))
+        mockMvc.perform(patch("/api/notifications/1/read")
+                .with(csrf()))
             .andExpect(status().isNoContent());
 
-        mockMvc.perform(patch("/api/notifications/mark-all-read"))
+        mockMvc.perform(patch("/api/notifications/mark-all-read")
+                .with(csrf()))
             .andExpect(status().isNoContent());
     }
 }

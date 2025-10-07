@@ -6,6 +6,8 @@ import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
+import com.spmorangle.crm.taskmanagement.dto.UpdateTaskDto;
+import com.spmorangle.crm.taskmanagement.dto.UpdateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import com.spmorangle.crm.taskmanagement.model.Tag;
@@ -1373,6 +1375,1022 @@ class TaskServiceImplTest {
                 Objects.equals(task.getCreatedBy(), currentUserId) &&
                 Objects.equals(task.getTitle(), "Minimal Task")
             ));
+        }
+    }
+
+    @Nested
+    @DisplayName("Update Task Tests")
+    class UpdateTaskTests {
+
+        private UpdateTaskDto validUpdateDto;
+        private Task existingTask;
+
+        @BeforeEach
+        void setUp() {
+            existingTask = createTestTask(1L, 101L, 201L, "Original Title",
+                "Original Description", Status.TODO, Arrays.asList("old-tag1", "old-tag2"));
+
+            validUpdateDto = UpdateTaskDto.builder()
+                .taskId(1L)
+                .title("Updated Title")
+                .description("Updated Description")
+                .status(Status.IN_PROGRESS)
+                .taskType(TaskType.BUG)
+                .tags(Arrays.asList("new-tag1", "new-tag2"))
+                .build();
+        }
+
+        @Test
+        @DisplayName("Should successfully update task with all fields")
+        void updateTask_AllFields_UpdatesSuccessfully() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L; // Task owner
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(tagService.findOrCreateTags(validUpdateDto.getTags()))
+                .thenReturn(createTagsFromNames(validUpdateDto.getTags()));
+
+            Task updatedTask = createTestTask(1L, 101L, 201L, "Updated Title",
+                "Updated Description", Status.IN_PROGRESS, Arrays.asList("new-tag1", "new-tag2"));
+            updatedTask.setTaskType(TaskType.BUG);
+            updatedTask.setUpdatedBy(userId);
+            updatedTask.setUpdatedAt(OffsetDateTime.now());
+
+            when(taskRepository.save(any(Task.class))).thenReturn(updatedTask);
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(validUpdateDto, userId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getId()).isEqualTo(1L);
+            assertThat(result.getTitle()).isEqualTo("Updated Title");
+            assertThat(result.getDescription()).isEqualTo("Updated Description");
+            assertThat(result.getStatus()).isEqualTo(Status.IN_PROGRESS);
+            assertThat(result.getTaskType()).isEqualTo(TaskType.BUG);
+            assertThat(result.getTags()).containsExactlyInAnyOrder("new-tag1", "new-tag2");
+            assertThat(result.getUpdatedBy()).isEqualTo(userId);
+            assertThat(result.getUpdatedAt()).isNotNull();
+
+            verify(taskRepository, times(3)).findById(taskId); // Called by updateTask, canUserUpdateTask, and canUserDeleteTask
+            verify(taskRepository).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should update only title when only title is provided")
+        void updateTask_OnlyTitle_UpdatesTitleOnly() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L;
+
+            UpdateTaskDto titleOnlyDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .title("New Title Only")
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(titleOnlyDto, userId);
+
+            // Then
+            assertThat(result.getTitle()).isEqualTo("New Title Only");
+            assertThat(result.getDescription()).isEqualTo("Original Description"); // Unchanged
+            assertThat(result.getStatus()).isEqualTo(Status.TODO); // Unchanged
+
+            verify(taskRepository).save(argThat(task ->
+                task.getTitle().equals("New Title Only") &&
+                task.getDescription().equals("Original Description") &&
+                task.getStatus().equals(Status.TODO)
+            ));
+        }
+
+        @Test
+        @DisplayName("Should update only description when only description is provided")
+        void updateTask_OnlyDescription_UpdatesDescriptionOnly() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L;
+
+            UpdateTaskDto descriptionOnlyDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .description("New Description Only")
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(descriptionOnlyDto, userId);
+
+            // Then
+            assertThat(result.getDescription()).isEqualTo("New Description Only");
+            assertThat(result.getTitle()).isEqualTo("Original Title"); // Unchanged
+
+            verify(taskRepository).save(argThat(task ->
+                task.getDescription().equals("New Description Only") &&
+                task.getTitle().equals("Original Title")
+            ));
+        }
+
+        @Test
+        @DisplayName("Should update only status when only status is provided")
+        void updateTask_OnlyStatus_UpdatesStatusOnly() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L;
+
+            UpdateTaskDto statusOnlyDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.COMPLETED)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(statusOnlyDto, userId);
+
+            // Then
+            assertThat(result.getStatus()).isEqualTo(Status.COMPLETED);
+            assertThat(result.getTitle()).isEqualTo("Original Title"); // Unchanged
+
+            verify(taskRepository).save(argThat(task ->
+                task.getStatus().equals(Status.COMPLETED) &&
+                task.getTitle().equals("Original Title")
+            ));
+        }
+
+        @Test
+        @DisplayName("Should update only task type when only task type is provided")
+        void updateTask_OnlyTaskType_UpdatesTaskTypeOnly() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L;
+
+            UpdateTaskDto taskTypeOnlyDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .taskType(TaskType.CHORE)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(taskTypeOnlyDto, userId);
+
+            // Then
+            assertThat(result.getTaskType()).isEqualTo(TaskType.CHORE);
+            assertThat(result.getTitle()).isEqualTo("Original Title"); // Unchanged
+
+            verify(taskRepository).save(argThat(task ->
+                task.getTaskType().equals(TaskType.CHORE) &&
+                task.getTitle().equals("Original Title")
+            ));
+        }
+
+        @Test
+        @DisplayName("Should replace existing tags when tags are provided")
+        void updateTask_UpdateTags_ReplacesExistingTags() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L;
+
+            UpdateTaskDto tagsUpdateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .tags(Arrays.asList("brand-new-tag", "another-tag"))
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(tagService.findOrCreateTags(tagsUpdateDto.getTags()))
+                .thenReturn(createTagsFromNames(tagsUpdateDto.getTags()));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(tagsUpdateDto, userId);
+
+            // Then
+            assertThat(result.getTags()).containsExactlyInAnyOrder("brand-new-tag", "another-tag");
+
+            verify(taskRepository).save(argThat(task ->
+                task.getTags().stream()
+                    .map(Tag::getTagName)
+                    .collect(Collectors.toSet())
+                    .equals(Set.of("brand-new-tag", "another-tag"))
+            ));
+        }
+
+        @Test
+        @DisplayName("Should keep existing tags when tags field is null")
+        void updateTask_NullTags_KeepsExistingTags() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L;
+
+            UpdateTaskDto nullTagsDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .title("Updated Title")
+                .tags(null)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(nullTagsDto, userId);
+
+            // Then
+            assertThat(result.getTags()).containsExactlyInAnyOrder("old-tag1", "old-tag2");
+        }
+
+        @Test
+        @DisplayName("Should clear tags when empty tag list is provided")
+        void updateTask_EmptyTags_ClearsTags() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L;
+
+            UpdateTaskDto emptyTagsDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .tags(Collections.emptyList())
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(tagService.findOrCreateTags(Collections.emptyList()))
+                .thenReturn(new HashSet<>());
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(emptyTagsDto, userId);
+
+            // Then
+            assertThat(result.getTags()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should throw exception when task is not found")
+        void updateTask_TaskNotFound_ThrowsException() {
+            // Given
+            Long taskId = 999L;
+            Long userId = 201L;
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .title("Updated Title")
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> taskService.updateTask(updateDto, userId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Task not found");
+
+            verify(taskRepository).findById(taskId);
+            verify(taskRepository, never()).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should throw exception when user is not owner or collaborator")
+        void updateTask_UserNotOwnerOrCollaborator_ThrowsException() {
+            // Given
+            Long taskId = 1L;
+            Long unauthorizedUserId = 999L;
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .title("Updated Title")
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(collaboratorService.isUserTaskCollaborator(taskId, unauthorizedUserId))
+                .thenReturn(false);
+
+            // When & Then
+            assertThatThrownBy(() -> taskService.updateTask(updateDto, unauthorizedUserId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Only task owner or collaborators can update the task");
+
+            verify(taskRepository, times(2)).findById(taskId); // Called by updateTask and canUserUpdateTask
+            verify(taskRepository, never()).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should allow update when user is task owner")
+        void updateTask_UserIsOwner_AllowsUpdate() {
+            // Given
+            Long taskId = 1L;
+            Long ownerId = 201L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(ownerId);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(validUpdateDto, ownerId);
+
+            // Then
+            assertThat(result).isNotNull();
+            verify(taskRepository).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should allow update when user is collaborator but not owner")
+        void updateTask_UserIsCollaborator_AllowsUpdate() {
+            // Given
+            Long taskId = 1L;
+            Long collaboratorId = 300L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(collaboratorService.isUserTaskCollaborator(taskId, collaboratorId))
+                .thenReturn(true);
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(201L);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(validUpdateDto, collaboratorId);
+
+            // Then
+            assertThat(result).isNotNull();
+            verify(collaboratorService).isUserTaskCollaborator(taskId, collaboratorId);
+            verify(taskRepository).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should set updatedAt and updatedBy correctly")
+        void updateTask_UpdatedAtAndUpdatedBy_SetCorrectly() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L;
+            OffsetDateTime beforeUpdate = OffsetDateTime.now();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            taskService.updateTask(validUpdateDto, userId);
+
+            // Then
+            verify(taskRepository).save(argThat(task -> {
+                assertThat(task.getUpdatedBy()).isEqualTo(userId);
+                assertThat(task.getUpdatedAt()).isNotNull();
+                assertThat(task.getUpdatedAt()).isAfterOrEqualTo(beforeUpdate);
+                assertThat(task.getUpdatedAt()).isBeforeOrEqualTo(OffsetDateTime.now());
+                return true;
+            }));
+        }
+
+        @Test
+        @DisplayName("Should handle all status transitions correctly")
+        void updateTask_AllStatusTransitions_HandlesCorrectly() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L;
+
+            Status[] allStatuses = {Status.TODO, Status.IN_PROGRESS, Status.COMPLETED, Status.BLOCKED};
+
+            for (Status newStatus : allStatuses) {
+                UpdateTaskDto statusDto = UpdateTaskDto.builder()
+                    .taskId(taskId)
+                    .status(newStatus)
+                    .build();
+
+                when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+                when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+                when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+                // When
+                UpdateTaskResponseDto result = taskService.updateTask(statusDto, userId);
+
+                // Then
+                assertThat(result.getStatus()).isEqualTo(newStatus);
+            }
+        }
+
+        @Test
+        @DisplayName("Should handle all task type transitions correctly")
+        void updateTask_AllTaskTypeTransitions_HandlesCorrectly() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L;
+
+            TaskType[] allTaskTypes = {TaskType.FEATURE, TaskType.BUG, TaskType.CHORE};
+
+            for (TaskType newType : allTaskTypes) {
+                UpdateTaskDto typeDto = UpdateTaskDto.builder()
+                    .taskId(taskId)
+                    .taskType(newType)
+                    .build();
+
+                when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+                when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+                when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+                // When
+                UpdateTaskResponseDto result = taskService.updateTask(typeDto, userId);
+
+                // Then
+                assertThat(result.getTaskType()).isEqualTo(newType);
+            }
+        }
+
+        @Test
+        @DisplayName("Should handle updates with special characters in content")
+        void updateTask_SpecialCharactersInContent_HandlesCorrectly() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 201L;
+
+            String specialTitle = "Title with special chars: @#$%^&*()_+-=[]{}|;':\",./<>?`~";
+            String specialDescription = "Description with unicode: 你好世界 🚀💯 ñáéíóú";
+
+            UpdateTaskDto specialDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .title(specialTitle)
+                .description(specialDescription)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(specialDto, userId);
+
+            // Then
+            assertThat(result.getTitle()).isEqualTo(specialTitle);
+            assertThat(result.getDescription()).isEqualTo(specialDescription);
+        }
+    }
+
+    @Nested
+    @DisplayName("Delete Task Tests")
+    class DeleteTaskTests {
+
+        private Task projectTask;
+        private Task personalTask;
+
+        @BeforeEach
+        void setUp() {
+            projectTask = createTestTask(1L, 101L, 201L, "Project Task",
+                "Description", Status.TODO, Collections.emptyList());
+
+            personalTask = createTestTask(2L, null, 202L, "Personal Task",
+                "Description", Status.TODO, Collections.emptyList());
+        }
+
+        @Test
+        @DisplayName("Should successfully delete task when user is project owner")
+        void deleteTask_ProjectOwner_DeletesSuccessfully() {
+            // Given
+            Long taskId = 1L;
+            Long projectOwnerId = 300L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(projectTask));
+            when(projectService.getOwnerId(101L)).thenReturn(projectOwnerId);
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            assertThatCode(() -> taskService.deleteTask(taskId, projectOwnerId))
+                .doesNotThrowAnyException();
+
+            // Then
+            verify(taskRepository).save(argThat(task -> {
+                assertThat(task.isDeleteInd()).isTrue();
+                assertThat(task.getUpdatedBy()).isEqualTo(projectOwnerId);
+                assertThat(task.getUpdatedAt()).isNotNull();
+                return true;
+            }));
+        }
+
+        @Test
+        @DisplayName("Should successfully delete personal task when user is task owner")
+        void deleteTask_PersonalTaskOwner_DeletesSuccessfully() {
+            // Given
+            Long taskId = 2L;
+            Long taskOwnerId = 202L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(personalTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            assertThatCode(() -> taskService.deleteTask(taskId, taskOwnerId))
+                .doesNotThrowAnyException();
+
+            // Then
+            verify(taskRepository).save(argThat(task -> {
+                assertThat(task.isDeleteInd()).isTrue();
+                assertThat(task.getUpdatedBy()).isEqualTo(taskOwnerId);
+                assertThat(task.getUpdatedAt()).isNotNull();
+                return true;
+            }));
+        }
+
+        @Test
+        @DisplayName("Should throw exception when user is not project owner")
+        void deleteTask_NotProjectOwner_ThrowsException() {
+            // Given
+            Long taskId = 1L;
+            Long unauthorizedUserId = 999L;
+            Long actualProjectOwnerId = 300L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(projectTask));
+            when(projectService.getOwnerId(101L)).thenReturn(actualProjectOwnerId);
+
+            // When & Then
+            assertThatThrownBy(() -> taskService.deleteTask(taskId, unauthorizedUserId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Only project owner or collaborators can delete the task");
+
+            verify(taskRepository, never()).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should throw exception when task is not found")
+        void deleteTask_TaskNotFound_ThrowsException() {
+            // Given
+            Long taskId = 999L;
+            Long userId = 201L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> taskService.deleteTask(taskId, userId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Task not found");
+
+            verify(taskRepository, never()).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should set delete indicator to true")
+        void deleteTask_SetsDeleteIndTrue() {
+            // Given
+            Long taskId = 2L;
+            Long taskOwnerId = 202L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(personalTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            assertThat(personalTask.isDeleteInd()).isFalse(); // Initially false
+
+            // When
+            taskService.deleteTask(taskId, taskOwnerId);
+
+            // Then
+            verify(taskRepository).save(argThat(task -> {
+                assertThat(task.isDeleteInd()).isTrue();
+                return true;
+            }));
+        }
+
+        @Test
+        @DisplayName("Should set updatedBy and updatedAt on delete")
+        void deleteTask_SetsUpdatedByAndUpdatedAt() {
+            // Given
+            Long taskId = 2L;
+            Long userId = 202L;
+            OffsetDateTime beforeDelete = OffsetDateTime.now();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(personalTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            taskService.deleteTask(taskId, userId);
+
+            // Then
+            verify(taskRepository).save(argThat(task -> {
+                assertThat(task.getUpdatedBy()).isEqualTo(userId);
+                assertThat(task.getUpdatedAt()).isNotNull();
+                assertThat(task.getUpdatedAt()).isAfterOrEqualTo(beforeDelete);
+                assertThat(task.getUpdatedAt()).isBeforeOrEqualTo(OffsetDateTime.now());
+                return true;
+            }));
+        }
+
+        @Test
+        @DisplayName("Should throw exception when collaborator tries to delete project task")
+        void deleteTask_ProjectTaskByCollaborator_ThrowsException() {
+            // Given
+            Long taskId = 1L;
+            Long collaboratorId = 400L;
+            Long projectOwnerId = 300L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(projectTask));
+            when(projectService.getOwnerId(101L)).thenReturn(projectOwnerId);
+
+            // When & Then
+            assertThatThrownBy(() -> taskService.deleteTask(taskId, collaboratorId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Only project owner or collaborators can delete the task");
+
+            verify(taskRepository, never()).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should throw exception when non-owner tries to delete personal task")
+        void deleteTask_PersonalTaskByNonOwner_ThrowsException() {
+            // Given
+            Long taskId = 2L;
+            Long unauthorizedUserId = 999L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(personalTask));
+
+            // When & Then
+            assertThatThrownBy(() -> taskService.deleteTask(taskId, unauthorizedUserId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Only project owner or collaborators can delete the task");
+
+            verify(taskRepository, never()).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should handle null project ID correctly")
+        void deleteTask_NullProjectId_UsesTaskOwnerPermission() {
+            // Given
+            Long taskId = 2L;
+            Long taskOwnerId = 202L;
+
+            assertThat(personalTask.getProjectId()).isNull();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(personalTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            assertThatCode(() -> taskService.deleteTask(taskId, taskOwnerId))
+                .doesNotThrowAnyException();
+
+            // Then
+            verify(taskRepository).save(any(Task.class));
+            verify(projectService, never()).getOwnerId(any());
+        }
+
+        @Test
+        @DisplayName("Should verify deletion is soft delete, not hard delete")
+        void deleteTask_SoftDelete_DoesNotDeleteFromDatabase() {
+            // Given
+            Long taskId = 2L;
+            Long taskOwnerId = 202L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(personalTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            taskService.deleteTask(taskId, taskOwnerId);
+
+            // Then
+            verify(taskRepository).save(any(Task.class)); // Saves with delete flag
+            verify(taskRepository, never()).delete(any(Task.class)); // Does not hard delete
+            verify(taskRepository, never()).deleteById(any(Long.class)); // Does not hard delete
+        }
+    }
+
+    @Nested
+    @DisplayName("canUserDeleteTask Tests")
+    class CanUserDeleteTaskTests {
+
+        private Task projectTask;
+        private Task personalTask;
+
+        @BeforeEach
+        void setUp() {
+            projectTask = createTestTask(1L, 101L, 201L, "Project Task",
+                "Description", Status.TODO, Collections.emptyList());
+
+            personalTask = createTestTask(2L, null, 202L, "Personal Task",
+                "Description", Status.TODO, Collections.emptyList());
+        }
+
+        @Test
+        @DisplayName("Should return true when user is project owner")
+        void canUserDeleteTask_ProjectOwner_ReturnsTrue() {
+            // Given
+            Long taskId = 1L;
+            Long projectOwnerId = 300L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(projectTask));
+            when(projectService.getOwnerId(101L)).thenReturn(projectOwnerId);
+
+            // When
+            boolean result = taskService.canUserDeleteTask(taskId, projectOwnerId);
+
+            // Then
+            assertThat(result).isTrue();
+            verify(projectService).getOwnerId(101L);
+        }
+
+        @Test
+        @DisplayName("Should return false when user is not project owner")
+        void canUserDeleteTask_NotProjectOwner_ReturnsFalse() {
+            // Given
+            Long taskId = 1L;
+            Long userId = 999L;
+            Long actualProjectOwnerId = 300L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(projectTask));
+            when(projectService.getOwnerId(101L)).thenReturn(actualProjectOwnerId);
+
+            // When
+            boolean result = taskService.canUserDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isFalse();
+            verify(projectService).getOwnerId(101L);
+        }
+
+        @Test
+        @DisplayName("Should return true when user is owner of personal task")
+        void canUserDeleteTask_PersonalTaskOwner_ReturnsTrue() {
+            // Given
+            Long taskId = 2L;
+            Long taskOwnerId = 202L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(personalTask));
+
+            // When
+            boolean result = taskService.canUserDeleteTask(taskId, taskOwnerId);
+
+            // Then
+            assertThat(result).isTrue();
+            verify(projectService, never()).getOwnerId(any());
+        }
+
+        @Test
+        @DisplayName("Should return false when user is not owner of personal task")
+        void canUserDeleteTask_PersonalTaskNotOwner_ReturnsFalse() {
+            // Given
+            Long taskId = 2L;
+            Long userId = 999L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(personalTask));
+
+            // When
+            boolean result = taskService.canUserDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isFalse();
+            verify(projectService, never()).getOwnerId(any());
+        }
+
+        @Test
+        @DisplayName("Should check task owner when project ID is null")
+        void canUserDeleteTask_NullProjectId_ChecksTaskOwner() {
+            // Given
+            Long taskId = 2L;
+            Long userId = 202L;
+
+            assertThat(personalTask.getProjectId()).isNull();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(personalTask));
+
+            // When
+            boolean result = taskService.canUserDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isTrue();
+            verify(projectService, never()).getOwnerId(any());
+        }
+
+        @Test
+        @DisplayName("Should throw exception when task is not found")
+        void canUserDeleteTask_TaskNotFound_ThrowsException() {
+            // Given
+            Long taskId = 999L;
+            Long userId = 201L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> taskService.canUserDeleteTask(taskId, userId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Task not found");
+
+            verify(taskRepository).findById(taskId);
+        }
+
+        @Test
+        @DisplayName("Should return false when user is task owner but not project owner")
+        void canUserDeleteTask_TaskOwnerButNotProjectOwner_ReturnsFalse() {
+            // Given
+            Long taskId = 1L;
+            Long taskOwnerId = 201L;
+            Long projectOwnerId = 300L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(projectTask));
+            when(projectService.getOwnerId(101L)).thenReturn(projectOwnerId);
+
+            // When
+            boolean result = taskService.canUserDeleteTask(taskId, taskOwnerId);
+
+            // Then
+            assertThat(result).isFalse();
+            verify(projectService).getOwnerId(101L);
+        }
+
+        @Test
+        @DisplayName("Should handle null user ID gracefully")
+        void canUserDeleteTask_NullUserId_ReturnsFalse() {
+            // Given
+            Long taskId = 1L;
+            Long userId = null;
+            Long projectOwnerId = 300L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(projectTask));
+            when(projectService.getOwnerId(101L)).thenReturn(projectOwnerId);
+
+            // When
+            boolean result = taskService.canUserDeleteTask(taskId, userId);
+
+            // Then
+            assertThat(result).isFalse();
+        }
+
+        @Test
+        @DisplayName("Should handle different task and owner ID combinations")
+        void canUserDeleteTask_DifferentIdCombinations_HandlesCorrectly() {
+            // Test case 1: Project task with matching project owner
+            Long taskId1 = 10L;
+            Long projectOwnerId1 = 500L;
+            Task task1 = createTestTask(taskId1, 105L, 400L, "Task 1", "Desc", Status.TODO, null);
+
+            when(taskRepository.findById(taskId1)).thenReturn(Optional.of(task1));
+            when(projectService.getOwnerId(105L)).thenReturn(projectOwnerId1);
+
+            boolean result1 = taskService.canUserDeleteTask(taskId1, projectOwnerId1);
+            assertThat(result1).isTrue();
+
+            // Test case 2: Personal task with matching owner
+            Long taskId2 = 11L;
+            Long taskOwnerId2 = 600L;
+            Task task2 = createTestTask(taskId2, null, taskOwnerId2, "Task 2", "Desc", Status.TODO, null);
+
+            when(taskRepository.findById(taskId2)).thenReturn(Optional.of(task2));
+
+            boolean result2 = taskService.canUserDeleteTask(taskId2, taskOwnerId2);
+            assertThat(result2).isTrue();
+
+            // Test case 3: Project task with non-matching user
+            boolean result3 = taskService.canUserDeleteTask(taskId1, 999L);
+            assertThat(result3).isFalse();
+        }
+
+        @Test
+        @DisplayName("Should return false when collaborator checks delete permission")
+        void canUserDeleteTask_Collaborator_ReturnsFalse() {
+            // Given
+            Long taskId = 1L;
+            Long collaboratorId = 400L;
+            Long projectOwnerId = 300L;
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(projectTask));
+            when(projectService.getOwnerId(101L)).thenReturn(projectOwnerId);
+
+            // When
+            boolean result = taskService.canUserDeleteTask(taskId, collaboratorId);
+
+            // Then
+            assertThat(result).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("getProjectTasks Additional Tests")
+    class GetProjectTasksAdditionalTests {
+
+        @Test
+        @DisplayName("Should return empty list when project has no tasks")
+        void getProjectTasks_EmptyProject_ReturnsEmptyList() {
+            // Given
+            Long userId = 201L;
+            Long projectId = 999L;
+
+            when(taskRepository.findByProjectIdAndNotDeleted(projectId)).thenReturn(Collections.emptyList());
+
+            // When
+            List<TaskResponseDto> result = taskService.getProjectTasks(userId, projectId);
+
+            // Then
+            assertThat(result).isEmpty();
+            verify(taskRepository).findByProjectIdAndNotDeleted(projectId);
+        }
+
+        @Test
+        @DisplayName("Should set correct permissions for task owner")
+        void getProjectTasks_TaskOwner_SetsCorrectPermissions() {
+            // Given
+            Long userId = 201L;
+            Long projectId = 101L;
+            Long projectOwnerId = 300L;
+
+            Task ownedTask = createTestTask(1L, projectId, userId, "Owned Task",
+                "Description", Status.TODO, Collections.emptyList());
+
+            when(taskRepository.findByProjectIdAndNotDeleted(projectId))
+                .thenReturn(Collections.singletonList(ownedTask));
+            when(collaboratorService.getTasksForWhichUserIsCollaborator(userId))
+                .thenReturn(Collections.emptyList());
+            when(projectService.getOwnerId(projectId)).thenReturn(projectOwnerId);
+
+            // When
+            List<TaskResponseDto> result = taskService.getProjectTasks(userId, projectId);
+
+            // Then
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).isUserHasEditAccess()).isTrue(); // Owner has edit access
+            assertThat(result.get(0).isUserHasDeleteAccess()).isFalse(); // Not project owner
+        }
+
+        @Test
+        @DisplayName("Should set correct permissions for project owner")
+        void getProjectTasks_ProjectOwner_SetsCorrectPermissions() {
+            // Given
+            Long userId = 300L;
+            Long projectId = 101L;
+
+            Task task = createTestTask(1L, projectId, 201L, "Task",
+                "Description", Status.TODO, Collections.emptyList());
+
+            when(taskRepository.findByProjectIdAndNotDeleted(projectId))
+                .thenReturn(Collections.singletonList(task));
+            when(collaboratorService.getTasksForWhichUserIsCollaborator(userId))
+                .thenReturn(Collections.emptyList());
+            when(projectService.getOwnerId(projectId)).thenReturn(userId);
+
+            // When
+            List<TaskResponseDto> result = taskService.getProjectTasks(userId, projectId);
+
+            // Then
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).isUserHasDeleteAccess()).isTrue(); // Project owner can delete
+        }
+
+        @Test
+        @DisplayName("Should set correct permissions for collaborator")
+        void getProjectTasks_Collaborator_SetsCorrectPermissions() {
+            // Given
+            Long userId = 400L;
+            Long projectId = 101L;
+            Long projectOwnerId = 300L;
+            Long taskId = 1L;
+
+            Task task = createTestTask(taskId, projectId, 201L, "Task",
+                "Description", Status.TODO, Collections.emptyList());
+
+            when(taskRepository.findByProjectIdAndNotDeleted(projectId))
+                .thenReturn(Collections.singletonList(task));
+            when(collaboratorService.getTasksForWhichUserIsCollaborator(userId))
+                .thenReturn(Collections.singletonList(taskId));
+            when(projectService.getOwnerId(projectId)).thenReturn(projectOwnerId);
+
+            // When
+            List<TaskResponseDto> result = taskService.getProjectTasks(userId, projectId);
+
+            // Then
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).isUserHasEditAccess()).isTrue(); // Collaborator has edit access
+            assertThat(result.get(0).isUserHasDeleteAccess()).isFalse(); // Not project owner
+        }
+
+        @Test
+        @DisplayName("Should handle multiple tasks with mixed permissions")
+        void getProjectTasks_MultipleTasks_SetsMixedPermissions() {
+            // Given
+            Long userId = 201L;
+            Long projectId = 101L;
+            Long projectOwnerId = 300L;
+
+            Task ownedTask = createTestTask(1L, projectId, userId, "Owned Task",
+                "Description", Status.TODO, Collections.emptyList());
+            Task collaboratorTask = createTestTask(2L, projectId, 202L, "Collaborator Task",
+                "Description", Status.TODO, Collections.emptyList());
+            Task otherTask = createTestTask(3L, projectId, 203L, "Other Task",
+                "Description", Status.TODO, Collections.emptyList());
+
+            when(taskRepository.findByProjectIdAndNotDeleted(projectId))
+                .thenReturn(Arrays.asList(ownedTask, collaboratorTask, otherTask));
+            when(collaboratorService.getTasksForWhichUserIsCollaborator(userId))
+                .thenReturn(Collections.singletonList(2L));
+            when(projectService.getOwnerId(projectId)).thenReturn(projectOwnerId);
+
+            // When
+            List<TaskResponseDto> result = taskService.getProjectTasks(userId, projectId);
+
+            // Then
+            assertThat(result).hasSize(3);
+            assertThat(result.get(0).isUserHasEditAccess()).isTrue(); // Owned task
+            assertThat(result.get(1).isUserHasEditAccess()).isTrue(); // Collaborator task
+            assertThat(result.get(2).isUserHasEditAccess()).isFalse(); // Other task
         }
     }
 }

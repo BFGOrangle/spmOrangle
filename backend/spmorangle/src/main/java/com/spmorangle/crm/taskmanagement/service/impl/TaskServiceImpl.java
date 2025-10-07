@@ -9,6 +9,8 @@ import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
 import com.spmorangle.crm.taskmanagement.service.TagService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
+import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
+import com.spmorangle.crm.notification.messaging.dto.TaskNotificationMessageDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,7 @@ public class TaskServiceImpl implements TaskService {
     private final SubtaskService subtaskService;
     private final ProjectService projectService;
     private final TagService tagService;
+    private final NotificationMessagePublisher notificationPublisher;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -38,7 +41,9 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CreateTaskResponseDto createTask(CreateTaskDto createTaskDto, Long taskOwnerId, Long currentUserId) {
-        log.info("Creating task with title: {} for user: {}", createTaskDto.getTitle(), currentUserId);
+        log.info("🔵 Creating task with title: '{}' for user: {}", createTaskDto.getTitle(), currentUserId);
+        log.info("📋 CreateTaskDto details - ProjectId: {}, OwnerId: {}, AssignedUserIds: {}", 
+                 createTaskDto.getProjectId(), createTaskDto.getOwnerId(), createTaskDto.getAssignedUserIds());
         
         Task task = new Task();
         
@@ -58,12 +63,14 @@ public class TaskServiceImpl implements TaskService {
         task.setCreatedAt(OffsetDateTime.now());
         
         Task savedTask = taskRepository.save(task);
-        log.info("Task created with ID: {}", savedTask.getId());
+        log.info("✅ Task created with ID: {}", savedTask.getId());
         
         List<Long> assignedUserIds = new ArrayList<>();
         if (createTaskDto.getAssignedUserIds() != null && !createTaskDto.getAssignedUserIds().isEmpty()) {
+            log.info("👥 Assigning task to {} users: {}", createTaskDto.getAssignedUserIds().size(), createTaskDto.getAssignedUserIds());
             for (Long userId : createTaskDto.getAssignedUserIds()) {
                 try {
+                    log.info("🔄 Attempting to assign task {} to user {}", savedTask.getId(), userId);
                     AddCollaboratorRequestDto collaboratorRequest = AddCollaboratorRequestDto.builder()
                             .taskId(savedTask.getId())
                             .collaboratorId(userId)
@@ -72,11 +79,34 @@ public class TaskServiceImpl implements TaskService {
                     
                     collaboratorService.addCollaborator(collaboratorRequest);
                     assignedUserIds.add(userId);
-                    log.info("Task assigned to user: {}", userId);
+                    log.info("✅ Task {} successfully assigned to user: {}", savedTask.getId(), userId);
                 } catch (Exception e) {
-                    log.warn("Failed to assign task to user {}: {}", userId, e.getMessage());
+                    log.error("❌ Failed to assign task {} to user {}: {}", savedTask.getId(), userId, e.getMessage(), e);
                 }
             }
+        } else {
+            log.info("⚠️ No users to assign - assignedUserIds is null or empty");
+        }
+        
+        // Publish task creation notification
+        try {
+            if (!assignedUserIds.isEmpty()) {
+                TaskNotificationMessageDto message = TaskNotificationMessageDto.forTaskCreated(
+                    savedTask.getId(),
+                    taskOwnerId,
+                    savedTask.getProjectId(),
+                    savedTask.getTitle(),
+                    savedTask.getDescription(),
+                    assignedUserIds
+                );
+                
+                notificationPublisher.publishTaskNotification(message);
+                log.info("Published task creation notification for task ID: {}", savedTask.getId());
+            }
+        } catch (Exception e) {
+            log.error("Failed to publish task creation notification for task ID: {} - Error: {}",
+                     savedTask.getId(), e.getMessage(), e);
+            // Don't fail task creation if notification publishing fails
         }
         
         return CreateTaskResponseDto.builder()

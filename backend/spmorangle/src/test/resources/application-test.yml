@@ -9,6 +9,23 @@ spring:
     hibernate:
       ddl-auto: create-drop
     show-sql: true
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: admin
+    password: admin
+  mail:
+    # Mock email settings for testing
+    host: localhost
+    port: 1025
+    username: test
+    password: test
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
   security:
     oauth2:
       resourceserver:

@@ -34,11 +34,6 @@ logging:
     root: ${DEV_LOG_LEVEL:DEBUG}
 
 app:
-  features:
-    notifications:
-      enabled: ${NOTIFICATIONS_ENABLED:false}  # Toggle when notification service is ready
-    permissions:
-      enabled: ${PERMISSIONS_ENABLED:false}  # Toggle when permission service is ready
   comments:
     max-length: ${COMMENTS_MAX_LENGTH:2000}
     allow-mentions: ${COMMENTS_ALLOW_MENTIONS:true}
