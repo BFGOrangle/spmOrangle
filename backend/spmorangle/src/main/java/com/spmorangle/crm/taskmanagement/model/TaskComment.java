@@ -36,8 +36,7 @@ public class TaskComment {
     @Column(name = "subtask_id", nullable = true)
     private Long subtaskId;
 
-    @NotNull
-    @Column(name = "project_id", nullable = false)
+    @Column(name = "project_id")
     private Long projectId;
 
     @Column(name = "parent_comment_id", nullable = true)

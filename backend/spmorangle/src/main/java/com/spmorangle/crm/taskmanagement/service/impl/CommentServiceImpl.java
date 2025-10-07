@@ -349,12 +349,9 @@ public class CommentServiceImpl implements CommentService {
         
         if (createCommentDto.getTaskId() != null) {
             log.debug("Looking up task with ID: {}", createCommentDto.getTaskId());
-            return taskRepository.findById(createCommentDto.getTaskId())
-                    .map(task -> {
-                        log.debug("Found task with projectId: {}", task.getProjectId());
-                        return task.getProjectId();
-                    })
+            Task task = taskRepository.findById(createCommentDto.getTaskId())
                     .orElseThrow(() -> new RuntimeException("Task not found with ID: " + createCommentDto.getTaskId()));
+            return task.getProjectId();
         } else {
             log.debug("Looking up subtask with ID: {}", createCommentDto.getSubtaskId());
             return subtaskRepository.findById(createCommentDto.getSubtaskId())
