@@ -10,15 +10,15 @@ public interface SubtaskService {
 
     SubtaskResponseDto createSubtask(CreateSubtaskDto createSubtaskDto, Long currentUserId);
     
-    List<SubtaskResponseDto> getSubtasksByTaskId(Long taskId);
+    List<SubtaskResponseDto> getSubtasksByTaskId(Long taskId, Long currentUserId);
     
-    List<SubtaskResponseDto> getSubtasksByProjectId(Long projectId);
+    List<SubtaskResponseDto> getSubtasksByProjectId(Long projectId, Long currentUserId);
     
     SubtaskResponseDto updateSubtask(Long subtaskId, UpdateSubtaskDto updateSubtaskDto, Long currentUserId);
     
     void deleteSubtask(Long subtaskId, Long currentUserId);
     
-    SubtaskResponseDto getSubtaskById(Long subtaskId);
+    SubtaskResponseDto getSubtaskById(Long subtaskId, Long currentUserId);
 
     boolean canUserUpdateSubtask(Long subtaskId, Long userId);
 

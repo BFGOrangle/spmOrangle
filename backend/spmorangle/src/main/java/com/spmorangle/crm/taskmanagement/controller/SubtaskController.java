@@ -59,8 +59,9 @@ public class SubtaskController {
     @GetMapping("/{subtaskId}")
     public ResponseEntity<SubtaskResponseDto> getSubtask(
             @PathVariable Long subtaskId) {
-        log.info("Getting subtask: {}", subtaskId);
-        SubtaskResponseDto subtask = subtaskService.getSubtaskById(subtaskId);
+        User user = userContextService.getRequestingUser();
+        log.info("Getting subtask: {} for user: {}", subtaskId, user.getId());
+        SubtaskResponseDto subtask = subtaskService.getSubtaskById(subtaskId, user.getId());
         return ResponseEntity.ok(subtask);
     }
 
@@ -72,8 +73,9 @@ public class SubtaskController {
     @GetMapping("/task/{taskId}")
     public ResponseEntity<List<SubtaskResponseDto>> getSubtasksByTask(
             @PathVariable Long taskId) {
-        log.info("Getting subtasks for task: {}", taskId);
-        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(taskId);
+        User user = userContextService.getRequestingUser();
+        log.info("Getting subtasks for task: {} for user: {}", taskId, user.getId());
+        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(taskId, user.getId());
         return ResponseEntity.ok(subtasks);
     }
 
@@ -85,8 +87,9 @@ public class SubtaskController {
     @GetMapping("/project/{projectId}")
     public ResponseEntity<List<SubtaskResponseDto>> getSubtasksByProject(
             @PathVariable Long projectId) {
-        log.info("Getting subtasks for project: {}", projectId);
-        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByProjectId(projectId);
+        User user = userContextService.getRequestingUser();
+        log.info("Getting subtasks for project: {} for user: {}", projectId, user.getId());
+        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByProjectId(projectId, user.getId());
         return ResponseEntity.ok(subtasks);
     }
 

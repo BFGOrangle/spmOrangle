@@ -11,6 +11,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +35,7 @@ import { Plus, CheckCircle2, Circle, Clock, AlertCircle, Eye, Edit, Trash2 } fro
 import { SubtaskResponse, CreateSubtaskRequest, projectService } from "@/services/project-service";
 import { CommentSection } from "./comment-section";
 import { SubtaskUpdateDialog } from "./subtask-update-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface SubtaskListProps {
   taskId: number;
@@ -60,11 +71,14 @@ const statusLabels: Record<SubtaskStatus, string> = {
 };
 
 export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onSubtaskUpdated, onSubtaskDeleted }: SubtaskListProps) {
+  const { toast } = useToast();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedSubtask, setSelectedSubtask] = useState<SubtaskResponse | null>(null);
   const [subtaskToUpdate, setSubtaskToUpdate] = useState<SubtaskResponse | null>(null);
+  const [subtaskToDelete, setSubtaskToDelete] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [newSubtask, setNewSubtask] = useState<Partial<CreateSubtaskRequest>>({
     taskId,
@@ -142,22 +156,38 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
     }
   };
 
-  const handleDeleteSubtask = async (subtaskId: number) => {
-    if (!confirm("Are you sure you want to delete this subtask?")) return;
+  const handleDeleteClick = (subtaskId: number) => {
+    setSubtaskToDelete(subtaskId);
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!subtaskToDelete) return;
 
     try {
-      await projectService.deleteSubtask(subtaskId);
+      await projectService.deleteSubtask(subtaskToDelete);
+      
+      toast({
+        title: "Subtask deleted",
+        description: "The subtask has been successfully deleted.",
+      });
+
+      setShowDeleteDialog(false);
+      setSubtaskToDelete(null);
 
       // Notify parent to remove from state
       if (onSubtaskDeleted) {
-        onSubtaskDeleted(subtaskId);
-      } else {
-        // Fallback to reload if no callback provided
-        window.location.reload();
+        onSubtaskDeleted(subtaskToDelete);
       }
     } catch (error) {
       console.error('Error deleting subtask:', error);
-      alert('Failed to delete subtask');
+      toast({
+        title: "Failed to delete subtask",
+        description: error instanceof Error ? error.message : "An error occurred while deleting the subtask.",
+        variant: "destructive",
+      });
+      setShowDeleteDialog(false);
+      setSubtaskToDelete(null);
     }
   };
 
@@ -275,18 +305,20 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
               </div>
 
               <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEditSubtask(subtask);
-                  }}
-                  className="h-8 w-8 p-0 hover:bg-accent"
-                  title="Edit subtask"
-                >
-                  <Edit className="h-3.5 w-3.5" />
-                </Button>
+                {subtask.userHasEditAccess && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditSubtask(subtask);
+                    }}
+                    className="h-8 w-8 p-0 hover:bg-accent"
+                    title="Edit subtask"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -299,18 +331,20 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteSubtask(subtask.id);
-                  }}
-                  className="h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                  title="Delete subtask"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                {subtask.userHasDeleteAccess && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(subtask.id);
+                    }}
+                    className="h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                    title="Delete subtask"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
                 <Badge variant="outline" className="text-xs ml-1">
                   {statusLabels[subtask.status as SubtaskStatus]}
                 </Badge>
@@ -333,28 +367,32 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
                   <DialogTitle className="mb-0">{selectedSubtask.title}</DialogTitle>
                 </div>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      handleEditSubtask(selectedSubtask);
-                      setShowDetailDialog(false);
-                    }}
-                  >
-                    <Edit className="h-4 w-4 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      handleDeleteSubtask(selectedSubtask.id);
-                      setShowDetailDialog(false);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Delete
-                  </Button>
+                  {selectedSubtask.userHasEditAccess && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        handleEditSubtask(selectedSubtask);
+                        setShowDetailDialog(false);
+                      }}
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                  )}
+                  {selectedSubtask.userHasDeleteAccess && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        handleDeleteClick(selectedSubtask.id);
+                        setShowDetailDialog(false);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete
+                    </Button>
+                  )}
                 </div>
               </div>
               <DialogDescription>
@@ -415,6 +453,27 @@ export function SubtaskList({ taskId, projectId, subtasks, onSubtaskCreated, onS
           onSubtaskUpdated={handleSubtaskUpdatedFromDialog}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Subtask</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this subtask? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

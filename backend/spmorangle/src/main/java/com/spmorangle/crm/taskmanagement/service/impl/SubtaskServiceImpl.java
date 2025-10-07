@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.spmorangle.crm.taskmanagement.model.Task;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,7 +16,7 @@ import com.spmorangle.crm.taskmanagement.repository.SubtaskRepository;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
-
+import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,6 +28,7 @@ public class SubtaskServiceImpl implements SubtaskService {
     private final SubtaskRepository subtaskRepository;
     private final ProjectService projectService;
     private final CollaboratorService collaboratorService;
+    private final TaskRepository taskRepository;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -47,30 +49,30 @@ public class SubtaskServiceImpl implements SubtaskService {
         Subtask savedSubtask = subtaskRepository.save(subtask);
         log.info("Subtask created with ID: {}", savedSubtask.getId());
         
-        return mapToSubtaskResponseDto(savedSubtask);
+        return mapToSubtaskResponseDto(savedSubtask, currentUserId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<SubtaskResponseDto> getSubtasksByTaskId(Long taskId) {
+    public List<SubtaskResponseDto> getSubtasksByTaskId(Long taskId, Long currentUserId) {
         log.info("Fetching subtasks for task: {}", taskId);
         
         List<Subtask> subtasks = subtaskRepository.findByTaskIdAndNotDeleted(taskId);
         
         return subtasks.stream()
-                .map(this::mapToSubtaskResponseDto)
+                .map(subtask -> mapToSubtaskResponseDto(subtask, currentUserId))
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<SubtaskResponseDto> getSubtasksByProjectId(Long projectId) {
+    public List<SubtaskResponseDto> getSubtasksByProjectId(Long projectId, Long currentUserId) {
         log.info("Fetching subtasks for project: {}", projectId);
         
         List<Subtask> subtasks = subtaskRepository.findByProjectIdAndNotDeleted(projectId);
         
         return subtasks.stream()
-                .map(this::mapToSubtaskResponseDto)
+                .map(subtask -> mapToSubtaskResponseDto(subtask, currentUserId))
                 .collect(Collectors.toList());
     }
 
@@ -108,7 +110,7 @@ public class SubtaskServiceImpl implements SubtaskService {
         Subtask updatedSubtask = subtaskRepository.save(subtask);
         log.info("Subtask {} updated successfully", subtaskId);
         
-        return mapToSubtaskResponseDto(updatedSubtask);
+        return mapToSubtaskResponseDto(updatedSubtask, currentUserId);
     }
 
     @Override
@@ -135,7 +137,7 @@ public class SubtaskServiceImpl implements SubtaskService {
 
     @Override
     @Transactional(readOnly = true)
-    public SubtaskResponseDto getSubtaskById(Long subtaskId) {
+    public SubtaskResponseDto getSubtaskById(Long subtaskId, Long currentUserId) {
         log.info("Fetching subtask: {}", subtaskId);
         
         Subtask subtask = subtaskRepository.findByIdAndNotDeleted(subtaskId);
@@ -143,10 +145,13 @@ public class SubtaskServiceImpl implements SubtaskService {
             throw new RuntimeException("Subtask not found with ID: " + subtaskId);
         }
         
-        return mapToSubtaskResponseDto(subtask);
+        return mapToSubtaskResponseDto(subtask, currentUserId);
     }
 
-    private SubtaskResponseDto mapToSubtaskResponseDto(Subtask subtask) {
+    private SubtaskResponseDto mapToSubtaskResponseDto(Subtask subtask, Long currentUserId) {
+        boolean userHasEditAccess = canUserUpdateSubtask(subtask.getId(), currentUserId);
+        boolean userHasDeleteAccess = canUserDeleteSubtask(subtask.getId(), currentUserId);
+        
         return SubtaskResponseDto.builder()
                 .id(subtask.getId())
                 .taskId(subtask.getTaskId())
@@ -155,6 +160,8 @@ public class SubtaskServiceImpl implements SubtaskService {
                 .title(subtask.getTitle())
                 .details(subtask.getDetails())
                 .status(subtask.getStatus())
+                .userHasEditAccess(userHasEditAccess)
+                .userHasDeleteAccess(userHasDeleteAccess)
                 .createdAt(subtask.getCreatedAt())
                 .updatedAt(subtask.getUpdatedAt())
                 .createdBy(subtask.getCreatedBy())
@@ -176,8 +183,13 @@ public class SubtaskServiceImpl implements SubtaskService {
             return subtask.getCreatedBy().equals(userId);
         }
 
+        Task task = taskRepository.findByIdAndNotDeleted(taskId);
+        if (task == null) {
+            throw new RuntimeException("Task not found with ID: " + taskId);
+        }
+
         // check if is a collaborator of the task
-        return collaboratorService.isUserTaskCollaborator(taskId, userId);
+        return task.getOwnerId().equals(userId) || collaboratorService.isUserTaskCollaborator(taskId, userId);
 
     }
 
