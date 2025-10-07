@@ -139,7 +139,7 @@ public class TaskServiceImpl implements TaskService {
                 .map((task) -> {
                     boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
                     boolean userHasDeleteAccess = userId.equals(projectOwnerId);
-                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess);
+                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, userId);
                 })
                 .toList();
     }
@@ -150,7 +150,7 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting personal tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
         return tasks.stream()
-                .map(task -> mapToTaskResponseDto(task, true, true))
+                .map(task -> mapToTaskResponseDto(task, true, true, userId))
                 .collect(Collectors.toList());
     }
 
@@ -169,9 +169,8 @@ public class TaskServiceImpl implements TaskService {
         
         return tasks.stream()
                 .map(task -> {
-                    boolean userHasDeleteAccess = task.getProjectId() != null 
-                        && userId.equals(projectOwnerMap.get(task.getProjectId()));
-                    return mapToTaskResponseDto(task, true, userHasDeleteAccess);
+                    boolean userHasDeleteAccess = task.getProjectId() == null || userId.equals(projectOwnerMap.get(task.getProjectId()));
+                    return mapToTaskResponseDto(task, true, userHasDeleteAccess, userId);
                 })
                 .collect(Collectors.toList());
     }
@@ -285,9 +284,9 @@ public class TaskServiceImpl implements TaskService {
 
 
 
-    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess, boolean userHasDeleteAccess) {
-        // Load subtasks for this task
-        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId());
+    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess, boolean userHasDeleteAccess, Long currentUserId) {
+        // Load subtasks for this task with permission information
+        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId(), currentUserId);
         
         return TaskResponseDto.builder()
                 .id(task.getId())
@@ -309,4 +308,5 @@ public class TaskServiceImpl implements TaskService {
                 .subtasks(subtasks)
                 .build();
     }
+
 }

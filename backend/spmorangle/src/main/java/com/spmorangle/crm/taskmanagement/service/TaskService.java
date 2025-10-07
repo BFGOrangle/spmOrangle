@@ -7,6 +7,7 @@ import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateTaskResponseDto;
+import com.spmorangle.crm.taskmanagement.model.Task;
 
 public interface TaskService {
 

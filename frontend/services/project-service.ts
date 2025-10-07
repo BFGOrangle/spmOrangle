@@ -25,6 +25,8 @@ export interface SubtaskResponse {
   title: string;
   details?: string;
   status: 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
+  userHasEditAccess: boolean;
+  userHasDeleteAccess: boolean;
   createdAt: string;
   updatedAt?: string;
   createdBy: number;

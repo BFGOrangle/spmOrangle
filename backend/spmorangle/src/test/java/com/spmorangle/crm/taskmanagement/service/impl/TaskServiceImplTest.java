@@ -89,7 +89,7 @@ class TaskServiceImplTest {
                                   Status.COMPLETED, Collections.emptyList());
 
         // Mock subtaskService to return empty lists for all task IDs (lenient for tests that don't use it)
-        lenient().when(subtaskService.getSubtasksByTaskId(anyLong())).thenReturn(Collections.emptyList());
+        lenient().when(subtaskService.getSubtasksByTaskId(anyLong(), anyLong())).thenReturn(Collections.emptyList());
     }
 
     private Task createTestTask(Long id, Long projectId, Long ownerId, String title,
