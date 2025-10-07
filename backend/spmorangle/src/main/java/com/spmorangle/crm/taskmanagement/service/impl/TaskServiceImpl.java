@@ -41,10 +41,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CreateTaskResponseDto createTask(CreateTaskDto createTaskDto, Long taskOwnerId, Long currentUserId) {
-        log.info("🔵 Creating task with title: '{}' for user: {}", createTaskDto.getTitle(), currentUserId);
-        log.info("📋 CreateTaskDto details - ProjectId: {}, OwnerId: {}, AssignedUserIds: {}", 
-                 createTaskDto.getProjectId(), createTaskDto.getOwnerId(), createTaskDto.getAssignedUserIds());
-        
+        log.info("Creating task with title: {} for user: {}", createTaskDto.getTitle(), currentUserId);
         Task task = new Task();
         
         task.setProjectId(createTaskDto.getProjectId());
@@ -61,6 +58,7 @@ public class TaskServiceImpl implements TaskService {
         
         task.setCreatedBy(taskOwnerId);
         task.setCreatedAt(OffsetDateTime.now());
+        task.setDueDateTime(createTaskDto.getDueDateTime());
         
         Task savedTask = taskRepository.save(task);
         log.info("✅ Task created with ID: {}", savedTask.getId());
@@ -125,6 +123,7 @@ public class TaskServiceImpl implements TaskService {
                 .userHasDeleteAccess(canUserDeleteTask(savedTask.getId(), currentUserId))
                 .createdBy(savedTask.getCreatedBy())
                 .createdAt(savedTask.getCreatedAt())
+                .dueDateTime(savedTask.getDueDateTime())
                 .build();
     }
 
@@ -210,6 +209,7 @@ public class TaskServiceImpl implements TaskService {
             task.getTags().addAll(tagService.findOrCreateTags(updateTaskDto.getTags()));
         }
 
+        task.setDueDateTime(updateTaskDto.getDueDateTime());
         task.setUpdatedBy(currentUserId);
         task.setUpdatedAt(OffsetDateTime.now());
 
@@ -232,6 +232,7 @@ public class TaskServiceImpl implements TaskService {
                 .userHasDeleteAccess(canUserDeleteTask(updatedTask.getId(), currentUserId))
                 .updatedAt(updatedTask.getUpdatedAt())
                 .updatedBy(updatedTask.getUpdatedBy())
+                .dueDateTime(updatedTask.getDueDateTime())
                 .build();
     }
 
@@ -305,6 +306,7 @@ public class TaskServiceImpl implements TaskService {
                 .updatedAt(task.getUpdatedAt())
                 .createdBy(task.getCreatedBy())
                 .updatedBy(task.getUpdatedBy())
+                .dueDateTime(task.getDueDateTime())
                 .subtasks(subtasks)
                 .build();
     }

@@ -160,6 +160,7 @@ jest.mock('lucide-react', () => ({
   Crown: () => <span data-testid="crown-icon">👑</span>,
   Loader2: () => <span data-testid="loader-icon">⏳</span>,
   X: () => <span data-testid="x-icon">✕</span>,
+  Calendar: () => <span data-testid="calendar-icon">📅</span>,
 }));
 
 const { projectService } = require('../../services/project-service');
@@ -496,7 +497,7 @@ describe('TaskCreationDialog', () => {
         expect(projectService.createTask).toHaveBeenCalledWith(
           expect.objectContaining({
             title: 'Test Personal Task',
-            projectId: undefined, // Personal task
+            projectId: 0, // Personal task (0 represents no project)
           })
         );
         expect(mockOnTaskCreated).toHaveBeenCalled();
@@ -716,6 +717,396 @@ describe('TaskCreationDialog', () => {
       fireEvent.change(tagsInput, { target: { value: 'frontend, react, typescript' } });
       
       expect(tagsInput).toHaveValue('frontend, react, typescript');
+    });
+  });
+
+  describe('Due Date Functionality', () => {
+    beforeEach(() => {
+      // Mock current date for consistent testing
+      jest.useFakeTimers();
+      const mockDate = new Date('2025-10-07T10:00:00.000Z');
+      jest.setSystemTime(mockDate);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('renders due date input field', async () => {
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      const dueDateInput = screen.getByLabelText(/due date & time/i);
+      expect(dueDateInput).toBeInTheDocument();
+      expect(dueDateInput).toHaveAttribute('type', 'datetime-local');
+    });
+
+    it('sets minimum date to current date/time', async () => {
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      const dueDateInput = screen.getByLabelText(/due date & time/i);
+      const expectedMin = new Date().toISOString().slice(0, 16);
+      expect(dueDateInput).toHaveAttribute('min', expectedMin);
+    });
+
+    it('allows user to set a due date', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      const dueDateInput = screen.getByLabelText(/due date & time/i);
+      const dueDateTime = '2025-10-08T14:30';
+      
+      await user.clear(dueDateInput);
+      await user.type(dueDateInput, dueDateTime);
+
+      expect(dueDateInput).toHaveValue(dueDateTime);
+    });
+
+    it('displays formatted due date when date is set', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      const dueDateInput = screen.getByLabelText(/due date & time/i);
+      const dueDateTime = '2025-10-08T14:30';
+      
+      await user.clear(dueDateInput);
+      await user.type(dueDateInput, dueDateTime);
+
+      // Check if the formatted date display appears
+      await waitFor(() => {
+        expect(screen.getByText(/due:/i)).toBeInTheDocument();
+      });
+
+      // Check if calendar icon is displayed
+      expect(screen.getByTestId('calendar-icon')).toBeInTheDocument();
+    });
+
+    it('shows clear button when due date is set', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      const dueDateInput = screen.getByLabelText(/due date & time/i);
+      const dueDateTime = '2025-10-08T14:30';
+      
+      await user.clear(dueDateInput);
+      await user.type(dueDateInput, dueDateTime);
+
+      // Clear button should appear
+      const clearButton = screen.getByRole('button', { name: /clear due date/i });
+      expect(clearButton).toBeInTheDocument();
+    });
+
+    it('clears due date when clear button is clicked', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      const dueDateInput = screen.getByLabelText(/due date & time/i);
+      const dueDateTime = '2025-10-08T14:30';
+      
+      // Set due date
+      await user.clear(dueDateInput);
+      await user.type(dueDateInput, dueDateTime);
+      expect(dueDateInput).toHaveValue(dueDateTime);
+
+      // Clear due date
+      const clearButton = screen.getByRole('button', { name: /clear due date/i });
+      await user.click(clearButton);
+
+      expect(dueDateInput).toHaveValue('');
+      expect(screen.queryByText(/due:/i)).not.toBeInTheDocument();
+    });
+
+    it('includes due date in task creation request when provided', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      // Fill required fields
+      const titleInput = screen.getByPlaceholderText(/task title/i);
+      await user.type(titleInput, 'Test Task with Due Date');
+
+      // Set due date
+      const dueDateInput = screen.getByLabelText(/due date & time/i);
+      const dueDateTime = '2025-10-08T14:30';
+      await user.clear(dueDateInput);
+      await user.type(dueDateInput, dueDateTime);
+
+      // Submit form
+      const createButton = screen.getByRole('button', { name: /create task/i });
+      await user.click(createButton);
+
+      await waitFor(() => {
+        expect(projectService.createTask).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Test Task with Due Date',
+            dueDateTime: expect.stringMatching(/2025-10-08T06:30:00\.000Z/), // UTC conversion
+          })
+        );
+      });
+    });
+
+    it('creates task without due date when not provided', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      // Fill required fields only
+      const titleInput = screen.getByPlaceholderText(/task title/i);
+      await user.type(titleInput, 'Test Task without Due Date');
+
+      // Submit form
+      const createButton = screen.getByRole('button', { name: /create task/i });
+      await user.click(createButton);
+
+      await waitFor(() => {
+        expect(projectService.createTask).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Test Task without Due Date',
+            dueDateTime: undefined,
+          })
+        );
+      });
+    });
+
+    it('converts local datetime to ISO string format correctly', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      // Fill required fields
+      const titleInput = screen.getByPlaceholderText(/task title/i);
+      await user.type(titleInput, 'Test Task ISO Conversion');
+
+      // Set due date in local time
+      const dueDateInput = screen.getByLabelText(/due date & time/i);
+      const localDateTime = '2025-12-25T15:45'; // Christmas Day 3:45 PM local
+      await user.clear(dueDateInput);
+      await user.type(dueDateInput, localDateTime);
+
+      // Submit form
+      const createButton = screen.getByRole('button', { name: /create task/i });
+      await user.click(createButton);
+
+      await waitFor(() => {
+        expect(projectService.createTask).toHaveBeenCalledWith(
+          expect.objectContaining({
+            dueDateTime: expect.stringMatching(/2025-12-25T.*\.000Z$/), // Should be in ISO format
+          })
+        );
+      });
+
+      // Verify the actual ISO conversion
+      const call = projectService.createTask.mock.calls[0][0];
+      const dueDateTime = call.dueDateTime;
+      expect(dueDateTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    });
+
+    it('preserves due date when form validation fails', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      // Set due date without required title
+      const dueDateInput = screen.getByLabelText(/due date & time/i);
+      const dueDateTime = '2025-10-08T14:30';
+      await user.clear(dueDateInput);
+      await user.type(dueDateInput, dueDateTime);
+
+      // Try to submit without title (should fail validation)
+      const createButton = screen.getByRole('button', { name: /create task/i });
+      await user.click(createButton);
+
+      // Due date should still be there after validation failure
+      expect(dueDateInput).toHaveValue(dueDateTime);
+      expect(screen.getByText(/due:/i)).toBeInTheDocument();
+    });
+
+    it('resets due date when dialog is closed and reopened', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      const { rerender } = render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      // Set due date
+      const dueDateInput = screen.getByLabelText(/due date & time/i);
+      const dueDateTime = '2025-10-08T14:30';
+      await user.clear(dueDateInput);
+      await user.type(dueDateInput, dueDateTime);
+      expect(dueDateInput).toHaveValue(dueDateTime);
+
+      // Close dialog
+      rerender(
+        <TaskCreationDialog 
+          open={false} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      // Reopen dialog
+      jest.clearAllMocks();
+      rerender(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      // Due date should be reset
+      const newDueDateInput = screen.getByLabelText(/due date & time/i);
+      expect(newDueDateInput).toHaveValue('');
+    });
+
+    it('handles edge case with past date (should still work if user somehow enters it)', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      render(
+        <TaskCreationDialog 
+          open={true} 
+          onOpenChange={mockOnOpenChange} 
+          onTaskCreated={mockOnTaskCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(tagService.getTags).toHaveBeenCalled();
+      });
+
+      const titleInput = screen.getByPlaceholderText(/task title/i);
+      await user.type(titleInput, 'Test Task Past Date');
+
+      const dueDateInput = screen.getByLabelText(/due date & time/i);
+      // Simulate somehow setting a past date (bypassing browser validation)
+      fireEvent.change(dueDateInput, { target: { value: '2020-01-01T12:00' } });
+
+      const createButton = screen.getByRole('button', { name: /create task/i });
+      await user.click(createButton);
+
+      await waitFor(() => {
+        expect(projectService.createTask).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Test Task Past Date',
+            dueDateTime: expect.stringMatching(/2020-01-01T.*\.000Z$/),
+          })
+        );
+      });
     });
   });
 });

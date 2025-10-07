@@ -5,7 +5,7 @@ export type ProjectSummary = {
   name: string;
   description: string;
   status: ProjectStatus;
-  dueDate: string;
+  dueDateTime: string;
   owner: string;
   progress: number;
   tasksCompleted: number;
@@ -36,7 +36,7 @@ export type TaskSummary = {
   collaborators: string[];
   status: TaskStatus;
   priority: TaskPriority;
-  dueDate: string;
+  dueDateTime: string;
   lastUpdated: string;
   subtasks: TaskSubtask[];
   attachments: number;
@@ -49,7 +49,7 @@ export const demoProjects: ProjectSummary[] = [
     description:
       "Deliver a unified experience for iOS and Android users with feature parity.",
     status: "Active",
-    dueDate: "2025-01-24",
+    dueDateTime: "2025-01-24",
     owner: "Alicia Keys",
     progress: 68,
     tasksCompleted: 34,
@@ -61,7 +61,7 @@ export const demoProjects: ProjectSummary[] = [
     description:
       "Consolidate analytics pipelines and harden reporting dashboards.",
     status: "At Risk",
-    dueDate: "2025-02-03",
+    dueDateTime: "2025-02-03",
     owner: "Marcus Lee",
     progress: 41,
     tasksCompleted: 19,
@@ -73,7 +73,7 @@ export const demoProjects: ProjectSummary[] = [
     description:
       "Roll out guided walkthroughs and measure new user activation.",
     status: "Planning",
-    dueDate: "2025-03-12",
+    dueDateTime: "2025-03-12",
     owner: "Priya Patel",
     progress: 22,
     tasksCompleted: 5,
@@ -84,7 +84,7 @@ export const demoProjects: ProjectSummary[] = [
     name: "Revenue Intelligence",
     description: "Launch forecasting models that sync with GTM tooling.",
     status: "Completed",
-    dueDate: "2024-12-10",
+    dueDateTime: "2024-12-10",
     owner: "Jamal Carter",
     progress: 100,
     tasksCompleted: 42,
@@ -106,7 +106,7 @@ export const demoTasks: TaskSummary[] = [
     collaborators: ["Marcus Lee", "Priya Patel"],
     status: "In Progress",
     priority: "High",
-    dueDate: "2025-01-07",
+    dueDateTime: "2025-01-07",
     lastUpdated: "2024-12-01",
     attachments: 3,
     subtasks: [
@@ -140,7 +140,7 @@ export const demoTasks: TaskSummary[] = [
     collaborators: ["Julia Sato", "Jamal Carter"],
     status: "Review",
     priority: "Medium",
-    dueDate: "2024-12-05",
+    dueDateTime: "2024-12-05",
     lastUpdated: "2024-11-29",
     attachments: 1,
     subtasks: [
@@ -174,7 +174,7 @@ export const demoTasks: TaskSummary[] = [
     collaborators: ["Alicia Keys", "Julia Sato"],
     status: "Blocked",
     priority: "High",
-    dueDate: "2024-12-18",
+    dueDateTime: "2024-12-18",
     lastUpdated: "2024-12-02",
     attachments: 2,
     subtasks: [
@@ -208,7 +208,7 @@ export const demoTasks: TaskSummary[] = [
     collaborators: ["Alicia Keys"],
     status: "Todo",
     priority: "Medium",
-    dueDate: "2025-01-15",
+    dueDateTime: "2025-01-15",
     lastUpdated: "2024-11-27",
     attachments: 0,
     subtasks: [
@@ -237,7 +237,7 @@ export const demoTasks: TaskSummary[] = [
     collaborators: ["Marcus Lee", "Daniel Cho"],
     status: "In Progress",
     priority: "High",
-    dueDate: "2025-01-02",
+    dueDateTime: "2025-01-02",
     lastUpdated: "2024-12-03",
     attachments: 4,
     subtasks: [
@@ -276,7 +276,7 @@ export const demoTasks: TaskSummary[] = [
     collaborators: [],
     status: "Done",
     priority: "Low",
-    dueDate: "2024-11-21",
+    dueDateTime: "2024-11-21",
     lastUpdated: "2024-11-20",
     attachments: 5,
     subtasks: [

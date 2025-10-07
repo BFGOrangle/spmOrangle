@@ -27,7 +27,7 @@ import { userManagementService } from "@/services/user-management-service";
 import { fileService } from "@/services/file-service";
 import { useCurrentUser } from "@/contexts/user-context";
 import { UserResponseDto } from "@/types/user";
-import { User, Crown, Loader2, X } from "lucide-react";
+import { User, Crown, Loader2, X, Calendar } from "lucide-react";
 import { tagService } from "@/services/tag-service";
 
 // Helper for file upload
@@ -109,6 +109,9 @@ export function TaskCreationDialog({
   const [isCollaboratorDialogOpen, setIsCollaboratorDialogOpen] = useState(false);
   const [draftCollaboratorIds, setDraftCollaboratorIds] = useState<number[]>([]);
 
+  // Due date state
+  const [dueDate, setDueDate] = useState<string>('');
+
   const isManager = currentUser?.role === 'MANAGER';
   const isPersonalTask = selectedProjectId === null || selectedProjectId === 0;
   const canAssignToOthers = isManager && !isPersonalTask; // Only managers can assign project tasks to others
@@ -152,6 +155,25 @@ export function TaskCreationDialog({
       .filter((tag) => !selectedTags.has(normalizeTag(tag)))
       .slice(0, 10);
   }, [availableTags, formData.tags]);
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        title: '',
+        description: '',
+        status: 'TODO',
+        taskType: 'FEATURE',
+        tags: [],
+        assignedUserIds: [],
+      });
+      setDueDate('');
+      setSelectedProjectId(projectId || null);
+      setSelectedAssignee(null);
+      setSelectedFiles(null);
+      setDraftCollaboratorIds([]);
+    }
+  }, [open, projectId]);
 
   useEffect(() => {
     if (!open) {
@@ -373,6 +395,19 @@ export function TaskCreationDialog({
       const shouldUseManagerEndpoint = canAssignToOthers && selectedAssignee && selectedAssignee !== currentUserId;
 
       const uniqueCollaboratorIds = Array.from(new Set(selectedCollaboratorIds));
+      // Convert local datetime to ISO string with timezone offset if dueDate is provided
+      const formatDueDateTime = (localDateTime: string): string | undefined => {
+        if (!localDateTime) return undefined;
+        
+        // JavaScript automatically handles the conversion
+        const date = new Date(localDateTime);
+        
+        // Send as ISO string - backend handles it perfectly
+        return date.toISOString();
+        // Input: "2025-10-06T14:30" (local)
+        // Output: "2025-10-06T06:30:00.000Z" (UTC)
+        // Backend receives and stores correctly ✅
+      };
 
       const taskData: CreateTaskRequest = {
         ...formData,
@@ -381,7 +416,8 @@ export function TaskCreationDialog({
         ownerId: assigneeId,
         title: formData.title!,
         taskType: formData.taskType!,
-        projectId: isPersonalTask ? undefined : selectedProjectId!,
+        projectId: isPersonalTask ? 0 : selectedProjectId!,
+        dueDateTime: formatDueDateTime(dueDate),
       };
 
       await ensureManagedTagsExist(taskData.tags ?? []);
@@ -433,6 +469,7 @@ export function TaskCreationDialog({
       setSelectedFiles(null);
       setSelectedAssignee(null);
       setSelectedProjectId(projectId || null);
+      setDueDate('');
       setError(null);
     } catch (err) {
       console.error('Error creating task:', err);
@@ -459,7 +496,7 @@ export function TaskCreationDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="sm:max-w-[525px]"
+          className="sm:max-w-[525px] max-h-[90vh] flex flex-col"
           onInteractOutside={(event) => {
             if (isCollaboratorDialogOpen) {
               event.preventDefault();
@@ -503,7 +540,8 @@ export function TaskCreationDialog({
           </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ScrollArea className="flex-1 pr-6">
+          <form onSubmit={handleSubmit} className="space-y-4 pb-4">
           <div className="space-y-2">
             <Label htmlFor="title">Title *</Label>
             <Input
@@ -718,6 +756,49 @@ export function TaskCreationDialog({
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="dueDate">Due Date & Time</Label>
+          
+          <div className="relative">
+            <Input
+              id="dueDate"
+              type="datetime-local"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              min={new Date().toISOString().slice(0, 16)}
+              placeholder="Select due date and time (optional)"
+              className={dueDate ? 'pr-10' : ''}
+            />
+            
+            {dueDate && (
+              <button
+                type="button"
+                onClick={() => setDueDate('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Clear due date"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          
+          {dueDate && (
+            <div className="flex items-center gap-2 text-xs">
+              <Calendar className="h-3 w-3 text-muted-foreground" />
+              <span className="text-muted-foreground">
+                Due: {new Date(dueDate).toLocaleString('en-SG', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short'
+                })}
+              </span>
+            </div>
+          )}
+          
+          <p className="text-xs text-muted-foreground">
+            Set a deadline for this task (optional)
+          </p>
+        </div>
+
+        <div className="space-y-2">
           <Label>Collaborators</Label>
           {selectedCollaborators.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -825,21 +906,26 @@ export function TaskCreationDialog({
               {error}
             </div>
           )}
+          </form>
+        </ScrollArea>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Creating...' : 'Create Task'}
-            </Button>
-          </DialogFooter>
-        </form>
+        <DialogFooter className="flex-shrink-0 pt-4 border-t">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={loading}
+            onClick={handleSubmit}
+          >
+            {loading ? 'Creating...' : 'Create Task'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
       </Dialog>
 

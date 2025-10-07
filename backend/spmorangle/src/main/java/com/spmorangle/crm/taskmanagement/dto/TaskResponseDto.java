@@ -29,4 +29,5 @@ public class TaskResponseDto {
     private final Long createdBy;
     private final Long updatedBy;
     private final List<SubtaskResponseDto> subtasks;
+    private final OffsetDateTime dueDateTime;
 }
