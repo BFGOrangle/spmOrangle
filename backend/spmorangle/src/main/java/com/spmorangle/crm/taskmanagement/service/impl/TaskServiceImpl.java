@@ -246,7 +246,7 @@ public class TaskServiceImpl implements TaskService {
 
         // Only manager of the project can delete the task
         if (!canUserDeleteTask(taskId, currentUserId)) {
-            throw new RuntimeException("Only project owner can delete the task");
+            throw new RuntimeException("Only project owner or collaborators can delete the task");
         }
 
         task.setDeleteInd(true);
