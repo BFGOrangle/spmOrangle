@@ -59,15 +59,18 @@ jest.mock("next/font/google", () => ({
   }),
 }));
 
-// Suppress React act() warnings for async operations in tests
-// This is common in testing environments where we can't control all async operations
+// Suppress React act() warnings and expected error logs for async operations in tests
 const originalError = console.error;
 beforeAll(() => {
   console.error = (...args: any[]) => {
     if (
-      typeof args[0] === 'string' &&
-      args[0].includes('Warning: An update to') &&
-      args[0].includes('was not wrapped in act')
+      typeof args[0] === 'string' && (
+        (args[0].includes('Warning: An update to') && args[0].includes('was not wrapped in act')) ||
+        args[0].includes('Error loading project members') ||
+        args[0].includes('Error creating task') ||
+        args[0].includes('API Error') ||
+        args[0].includes('Creation failed')
+      )
     ) {
       return;
     }
@@ -83,4 +86,21 @@ jest.mock('aws-amplify/auth', () => ({
   fetchAuthSession: jest.fn().mockResolvedValue({
     tokens: { accessToken: 'mocked-access-token' }
   }),
+  getCurrentUser: jest.fn().mockResolvedValue({
+    username: 'testuser',
+    userId: 'test-user-id'
+  }),
+  fetchUserAttributes: jest.fn().mockResolvedValue({
+    email: 'test@example.com',
+    given_name: 'Test',
+    family_name: 'User'
+  }),
+  signOut: jest.fn().mockResolvedValue(undefined)
+}));
+
+jest.mock('@aws-amplify/core', () => ({
+  Hub: {
+    listen: jest.fn(),
+    remove: jest.fn()
+  }
 }));
