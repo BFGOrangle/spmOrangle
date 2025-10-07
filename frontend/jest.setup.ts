@@ -65,11 +65,14 @@ beforeAll(() => {
   console.error = (...args: any[]) => {
     if (
       typeof args[0] === 'string' && (
-        (args[0].includes('Warning: An update to') && args[0].includes('was not wrapped in act')) ||
+        args[0].includes('was not wrapped in act') ||
         args[0].includes('Error loading project members') ||
         args[0].includes('Error creating task') ||
+        args[0].includes('Error loading tags') ||
         args[0].includes('API Error') ||
-        args[0].includes('Creation failed')
+        args[0].includes('Creation failed') ||
+        args[0].includes('In HTML, <span> cannot be a child of <select>') ||
+        args[0].includes('<select> cannot contain a nested <span>')
       )
     ) {
       return;
