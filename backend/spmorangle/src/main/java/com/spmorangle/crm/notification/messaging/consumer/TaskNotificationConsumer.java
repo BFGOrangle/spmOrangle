@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
+import com.spmorangle.common.config.FrontendConfig;
 import com.spmorangle.common.config.RabbitMQConfig;
 import com.spmorangle.crm.notification.dto.CreateNotificationDto;
 import com.spmorangle.crm.notification.dto.NotificationDto;
@@ -26,6 +27,7 @@ public class TaskNotificationConsumer {
     private final NotificationService notificationService;
     private final UserManagementService userManagementService;
     private final EmailService emailService;
+    private final FrontendConfig frontendConfig;
 
     @RabbitListener(queues = RabbitMQConfig.TASK_QUEUE)
     public void handleTaskNotification(TaskNotificationMessageDto message) {
@@ -84,21 +86,17 @@ public class TaskNotificationConsumer {
         // Notify assigned users
         if (message.hasAssignees()) {
             for (Long assigneeId : message.getAssignedUserIds()) {
-                if (!assigneeId.equals(message.getAuthorId())) {
-                    log.info("📝 Creating task assignment notification for user: {}", assigneeId);
-                    notifications.add(CreateNotificationDto.builder()
-                            .authorId(message.getAuthorId())
-                            .targetId(assigneeId)
-                            .notificationType(com.spmorangle.common.enums.NotificationType.TASK_ASSIGNED)
-                            .subject("New task assigned to you")
-                            .message(String.format("You've been assigned to task: \"%s\"", message.getTaskTitle()))
-                            .link(message.generateNotificationLink())
-                            .priority(com.spmorangle.crm.notification.enums.Priority.MEDIUM)
-                            .channels(List.of(Channel.IN_APP, Channel.EMAIL))
-                            .build());
-                } else {
-                    log.info("⏭️ Skipping notification for task creator: {}", assigneeId);
-                }
+                log.info("📝 Creating task assignment notification for user: {}", assigneeId);
+                notifications.add(CreateNotificationDto.builder()
+                        .authorId(message.getAuthorId())
+                        .targetId(assigneeId)
+                        .notificationType(com.spmorangle.common.enums.NotificationType.TASK_ASSIGNED)
+                        .subject("New task assigned to you")
+                        .message(String.format("You've been assigned to task: \"%s\"", message.getTaskTitle()))
+                        .link(message.generateNotificationLink())
+                        .priority(com.spmorangle.crm.notification.enums.Priority.MEDIUM)
+                        .channels(List.of(Channel.IN_APP, Channel.EMAIL))
+                        .build());
             }
         }
 
@@ -248,7 +246,8 @@ public class TaskNotificationConsumer {
         emailBody.append(notification.getMessage()).append("\n\n");
 
         if (notification.getLink() != null) {
-            emailBody.append("Click here to view: ").append(notification.getLink()).append("\n\n");
+            String fullUrl = frontendConfig.getBaseUrl() + notification.getLink();
+            emailBody.append("Click here to view: ").append(fullUrl).append("\n\n");
         }
 
         emailBody.append("Best regards,\n");

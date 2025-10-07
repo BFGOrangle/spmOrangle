@@ -58,6 +58,8 @@ springdoc:
     enabled: true
 
 app:
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
   comments:
     max-length: ${COMMENTS_MAX_LENGTH:2000}
     allow-mentions: ${COMMENTS_ALLOW_MENTIONS:true}

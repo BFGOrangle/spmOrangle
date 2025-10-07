@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
+import com.spmorangle.common.config.FrontendConfig;
 import com.spmorangle.common.config.RabbitMQConfig;
 import com.spmorangle.crm.notification.dto.CreateNotificationDto;
 import com.spmorangle.crm.notification.dto.NotificationDto;
@@ -28,6 +29,7 @@ public class CommentNotificationConsumer {
     private final UserManagementService userManagementService; // To get user email
     private final EmailService emailService;
     private final TaskAssigneeRepository taskAssigneeRepository; // To get current assignees
+    private final FrontendConfig frontendConfig;
 
     @RabbitListener(queues = RabbitMQConfig.COMMENT_QUEUE)
     public void handleCommentNotification(CommentNotificationMessageDto message) {
@@ -142,14 +144,15 @@ public class CommentNotificationConsumer {
         StringBuilder emailBody = new StringBuilder();
         emailBody.append("Hello,\n\n");
         emailBody.append(notification.getMessage()).append("\n\n");
-        
+
         if (notification.getLink() != null) {
-            emailBody.append("Click here to view: ").append(notification.getLink()).append("\n\n");
+            String fullUrl = frontendConfig.getBaseUrl() + notification.getLink();
+            emailBody.append("Click here to view: ").append(fullUrl).append("\n\n");
         }
-        
+
         emailBody.append("Best regards,\n");
         emailBody.append("SPM Orange Team");
-        
+
         return emailBody.toString();
     }
 
@@ -165,21 +168,17 @@ public class CommentNotificationConsumer {
                     message.getMentionedUserIds().size(), message.getMentionedUserIds());
 
             for (Long mentionedUserId : message.getMentionedUserIds()) {
-                if (!mentionedUserId.equals(message.getAuthorId())) {
-                    log.info("📝 Creating mention notification for user: {}", mentionedUserId);
-                    notifications.add(CreateNotificationDto.builder()
-                            .authorId(message.getAuthorId())
-                            .targetId(mentionedUserId)
-                            .notificationType(com.spmorangle.common.enums.NotificationType.MENTION)
-                            .subject("You were mentioned in a comment")
-                            .message(String.format("You were mentioned: \"%s\"", message.getCommentSnippet(100)))
-                            .link(message.generateNotificationLink())
-                            .priority(com.spmorangle.crm.notification.enums.Priority.HIGH)
-                            .channels(List.of(Channel.IN_APP, Channel.EMAIL)) // ← Multi-channel!
-                            .build());
-                } else {
-                    log.info("⏭️ Skipping mention notification for author: {}", mentionedUserId);
-                }
+                log.info("📝 Creating mention notification for user: {}", mentionedUserId);
+                notifications.add(CreateNotificationDto.builder()
+                        .authorId(message.getAuthorId())
+                        .targetId(mentionedUserId)
+                        .notificationType(com.spmorangle.common.enums.NotificationType.MENTION)
+                        .subject("You were mentioned in a comment")
+                        .message(String.format("You were mentioned: \"%s\"", message.getCommentSnippet(100)))
+                        .link(message.generateNotificationLink())
+                        .priority(com.spmorangle.crm.notification.enums.Priority.HIGH)
+                        .channels(List.of(Channel.IN_APP, Channel.EMAIL)) // ← Multi-channel!
+                        .build());
             }
         } else {
             log.info("👥 No mentions found in message");
@@ -193,24 +192,18 @@ public class CommentNotificationConsumer {
             log.info("📋 Found {} CURRENT assignees for task {}", currentAssigneeIds.size(), message.getTaskId());
 
             for (Long assigneeId : currentAssigneeIds) {
-                // Skip if author or already notified via mention
-                if (!assigneeId.equals(message.getAuthorId()) &&
-                    (message.getMentionedUserIds() == null || !message.getMentionedUserIds().contains(assigneeId))) {
-                    log.info("📬 Creating assignee notification for user: {}", assigneeId);
-                    notifications.add(CreateNotificationDto.builder()
-                            .authorId(message.getAuthorId())
-                            .targetId(assigneeId)
-                            .notificationType(com.spmorangle.common.enums.NotificationType.COMMENT_REPLY)
-                            .subject("New comment on your task")
-                            .message(String.format("New comment on \"%s\": \"%s\"",
-                                                message.getTaskTitle(), message.getCommentSnippet(100)))
-                            .link(message.generateNotificationLink())
-                            .priority(com.spmorangle.crm.notification.enums.Priority.MEDIUM)
-                            .channels(List.of(Channel.IN_APP, Channel.EMAIL))
-                            .build());
-                } else {
-                    log.info("⏭️ Skipping assignee notification for user: {} (author or already mentioned)", assigneeId);
-                }
+                log.info("📬 Creating assignee notification for user: {}", assigneeId);
+                notifications.add(CreateNotificationDto.builder()
+                        .authorId(message.getAuthorId())
+                        .targetId(assigneeId)
+                        .notificationType(com.spmorangle.common.enums.NotificationType.COMMENT_REPLY)
+                        .subject("New comment on your task")
+                        .message(String.format("New comment on \"%s\": \"%s\"",
+                                            message.getTaskTitle(), message.getCommentSnippet(100)))
+                        .link(message.generateNotificationLink())
+                        .priority(com.spmorangle.crm.notification.enums.Priority.MEDIUM)
+                        .channels(List.of(Channel.IN_APP, Channel.EMAIL))
+                        .build());
             }
         }
 
@@ -248,19 +241,15 @@ public class CommentNotificationConsumer {
                     message.getMentionedUserIds().size(), message.getMentionedUserIds());
                     
             for (Long mentionedUserId : message.getMentionedUserIds()) {
-                if (!mentionedUserId.equals(message.getAuthorId())) {
-                    log.info("📝 Creating MENTION notification for user: {}", mentionedUserId);
-                    notifications.add(CreateNotificationDto.forMention(
-                            message.getAuthorId(),
-                            mentionedUserId,
-                            "You were mentioned",
-                            String.format("You were mentioned in \"%s\": \"%s\"", 
-                                        message.getTaskTitle(), message.getCommentSnippet(100)),
-                            message.generateNotificationLink()
-                    ));
-                } else {
-                    log.info("⏭️ Skipping mention notification for author: {}", mentionedUserId);
-                }
+                log.info("📝 Creating MENTION notification for user: {}", mentionedUserId);
+                notifications.add(CreateNotificationDto.forMention(
+                        message.getAuthorId(),
+                        mentionedUserId,
+                        "You were mentioned",
+                        String.format("You were mentioned in \"%s\": \"%s\"",
+                                    message.getTaskTitle(), message.getCommentSnippet(100)),
+                        message.generateNotificationLink()
+                ));
             }
         } else {
             log.info("👥 No mentions found in MENTION event message");

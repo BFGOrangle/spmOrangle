@@ -157,9 +157,6 @@ public class TaskNotificationMessageDto {
     }
 
     public String generateNotificationLink() {
-        if (projectId != null) {
-            return String.format("/projects/%d/tasks/%d", projectId, taskId);
-        }
         return String.format("/tasks/%d", taskId);
     }
 
