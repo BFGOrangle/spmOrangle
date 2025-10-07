@@ -9,6 +9,9 @@ import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
+import com.spmorangle.crm.taskmanagement.dto.UpdateTaskDto;
+import com.spmorangle.crm.taskmanagement.dto.UpdateTaskResponseDto;
+import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
 import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
@@ -45,6 +48,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -1130,6 +1134,282 @@ public class TaskManagementControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
                     .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Nested
+    @DisplayName("Update Task Tests")
+    class UpdateTaskTests {
+
+        @Test
+        @DisplayName("Should successfully update task and return 200")
+        void updateTask_ValidRequest_ReturnsOk() throws Exception {
+            // Given
+            UpdateTaskDto updateTaskDto = UpdateTaskDto.builder()
+                    .taskId(1L)
+                    .title("Updated Title")
+                    .description("Updated Description")
+                    .status(Status.IN_PROGRESS)
+                    .taskType(TaskType.BUG)
+                    .tags(Arrays.asList("tag1", "tag2"))
+                    .build();
+
+            UpdateTaskResponseDto responseDto = UpdateTaskResponseDto.builder()
+                    .id(1L)
+                    .projectId(101L)
+                    .ownerId(123L)
+                    .title("Updated Title")
+                    .description("Updated Description")
+                    .status(Status.IN_PROGRESS)
+                    .taskType(TaskType.BUG)
+                    .tags(Arrays.asList("tag1", "tag2"))
+                    .userHasEditAccess(true)
+                    .userHasDeleteAccess(false)
+                    .updatedBy(123L)
+                    .updatedAt(OffsetDateTime.now())
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.updateTask(any(UpdateTaskDto.class), eq(123L))).thenReturn(responseDto);
+
+            // When & Then
+            mockMvc.perform(put("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateTaskDto)))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(1L))
+                    .andExpect(jsonPath("$.title").value("Updated Title"))
+                    .andExpect(jsonPath("$.description").value("Updated Description"))
+                    .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                    .andExpect(jsonPath("$.taskType").value("BUG"))
+                    .andExpect(jsonPath("$.updatedBy").value(123L));
+
+            verify(taskService).updateTask(any(UpdateTaskDto.class), eq(123L));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when task ID is null")
+        void updateTask_NullTaskId_ReturnsBadRequest() throws Exception {
+            // Given
+            UpdateTaskDto invalidRequest = UpdateTaskDto.builder()
+                    .taskId(null)
+                    .title("Updated Title")
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+
+            // When & Then
+            mockMvc.perform(put("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(invalidRequest)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Should handle partial update successfully")
+        void updateTask_PartialUpdate_ReturnsOk() throws Exception {
+            // Given
+            UpdateTaskDto partialUpdateDto = UpdateTaskDto.builder()
+                    .taskId(1L)
+                    .title("Only Title Updated")
+                    .build();
+
+            UpdateTaskResponseDto responseDto = UpdateTaskResponseDto.builder()
+                    .id(1L)
+                    .projectId(101L)
+                    .ownerId(123L)
+                    .title("Only Title Updated")
+                    .description("Original Description")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .userHasEditAccess(true)
+                    .userHasDeleteAccess(false)
+                    .updatedBy(123L)
+                    .updatedAt(OffsetDateTime.now())
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.updateTask(any(UpdateTaskDto.class), eq(123L))).thenReturn(responseDto);
+
+            // When & Then
+            mockMvc.perform(put("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(partialUpdateDto)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.title").value("Only Title Updated"))
+                    .andExpect(jsonPath("$.description").value("Original Description"));
+        }
+
+        @Test
+        @DisplayName("Should return 500 when service throws exception")
+        void updateTask_ServiceThrowsException_ReturnsInternalServerError() throws Exception {
+            // Given
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                    .taskId(1L)
+                    .title("Updated Title")
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.updateTask(any(UpdateTaskDto.class), eq(123L)))
+                    .thenThrow(new RuntimeException("Update failed"));
+
+            // When & Then
+            mockMvc.perform(put("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isInternalServerError());
+        }
+
+        @Test
+        @DisplayName("Should handle tag updates correctly")
+        void updateTask_WithTags_ReturnsUpdatedTags() throws Exception {
+            // Given
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                    .taskId(1L)
+                    .tags(Arrays.asList("new-tag1", "new-tag2", "new-tag3"))
+                    .build();
+
+            UpdateTaskResponseDto responseDto = UpdateTaskResponseDto.builder()
+                    .id(1L)
+                    .projectId(101L)
+                    .ownerId(123L)
+                    .title("Task Title")
+                    .description("Task Description")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .tags(Arrays.asList("new-tag1", "new-tag2", "new-tag3"))
+                    .userHasEditAccess(true)
+                    .userHasDeleteAccess(false)
+                    .updatedBy(123L)
+                    .updatedAt(OffsetDateTime.now())
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.updateTask(any(UpdateTaskDto.class), eq(123L))).thenReturn(responseDto);
+
+            // When & Then
+            mockMvc.perform(put("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.tags.length()").value(3))
+                    .andExpect(jsonPath("$.tags[0]").value("new-tag1"))
+                    .andExpect(jsonPath("$.tags[1]").value("new-tag2"))
+                    .andExpect(jsonPath("$.tags[2]").value("new-tag3"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 for invalid JSON")
+        void updateTask_InvalidJson_ReturnsBadRequest() throws Exception {
+            // When & Then
+            mockMvc.perform(put("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{invalid json}"))
+                    .andExpect(status().isBadRequest());
+
+            verify(taskService, never()).updateTask(any(UpdateTaskDto.class), any(Long.class));
+        }
+
+        @Test
+        @DisplayName("Should verify service is called with correct user ID")
+        void updateTask_VerifyServiceCall_UsesCorrectUserId() throws Exception {
+            // Given
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                    .taskId(1L)
+                    .title("Updated Title")
+                    .build();
+
+            UpdateTaskResponseDto responseDto = UpdateTaskResponseDto.builder()
+                    .id(1L)
+                    .projectId(101L)
+                    .ownerId(123L)
+                    .title("Updated Title")
+                    .status(Status.TODO)
+                    .taskType(TaskType.FEATURE)
+                    .updatedBy(123L)
+                    .updatedAt(OffsetDateTime.now())
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.updateTask(any(UpdateTaskDto.class), eq(123L))).thenReturn(responseDto);
+
+            // When
+            mockMvc.perform(put("/api/tasks")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isOk());
+
+            // Then
+            verify(userContextService).getRequestingUser();
+            verify(taskService).updateTask(any(UpdateTaskDto.class), eq(123L));
+        }
+    }
+
+    @Nested
+    @DisplayName("Get Collaborators Tests")
+    class GetCollaboratorsTests {
+
+        @Test
+        @DisplayName("Should successfully return list of collaborators")
+        void getCollaborators_ValidRequest_ReturnsCollaboratorsList() throws Exception {
+            // Given
+            List<UserResponseDto> collaborators = Arrays.asList(
+                    UserResponseDto.builder()
+                            .id(1L)
+                            .username("user1")
+                            .email("user1@example.com")
+                            .roleType("STAFF")
+                            .build(),
+                    UserResponseDto.builder()
+                            .id(2L)
+                            .username("user2")
+                            .email("user2@example.com")
+                            .roleType("STAFF")
+                            .build()
+            );
+
+            when(userManagementService.getCollaborators()).thenReturn(collaborators);
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks/collaborators")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].id").value(1L))
+                    .andExpect(jsonPath("$[0].username").value("user1"))
+                    .andExpect(jsonPath("$[1].id").value(2L))
+                    .andExpect(jsonPath("$[1].username").value("user2"));
+
+            verify(userManagementService).getCollaborators();
+        }
+
+        @Test
+        @DisplayName("Should return empty array when no collaborators")
+        void getCollaborators_NoCollaborators_ReturnsEmptyArray() throws Exception {
+            // Given
+            when(userManagementService.getCollaborators()).thenReturn(Collections.emptyList());
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks/collaborators")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(0));
+
+            verify(userManagementService).getCollaborators();
         }
     }
 }

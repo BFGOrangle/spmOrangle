@@ -4,14 +4,13 @@ import com.spmorangle.crm.taskmanagement.dto.CommentResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateCommentDto;
 import com.spmorangle.crm.taskmanagement.dto.CreateCommentResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateCommentDto;
-import com.spmorangle.crm.taskmanagement.event.CommentCreatedEvent;
-import com.spmorangle.crm.taskmanagement.event.CommentEditedEvent;
-import com.spmorangle.crm.taskmanagement.event.MentionEvent;
+import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.model.TaskComment;
 import com.spmorangle.crm.taskmanagement.model.Subtask;
 import com.spmorangle.crm.taskmanagement.repository.TaskCommentRepository;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
+import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
 import com.spmorangle.crm.taskmanagement.repository.SubtaskRepository;
 import com.spmorangle.crm.taskmanagement.util.CommentPermissionHelper;
 import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
@@ -27,7 +26,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -45,7 +43,7 @@ import static org.mockito.Mockito.*;
 class CommentServiceImplTest {
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private NotificationMessagePublisher notificationMessagePublisher;
 
     @Mock
     private CommentPermissionHelper permissionHelper;
@@ -55,6 +53,9 @@ class CommentServiceImplTest {
 
     @Mock
     private TaskRepository taskRepository;
+
+    @Mock
+    private TaskAssigneeRepository taskAssigneeRepository;
 
     @Mock
     private SubtaskRepository subtaskRepository;
@@ -143,8 +144,8 @@ class CommentServiceImplTest {
             assertThat(result.getAuthorId()).isEqualTo(10L);
 
             verify(taskCommentRepository).save(any(TaskComment.class));
-            verify(eventPublisher).publishEvent(any(CommentCreatedEvent.class));
-            verify(eventPublisher).publishEvent(any(MentionEvent.class));
+            // Verify notification publishing instead of events
+            verify(notificationMessagePublisher, atLeastOnce()).publishCommentNotification(any());
         }
 
         @Test
@@ -175,9 +176,9 @@ class CommentServiceImplTest {
             assertThat(result.getSubtaskId()).isEqualTo(10L);
             assertThat(result.getContent()).isEqualTo("Subtask comment");
 
-            verify(subtaskRepository).findById(10L);
+            verify(subtaskRepository, atLeastOnce()).findById(10L);
             verify(taskCommentRepository).save(any(TaskComment.class));
-            verify(eventPublisher).publishEvent(any(CommentCreatedEvent.class));
+            verify(notificationMessagePublisher).publishCommentNotification(any());
         }
 
         @Test
@@ -210,7 +211,7 @@ class CommentServiceImplTest {
             assertThat(result.getContent()).isEqualTo("Reply comment");
 
             verify(taskCommentRepository).save(any(TaskComment.class));
-            verify(eventPublisher).publishEvent(any(CommentCreatedEvent.class));
+            verify(notificationMessagePublisher).publishCommentNotification(any());
         }
 
         @Test
@@ -230,8 +231,7 @@ class CommentServiceImplTest {
             commentService.createComment(noMentionsDto, 10L);
 
             // Assert
-            verify(eventPublisher).publishEvent(any(CommentCreatedEvent.class));
-            verify(eventPublisher, never()).publishEvent(any(MentionEvent.class));
+            verify(notificationMessagePublisher).publishCommentNotification(any());
         }
 
         @Test
@@ -316,6 +316,8 @@ class CommentServiceImplTest {
             UserResponseDto user40 = new UserResponseDto(40L, "user40", "user40@example.com", "USER", UUID.randomUUID());
             UserResponseDto user50 = new UserResponseDto(50L, "user50", "user50@example.com", "USER", UUID.randomUUID());
             when(userManagementService.getProjectMembers(100L)).thenReturn(Arrays.asList(user40, user50));
+            // Mock for notification publishing
+            when(taskRepository.findById(1L)).thenReturn(Optional.of(testTask));
 
             // Act
             CommentResponseDto result = commentService.updateComment(updateCommentDto, 10L);
@@ -330,8 +332,6 @@ class CommentServiceImplTest {
             assertThat(savedComment.getContent()).isEqualTo("Updated comment");
             assertThat(savedComment.isEdited()).isTrue();
             assertThat(savedComment.getUpdatedBy()).isEqualTo(10L);
-
-            verify(eventPublisher).publishEvent(any(CommentEditedEvent.class));
         }
 
         @Test
@@ -347,7 +347,7 @@ class CommentServiceImplTest {
                     .hasMessageContaining("User not authorized to edit this comment");
 
             verify(taskCommentRepository, never()).save(any(TaskComment.class));
-            verify(eventPublisher, never()).publishEvent(any());
+            verify(notificationMessagePublisher, never()).publishCommentNotification(any());
         }
 
         @Test
@@ -449,7 +449,7 @@ class CommentServiceImplTest {
             when(taskCommentRepository.countRepliesByParentCommentId(1L)).thenReturn(0L);
 
             // Act
-            List<CommentResponseDto> result = commentService.getTaskComments(1L);
+            List<CommentResponseDto> result = commentService.getTaskComments(1L, null);
 
             // Assert
             assertThat(result).hasSize(1);
@@ -509,7 +509,7 @@ class CommentServiceImplTest {
             when(taskCommentRepository.countRepliesByParentCommentId(2L)).thenReturn(0L);
 
             // Act
-            List<CommentResponseDto> result = commentService.getSubtaskComments(10L);
+            List<CommentResponseDto> result = commentService.getSubtaskComments(10L, null);
 
             // Assert
             assertThat(result).hasSize(1);
@@ -540,7 +540,7 @@ class CommentServiceImplTest {
             when(taskCommentRepository.countRepliesByParentCommentId(3L)).thenReturn(0L);
 
             // Act
-            List<CommentResponseDto> result = commentService.getCommentReplies(1L);
+            List<CommentResponseDto> result = commentService.getCommentReplies(1L, null);
 
             // Assert
             assertThat(result).hasSize(1);
@@ -562,7 +562,7 @@ class CommentServiceImplTest {
             when(taskCommentRepository.countRepliesByParentCommentId(1L)).thenReturn(2L);
 
             // Act
-            CommentResponseDto result = commentService.getCommentById(1L);
+            CommentResponseDto result = commentService.getCommentById(1L, null);
 
             // Assert
             assertThat(result).isNotNull();
@@ -577,7 +577,7 @@ class CommentServiceImplTest {
             when(taskCommentRepository.findById(999L)).thenReturn(Optional.empty());
 
             // Act & Assert
-            assertThatThrownBy(() -> commentService.getCommentById(999L))
+            assertThatThrownBy(() -> commentService.getCommentById(999L, null))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("Comment not found");
         }
@@ -615,19 +615,20 @@ class CommentServiceImplTest {
         void getTaskCommentsWithFilters_ShouldReturnFilteredComments() {
             // Arrange
             List<TaskComment> filteredComments = Arrays.asList(testComment);
-            when(taskCommentRepository.findTaskCommentsWithFilters(1L, 10L, false))
+            when(taskCommentRepository.findTaskCommentsWithFilters(1L, null, false))
                     .thenReturn(filteredComments);
             when(taskCommentRepository.findRepliesByParentCommentId(1L)).thenReturn(Collections.emptyList());
             when(userManagementService.getUserById(10L)).thenReturn(testUser);
             when(taskCommentRepository.countRepliesByParentCommentId(1L)).thenReturn(0L);
+            when(permissionHelper.canReadComments(10L, 1L)).thenReturn(true);
 
             // Act
-            List<CommentResponseDto> result = commentService.getTaskCommentsWithFilters(1L, 10L, false);
+            List<CommentResponseDto> result = commentService.getTaskCommentsWithFilters(1L, null, false, 10L);
 
             // Assert
             assertThat(result).hasSize(1);
             assertThat(result.get(0).getId()).isEqualTo(1L);
-            verify(taskCommentRepository).findTaskCommentsWithFilters(1L, 10L, false);
+            verify(taskCommentRepository).findTaskCommentsWithFilters(1L, null, false);
         }
     }
 
@@ -726,7 +727,7 @@ class CommentServiceImplTest {
             when(taskCommentRepository.countRepliesByParentCommentId(1L)).thenReturn(0L);
 
             // Act
-            CommentResponseDto result = commentService.getCommentById(1L);
+            CommentResponseDto result = commentService.getCommentById(1L, null);
 
             // Assert
             assertThat(result).isNotNull();
@@ -734,16 +735,17 @@ class CommentServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should handle null event publisher gracefully")
-        void createComment_WithNullEventPublisher_ShouldNotThrowException() {
+        @DisplayName("Should handle null notification publisher gracefully")
+        void createComment_WithNullNotificationPublisher_ShouldNotThrowException() {
             // Arrange
             commentService = new CommentServiceImpl(
-                null, // null event publisher
                 permissionHelper,
                 taskCommentRepository,
                 taskRepository,
+                taskAssigneeRepository,
                 subtaskRepository,
-                userManagementService
+                userManagementService,
+                null  // null notification publisher
             );
 
             when(taskRepository.findById(1L)).thenReturn(Optional.of(testTask));

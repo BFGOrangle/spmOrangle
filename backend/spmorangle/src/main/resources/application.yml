@@ -2,6 +2,10 @@ spring:
   application:
     name: spm-orangle-backend
 
+app:
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+
 # Default Supabase configuration (can be overridden by profiles)
 supabase:
   storage:
