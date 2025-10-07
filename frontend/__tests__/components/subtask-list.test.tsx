@@ -161,7 +161,7 @@ describe('SubtaskList', () => {
       taskId: 100,
       projectId: 200,
       title: 'Subtask 3',
-      details: null,
+      details: undefined,
       status: 'COMPLETED' as any,
       taskType: 'CHORE' as any,
       userHasEditAccess: false,
