@@ -175,6 +175,15 @@ public class TaskServiceImpl implements TaskService {
                 })
                 .collect(Collectors.toList());
     }
+    /*
+    * This function serves to show tasks that users have members from their department as collaborators in tasks
+    * in another project
+    * */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskResponseDto> getRelatedTasks(Long userId){
+        return new ArrayList<>();
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
