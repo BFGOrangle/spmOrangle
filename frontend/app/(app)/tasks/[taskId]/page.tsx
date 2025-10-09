@@ -207,7 +207,6 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
           task.id,
           task.projectId
         );
-        console.log("Fetched files:", fetchedFiles);
         setFiles(fetchedFiles);
       } catch (error) {
         console.error("Error fetching files:", error);
