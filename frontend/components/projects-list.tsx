@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Briefcase, Calendar, CheckCircle, Circle, Plus, Filter } from "lucide-react";
-import { ProjectResponse } from "@/services/project-service";
+import { ProjectResponse, TaskResponse } from "@/services/project-service";
 import { projectService } from "@/services/project-service";
 import FullPageSpinnerLoader from "@/components/full-page-spinner-loader";
 import { ErrorMessageCallout } from "@/components/error-message-callout";
@@ -24,9 +24,10 @@ interface ProjectsListProps {
 interface ProjectCardProps {
   project: ProjectResponse;
   onProjectClick: (projectId: number) => void;
+  isViewOnly?: boolean;
 }
 
-function ProjectCard({ project, onProjectClick }: ProjectCardProps) {
+function ProjectCard({ project, onProjectClick, isViewOnly = false }: ProjectCardProps) {
   const completionPercentage = project.taskCount > 0 
     ? Math.round((project.completedTaskCount / project.taskCount) * 100) 
     : 0;
@@ -37,10 +38,20 @@ function ProjectCard({ project, onProjectClick }: ProjectCardProps) {
       onClick={() => onProjectClick(project.id)}
     >
       <CardHeader className="pb-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <Briefcase className="h-5 w-5 text-blue-600" />
-            <CardTitle className="text-lg line-clamp-1">{project.name}</CardTitle>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Briefcase className="h-5 w-5 text-blue-600" />
+              <CardTitle className="text-lg line-clamp-1">{project.name}</CardTitle>
+              {isViewOnly && (
+                <Badge
+                  variant="outline"
+                  className="border-amber-500/60 bg-amber-50/80 text-[10px] font-semibold uppercase tracking-wide text-amber-600"
+                >
+                  View only
+                </Badge>
+              )}
+            </div>
           </div>
           <Badge variant={completionPercentage === 100 ? "default" : "secondary"}>
             {completionPercentage}%
@@ -101,6 +112,9 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterOwner, setFilterOwner] = useState<"all" | "owned">("all");
+  const [relatedTasks, setRelatedTasks] = useState<TaskResponse[]>([]);
+  const [isRelatedLoading, setIsRelatedLoading] = useState(true);
+  const [relatedError, setRelatedError] = useState<string | null>(null);
   const { currentUser } = useCurrentUser();
 
   useEffect(() => {
@@ -108,17 +122,39 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
   }, []);
 
   const loadProjects = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const userProjects = await projectService.getUserProjects(0); // Using dummy userId, will be handled by authenticated client
-      setProjects(userProjects);
-    } catch (err) {
-      console.error("Error loading projects:", err);
-      setError(err instanceof Error ? err.message : "Failed to load projects");
-    } finally {
-      setIsLoading(false);
+    setIsLoading(true);
+    setIsRelatedLoading(true);
+    setError(null);
+    setRelatedError(null);
+
+    const [projectsResult, relatedTasksResult] = await Promise.allSettled([
+      projectService.getUserProjects(0), // Using dummy userId, will be handled by authenticated client
+      projectService.getRelatedProjectTasks(),
+    ]);
+
+    if (projectsResult.status === "fulfilled") {
+      setProjects(projectsResult.value);
+    } else {
+      const cause = projectsResult.reason;
+      console.error("Error loading projects:", cause);
+      setProjects([]);
+      setError(cause instanceof Error ? cause.message : "Failed to load projects");
     }
+
+    if (relatedTasksResult.status === "fulfilled") {
+      const projectScopedTasks = relatedTasksResult.value.filter(
+        (task): task is TaskResponse & { projectId: number } => typeof task.projectId === "number",
+      );
+      setRelatedTasks(projectScopedTasks);
+    } else {
+      const cause = relatedTasksResult.reason;
+      console.error("Error loading related project tasks:", cause);
+      setRelatedTasks([]);
+      setRelatedError(cause instanceof Error ? cause.message : "Failed to load related projects");
+    }
+
+    setIsLoading(false);
+    setIsRelatedLoading(false);
   };
 
   // Filter projects based on ownership
@@ -134,6 +170,21 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
     
     return projects.filter(project => project.ownerId === currentUser.backendStaffId);
   }, [projects, filterOwner, currentUser?.backendStaffId]);
+
+  const relatedProjects = useMemo(() => {
+    if (relatedTasks.length === 0) {
+      return [] as ProjectResponse[];
+    }
+
+    const relatedProjectIds = new Set<number>();
+    for (const task of relatedTasks) {
+      if (typeof task.projectId === "number") {
+        relatedProjectIds.add(task.projectId);
+      }
+    }
+
+    return projects.filter((project) => relatedProjectIds.has(project.id));
+  }, [projects, relatedTasks]);
 
   if (isLoading) {
     return <FullPageSpinnerLoader />;
@@ -208,7 +259,10 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          data-testid="projects-grid"
+        >
           {filteredProjects.map((project) => (
             <ProjectCard
               key={project.id}
@@ -218,6 +272,53 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
           ))}
         </div>
       )}
+
+      <section className="mt-10">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl font-semibold">Related Projects</h2>
+          <p className="text-sm text-muted-foreground">
+            Projects that include collaborators from your department where you have view-only access
+          </p>
+        </div>
+
+        <div className="mt-4">
+          {isRelatedLoading ? (
+            <div className="rounded-lg border border-dashed border-muted p-6 text-center text-muted-foreground">
+              Loading related projects...
+            </div>
+          ) : relatedError ? (
+            <div className="space-y-4">
+              <ErrorMessageCallout errorMessage={relatedError} />
+              <div>
+                <Button onClick={loadProjects} variant="outline" size="sm">
+                  Retry loading related projects
+                </Button>
+              </div>
+            </div>
+          ) : relatedProjects.length === 0 ? (
+            <div
+              className="rounded-lg border border-dashed border-muted p-6 text-center text-muted-foreground"
+              data-testid="related-projects-empty"
+            >
+              No related projects to show yet.
+            </div>
+          ) : (
+            <div
+              className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
+              data-testid="related-projects-grid"
+            >
+              {relatedProjects.map((project) => (
+                <ProjectCard
+                  key={`related-${project.id}`}
+                  project={project}
+                  onProjectClick={onProjectSelect}
+                  isViewOnly
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

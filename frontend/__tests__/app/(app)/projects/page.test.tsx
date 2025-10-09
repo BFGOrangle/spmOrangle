@@ -1,4 +1,4 @@
-import { render, screen, waitFor, act } from "../../../test-utils";
+import { render, screen, waitFor, act, within } from "../../../test-utils";
 import userEvent from "@testing-library/user-event";
 import ProjectsPage from "../../../../app/(app)/projects/page";
 import { projectService } from "@/services/project-service";
@@ -22,6 +22,7 @@ jest.mock("@aws-amplify/core", () => ({
 jest.mock("@/services/project-service", () => ({
   projectService: {
     getUserProjects: jest.fn(),
+    getRelatedProjectTasks: jest.fn(),
   },
 }));
 
@@ -197,15 +198,56 @@ const mockProjectsData = [
   },
 ];
 
+const mockRelatedTasksData = [
+  {
+    id: 101,
+    projectId: 2,
+    ownerId: 20,
+    taskType: "FEATURE",
+    title: "Related Task 1",
+    description: "",
+    status: "IN_PROGRESS",
+    tags: [],
+    assignedUserIds: [],
+    userHasEditAccess: false,
+    userHasDeleteAccess: false,
+    createdAt: "2025-01-20T00:00:00.000Z",
+    updatedAt: "2025-01-21T00:00:00.000Z",
+    createdBy: 20,
+    updatedBy: null,
+    subtasks: [],
+  },
+  {
+    id: 102,
+    projectId: 3,
+    ownerId: 30,
+    taskType: "CHORE",
+    title: "Related Task 2",
+    description: "",
+    status: "COMPLETED",
+    tags: [],
+    assignedUserIds: [],
+    userHasEditAccess: false,
+    userHasDeleteAccess: false,
+    createdAt: "2025-02-10T00:00:00.000Z",
+    updatedAt: "2025-02-11T00:00:00.000Z",
+    createdBy: 30,
+    updatedBy: null,
+    subtasks: [],
+  },
+];
+
 describe("ProjectsPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
     // Reset all mocks before each test
     mockProjectService.getUserProjects.mockClear();
+    mockProjectService.getRelatedProjectTasks.mockClear();
     
     // Default mock implementation that returns test project data
     mockProjectService.getUserProjects.mockResolvedValue(mockProjectsData);
+    mockProjectService.getRelatedProjectTasks.mockResolvedValue(mockRelatedTasksData);
   });
 
   const setup = async () => {
@@ -255,14 +297,15 @@ describe("ProjectsPage", () => {
       await setup();
 
       await waitFor(() => {
-        expect(screen.getByText("Test Project 1")).toBeInTheDocument();
-        expect(screen.getByText("Test description 1")).toBeInTheDocument();
-        expect(screen.getByText("Test Project 2")).toBeInTheDocument();
-        expect(screen.getByText("Test description 2")).toBeInTheDocument();
-        expect(screen.getByText("Test Project 3")).toBeInTheDocument();
-        expect(screen.getByText("Test description 3")).toBeInTheDocument();
-        expect(screen.getByText("Test Project 4")).toBeInTheDocument();
-        expect(screen.getByText("Test description 4")).toBeInTheDocument();
+        // Projects may appear in both main and related sections, so use getAllByText
+        expect(screen.getAllByText("Test Project 1").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Test description 1").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Test Project 2").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Test description 2").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Test Project 3").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Test description 3").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Test Project 4").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Test description 4").length).toBeGreaterThanOrEqual(1);
       });
     });
 
@@ -270,10 +313,11 @@ describe("ProjectsPage", () => {
       await setup();
 
       await waitFor(() => {
-        expect(screen.getByText("75%")).toBeInTheDocument();
-        expect(screen.getByText("45%")).toBeInTheDocument();
-        expect(screen.getByText("20%")).toBeInTheDocument();
-        expect(screen.getByText("100%")).toBeInTheDocument();
+        // Projects may appear in both main and related sections
+        expect(screen.getAllByText("75%").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("45%").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("20%").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("100%").length).toBeGreaterThanOrEqual(1);
       });
     });
 
@@ -281,10 +325,11 @@ describe("ProjectsPage", () => {
       await setup();
 
       await waitFor(() => {
-        expect(screen.getByText("30 / 40 tasks")).toBeInTheDocument();
-        expect(screen.getByText("18 / 40 tasks")).toBeInTheDocument();
-        expect(screen.getByText("5 / 25 tasks")).toBeInTheDocument();
-        expect(screen.getByText("50 / 50 tasks")).toBeInTheDocument();
+        // Projects may appear in both main and related sections
+        expect(screen.getAllByText("30 / 40 tasks").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("18 / 40 tasks").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("5 / 25 tasks").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("50 / 50 tasks").length).toBeGreaterThanOrEqual(1);
       });
     });
 
@@ -292,9 +337,54 @@ describe("ProjectsPage", () => {
       await setup();
 
       await waitFor(() => {
-        // Check for completed and remaining indicators  
-        expect(screen.getAllByText(/completed/i)).toHaveLength(4);
-        expect(screen.getAllByText(/remaining/i)).toHaveLength(4);
+        // Check for completed and remaining indicators
+        // Each project has these, and projects can appear in both main and related sections
+        const completedElements = screen.getAllByText(/completed/i);
+        const remainingElements = screen.getAllByText(/remaining/i);
+        
+        // We have 4 projects in main section + 2 in related section = 6 total cards
+        expect(completedElements.length).toBeGreaterThanOrEqual(4);
+        expect(remainingElements.length).toBeGreaterThanOrEqual(4);
+      });
+    });
+  });
+
+  describe("Related Projects", () => {
+    it("renders related projects section with matching cards", async () => {
+      await setup();
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { level: 2, name: "Related Projects" }),
+        ).toBeInTheDocument();
+      });
+
+      const relatedSection = screen.getByRole("heading", {
+        level: 2,
+        name: "Related Projects",
+      }).closest("section");
+
+      expect(relatedSection).not.toBeNull();
+      if (!relatedSection) {
+        throw new Error("Related projects section not found");
+      }
+
+      const relatedCards = within(relatedSection).getAllByTestId("card");
+      expect(relatedCards).toHaveLength(2);
+      expect(within(relatedSection).getAllByText("View only")).toHaveLength(2);
+      expect(within(relatedSection).getByText("Test Project 2")).toBeInTheDocument();
+      expect(within(relatedSection).getByText("Test Project 3")).toBeInTheDocument();
+    });
+
+    it("shows an empty state message when no related projects", async () => {
+      mockProjectService.getRelatedProjectTasks.mockResolvedValueOnce([]);
+
+      await setup();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("No related projects to show yet."),
+        ).toBeInTheDocument();
       });
     });
   });
@@ -325,14 +415,14 @@ describe("ProjectsPage", () => {
 
       // Wait for badges to appear
       await waitFor(() => {
-        expect(screen.getByText("75%")).toBeInTheDocument();
+        expect(screen.getAllByText("75%").length).toBeGreaterThanOrEqual(1);
       });
 
-      // Check for percentage badges
-      expect(screen.getByText("75%")).toBeInTheDocument(); // Project 1: 30/40 = 75%
-      expect(screen.getByText("45%")).toBeInTheDocument(); // Project 2: 18/40 = 45%
-      expect(screen.getByText("20%")).toBeInTheDocument(); // Project 3: 5/25 = 20%
-      expect(screen.getByText("100%")).toBeInTheDocument(); // Project 4: 50/50 = 100%
+      // Check for percentage badges - projects may appear in both main and related sections
+      expect(screen.getAllByText("75%").length).toBeGreaterThanOrEqual(1); // Project 1: 30/40 = 75%
+      expect(screen.getAllByText("45%").length).toBeGreaterThanOrEqual(1); // Project 2: 18/40 = 45%
+      expect(screen.getAllByText("20%").length).toBeGreaterThanOrEqual(1); // Project 3: 5/25 = 20%
+      expect(screen.getAllByText("100%").length).toBeGreaterThanOrEqual(1); // Project 4: 50/50 = 100%
     });
   });
 

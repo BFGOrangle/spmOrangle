@@ -46,15 +46,15 @@ public class ProjectController {
         return ResponseEntity.status(HttpStatus.CREATED).body(project);
     }
 
-    @PutMapping
-    @PreAuthorize("hasRole('MANAGER')")
-    public ResponseEntity<ProjectResponseDto> updateProject(
-            @Valid @RequestBody UpdateProjectDto updateProjectDto){
-        User user = userContextService.getRequestingUser();
-        log.info("{} is updating project", user.getId());
-        ProjectResponseDto updatedProject = projectService.updateProject(updateProjectDto, user.getId());
-        return ResponseEntity.status(HttpStatus.OK).body(updatedProject);
-    }
+//    @PutMapping
+//    @PreAuthorize("hasRole('MANAGER')")
+//    public ResponseEntity<ProjectResponseDto> updateProject(
+//            @Valid @RequestBody UpdateProjectDto updateProjectDto){
+//        User user = userContextService.getRequestingUser();
+//        log.info("{} is updating project", user.getId());
+//        ProjectResponseDto updatedProject = projectService.updateProject(updateProjectDto, user.getId());
+//        return ResponseEntity.status(HttpStatus.OK).body(updatedProject);
+//    }
 
     @PreAuthorize("hasRole('MANAGER')")
     @DeleteMapping("/{projectId}")

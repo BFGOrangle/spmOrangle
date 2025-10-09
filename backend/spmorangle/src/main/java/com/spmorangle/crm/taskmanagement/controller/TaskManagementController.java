@@ -145,6 +145,14 @@ public class TaskManagementController {
         return ResponseEntity.ok(tasks);
     }
 
+    @GetMapping("/user/related")
+    public ResponseEntity<List<TaskResponseDto>> getRelatedTasks(){
+        User user = userContextService.getRequestingUser();
+        log.info("Getting all related project tasks for user: {}", user.getId());
+        List<TaskResponseDto> tasks = taskService.getRelatedTasks(user.getId());
+        return ResponseEntity.status(HttpStatus.OK).body(tasks);
+    }
+
     /**
      * Update a task
      * @param updateTaskDto

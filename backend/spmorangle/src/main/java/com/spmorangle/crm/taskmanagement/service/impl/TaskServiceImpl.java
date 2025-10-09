@@ -1,9 +1,12 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
+import com.spmorangle.common.model.User;
+import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
 import com.spmorangle.crm.taskmanagement.dto.*;
 import com.spmorangle.crm.taskmanagement.model.Tag;
 import com.spmorangle.crm.taskmanagement.model.Task;
+import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
@@ -31,6 +34,8 @@ public class TaskServiceImpl implements TaskService {
     private final ProjectService projectService;
     private final TagService tagService;
     private final NotificationMessagePublisher notificationPublisher;
+    private final UserRepository userRepository;
+    private final TaskAssigneeRepository taskAssigneeRepository;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -182,8 +187,114 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional(readOnly = true)
     public List<TaskResponseDto> getRelatedTasks(Long userId){
-        return new ArrayList<>();
+        log.info("Getting related tasks for user: {}", userId);
+
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String department = currentUser.getDepartment();
+        if (department == null || department.isBlank()) {
+            log.warn("User {} does not have a department assigned; skipping related tasks lookup", userId);
+            return Collections.emptyList();
+        }
+
+        List<User> departmentMembers = userRepository.findByDepartmentIgnoreCase(department).stream()
+                .filter(user -> !Objects.equals(user.getId(), userId))
+                .toList();
+
+        if (departmentMembers.isEmpty()) {
+            log.info("No department members found for user {}", userId);
+            return Collections.emptyList();
+        }
+
+        Set<Long> departmentMemberIds = departmentMembers.stream()
+                .map(User::getId)
+                .collect(Collectors.toSet());
+
+        List<Task> ownedTasks = taskRepository.findByOwnerIdAndNotDeleted(userId);
+        Set<Long> excludedTaskIds = ownedTasks.stream()
+                .map(Task::getId)
+                .collect(Collectors.toCollection(HashSet::new));
+
+        List<Long> collaboratorTaskIds = collaboratorService.getTasksForWhichUserIsCollaborator(userId);
+        excludedTaskIds.addAll(collaboratorTaskIds);
+
+        Set<Long> userProjectIds = ownedTasks.stream()
+                .map(Task::getProjectId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
+
+        if (!collaboratorTaskIds.isEmpty()) {
+            taskRepository.findAllById(collaboratorTaskIds).stream()
+                    .map(Task::getProjectId)
+                    .filter(Objects::nonNull)
+                    .forEach(userProjectIds::add);
+        }
+
+        Set<Long> relatedTaskIds = new HashSet<>();
+        for (Long colleagueId : departmentMemberIds) {
+            List<Long> colleagueTaskIds = taskAssigneeRepository.findTaskIdsUserIsAssigneeFor(colleagueId);
+            for (Long taskId : colleagueTaskIds) {
+                if (!excludedTaskIds.contains(taskId)) {
+                    relatedTaskIds.add(taskId);
+                }
+            }
+        }
+
+        if (relatedTaskIds.isEmpty()) {
+            log.info("No related task ids discovered for user {}", userId);
+            return Collections.emptyList();
+        }
+
+        List<Task> relatedTasks = taskRepository.findAllById(relatedTaskIds).stream()
+                .filter(task -> !task.isDeleteInd())
+                .filter(task -> task.getProjectId() != null)
+                .filter(task -> !userProjectIds.contains(task.getProjectId()))
+                .collect(Collectors.toList());
+
+        if (relatedTasks.isEmpty()) {
+            log.info("No related tasks remained after filtering for user {}", userId);
+            return Collections.emptyList();
+        }
+
+        Set<Long> projectIds = relatedTasks.stream()
+                .map(Task::getProjectId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, Long> projectOwnerMap = projectIds.isEmpty()
+                ? Collections.emptyMap()
+                : projectService.getProjectOwners(projectIds);
+
+        relatedTasks = relatedTasks.stream()
+                .filter(task -> !Objects.equals(projectOwnerMap.get(task.getProjectId()), userId))
+                .collect(Collectors.toList());
+
+        if (relatedTasks.isEmpty()) {
+            log.info("All candidate related tasks belonged to user's own projects: {}", userId);
+            return Collections.emptyList();
+        }
+
+        relatedTasks.sort((left, right) -> {
+            OffsetDateTime leftTime = Optional.ofNullable(left.getUpdatedAt()).orElse(left.getCreatedAt());
+            OffsetDateTime rightTime = Optional.ofNullable(right.getUpdatedAt()).orElse(right.getCreatedAt());
+
+            if (leftTime == null && rightTime == null) {
+                return 0;
+            }
+            if (leftTime == null) {
+                return 1;
+            }
+            if (rightTime == null) {
+                return -1;
+            }
+            return rightTime.compareTo(leftTime);
+        });
+
+        return relatedTasks.stream()
+                .map(task -> mapToTaskResponseDto(task, false, false))
+                .collect(Collectors.toList());
     }
+
 
     @Override
     @Transactional(rollbackFor = Exception.class)

@@ -155,6 +155,13 @@ export class ProjectService {
   }
 
   /**
+   * Get tasks from projects that are related to the current user's department
+   */
+  async getRelatedProjectTasks(): Promise<TaskResponse[]> {
+    return this.authenticatedClient.get(`/api/tasks/user/related`);
+  }
+
+  /**
    * Create a new task
    */
   async createTask(taskData: CreateTaskRequest): Promise<TaskResponse> {
