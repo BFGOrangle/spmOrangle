@@ -28,11 +28,7 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         long collaboratorId = requestDto.getCollaboratorId();
         long assignedById = requestDto.getAssignedById();
 
-        log.info("🔵 [COLLABORATOR] Attempting to add collaborator - TaskId: {}, CollaboratorId: {}, AssignedById: {}", 
-                 taskId, collaboratorId, assignedById);
-
         if (taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(taskId, collaboratorId, assignedById)) {
-            log.warn("⚠️ [COLLABORATOR] Collaborator already exists - TaskId: {}, CollaboratorId: {}", taskId, collaboratorId);
             throw new CollaboratorAlreadyExistsException(taskId, collaboratorId);
         }
 
@@ -41,10 +37,7 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         taskAssignee.setUserId(collaboratorId);
         taskAssignee.setAssignedId(assignedById);
 
-        log.info("💾 [COLLABORATOR] Saving collaborator to database...");
         TaskAssignee savedAssignee = taskAssigneeRepository.save(taskAssignee);
-        log.info("✅ [COLLABORATOR] Successfully added collaborator - TaskId: {}, CollaboratorId: {}, AssignedAt: {}", 
-                 savedAssignee.getTaskId(), savedAssignee.getUserId(), savedAssignee.getAssignedAt());
 
         return AddCollaboratorResponseDto.builder()
                 .taskId(savedAssignee.getTaskId())

@@ -48,6 +48,7 @@ import { TaskCard } from "@/components/task-card";
 import { DraggableTaskCard } from "@/components/draggable-task-card";
 import { useCurrentUser } from "@/contexts/user-context";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 // Map backend status to frontend status
 const mapBackendStatus = (status: string) => {
@@ -101,6 +102,7 @@ export default function ProjectTasksPage() {
   const [selectedAssignee, setSelectedAssignee] = useState<string>("all"); // "all" or ownerId as string
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [activeTask, setActiveTask] = useState<TaskResponse | null>(null);
+  const { toast } = useToast();
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -184,6 +186,14 @@ export default function ProjectTasksPage() {
 
     if (!task) {
       console.error("Task not found during drag end:", taskId);
+      return;
+    }
+
+    const canUserEdit = task.userHasEditAccess;
+    if (!canUserEdit) {
+        toast({
+        description: "Only Task Owner or Collaborator can update task status",
+      });
       return;
     }
 
