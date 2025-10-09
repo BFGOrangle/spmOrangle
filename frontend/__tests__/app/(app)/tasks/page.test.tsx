@@ -129,7 +129,7 @@ describe("TasksPage", () => {
       taskType: 'FEATURE' as const,
       ownerId: 1,
       projectId: task.project ? 1 : undefined,
-      createdAt: task.dueDate || '2024-12-01T00:00:00Z',
+      createdAt: task.dueDateTime || '2024-12-01T00:00:00Z',
       createdBy: 1,
       updatedAt: task.lastUpdated || '2024-12-01T00:00:00Z',
       // Add collaborators field for compatibility with TaskCard component
@@ -404,7 +404,7 @@ describe("TasksPage", () => {
         taskType: 'FEATURE' as const,
         ownerId: 1,
         projectId: task.project ? 1 : undefined,
-        createdAt: task.dueDate || '2024-12-01T00:00:00Z',
+        createdAt: task.dueDateTime || '2024-12-01T00:00:00Z',
         createdBy: 1,
         updatedAt: task.lastUpdated || '2024-12-01T00:00:00Z',
         userHasEditAccess: task.userHasEditAccess,

@@ -116,10 +116,22 @@ export default function Dashboard() {
   const activeProjects = projects; // All projects are considered active for now
   const onTrackProjects = projects.length; // Simplified - all projects are on track
 
-  // Get upcoming tasks (non-completed, sorted by update date)
+  // Get upcoming tasks (non-completed, tasks with due dates first, then by creation date)
   const upcomingTasks = tasks
     .filter(task => task.status !== 'COMPLETED')
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
+    .sort((a, b) => {
+      // Tasks with dueDateTime come first
+      if (a.dueDateTime && !b.dueDateTime) return -1;
+      if (!a.dueDateTime && b.dueDateTime) return 1;
+      
+      // If both have dueDateTime, sort by due date
+      if (a.dueDateTime && b.dueDateTime) {
+        return new Date(a.dueDateTime).getTime() - new Date(b.dueDateTime).getTime();
+      }
+      
+      // If neither has dueDateTime, sort by creation date
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    })
     .slice(0, 5);
 
   // Get high priority tasks (BUG type tasks are considered high priority)

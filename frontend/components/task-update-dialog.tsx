@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
+import { Calendar, X } from "lucide-react";
 import { projectService, TaskResponse, UpdateTaskRequest } from "@/services/project-service";
 import { tagService } from "@/services/tag-service";
 import { useCurrentUser } from "@/contexts/user-context";
@@ -67,6 +67,44 @@ export function TaskUpdateDialog({
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [loadingTags, setLoadingTags] = useState(false);
   const [tagsError, setTagsError] = useState<string | null>(null);
+
+  // Due date state - convert UTC to local datetime-local format
+  const [dueDate, setDueDate] = useState<string>(() => {
+    if (task.dueDateTime) {
+      // Convert UTC datetime to local datetime-local format (YYYY-MM-DDTHH:mm)
+      const date = new Date(task.dueDateTime);
+      const year = date.getFullYear();
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+    return '';
+  });
+
+  // Reset form fields when task changes
+  useEffect(() => {
+    setTitle(task.title);
+    setDescription(task.description || '');
+    setStatus(task.status);
+    setTaskType(task.taskType);
+    setTags(task.tags || []);
+    setCollaboratorIds(task.assignedUserIds ?? []);
+    
+    // Reset due date
+    if (task.dueDateTime) {
+      const date = new Date(task.dueDateTime);
+      const year = date.getFullYear();
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      setDueDate(`${year}-${month}-${day}T${hours}:${minutes}`);
+    } else {
+      setDueDate('');
+    }
+  }, [task]);
 
   const [collaboratorIds, setCollaboratorIds] = useState<number[]>(
     task.assignedUserIds ?? [],
@@ -277,6 +315,19 @@ export function TaskUpdateDialog({
     }
   };
 
+const formatDueDateTime = (localDateTime: string): string | undefined => {
+  if (!localDateTime) return undefined;
+  
+  // JavaScript automatically handles the conversion
+  const date = new Date(localDateTime);
+  
+  // Send as ISO string - backend handles it perfectly
+  return date.toISOString();
+  // Input: "2025-10-06T14:30" (local)
+  // Output: "2025-10-06T06:30:00.000Z" (UTC)
+  // Backend receives and stores correctly ✅
+};
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -313,6 +364,25 @@ export function TaskUpdateDialog({
         updateRequest.tags = tags;
         await ensureManagedTagsExist(tags);
       }
+
+    // Check if due date has changed
+    const originalDueDate = task.dueDateTime ? (() => {
+      const date = new Date(task.dueDateTime);
+      const year = date.getFullYear();
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    })() : '';
+
+    if (dueDate !== originalDueDate) {
+      if (dueDate == '') {
+        updateRequest.dueDateTime = undefined // Clear due date
+      } else {
+        updateRequest.dueDateTime = dueDate ? formatDueDateTime(dueDate) : undefined;
+      }
+    }
 
       const updatedTask = await projectService.updateTask(updateRequest);
       onTaskUpdated(updatedTask);
@@ -506,6 +576,49 @@ export function TaskUpdateDialog({
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="dueDate">Due Date & Time</Label>
+            
+            <div className="relative">
+              <Input
+                id="dueDate"
+                type="datetime-local"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                min={new Date().toISOString().slice(0, 16)}
+                placeholder="Select due date and time (optional)"
+                className={dueDate ? 'pr-10' : ''}
+              />
+              
+              {dueDate && (
+                <button
+                  type="button"
+                  onClick={() => setDueDate('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Clear due date"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            
+            {dueDate && (
+              <div className="flex items-center gap-2 text-xs">
+                <Calendar className="h-3 w-3 text-muted-foreground" />
+                <span className="text-muted-foreground">
+                  Due: {new Date(dueDate).toLocaleString('en-SG', {
+                    dateStyle: 'medium',
+                    timeStyle: 'short'
+                  })}
+                </span>
+              </div>
+            )}
+            
+            <p className="text-xs text-muted-foreground">
+              Set a deadline for this task (optional)
+            </p>
           </div>
 
           {error && (

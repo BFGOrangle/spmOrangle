@@ -76,6 +76,16 @@ const formatDate = (value: string) =>
     day: "numeric",
   });
 
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString('en-SG', {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
 const getInitials = (value: string) =>
   value
     .split(" ")
@@ -111,7 +121,7 @@ const getTaskProperties = (task: TaskSummary | TaskResponse) => {
     priority: isTaskSummary ? (task as TaskSummary).priority : 'Medium' as TaskPriority,
     owner: isTaskSummary ? (task as TaskSummary).owner : `User ${(task as TaskResponse).ownerId}`,
     collaborators: isTaskSummary ? (task as TaskSummary).collaborators : [],
-    dueDate: isTaskSummary ? (task as TaskSummary).dueDate : (task as TaskResponse).createdAt,
+    dueDateTime: isTaskSummary ? (task as TaskSummary).dueDateTime : (task as TaskResponse).dueDateTime,
     lastUpdated: isTaskSummary ? (task as TaskSummary).lastUpdated : ((task as TaskResponse).updatedAt || (task as TaskResponse).createdAt),
     attachments: isTaskSummary ? (task as TaskSummary).attachments : 0,
     project: isTaskSummary ? (task as TaskSummary).project : ((task as TaskResponse).projectId ? `Project ${(task as TaskResponse).projectId}` : 'Personal Task'),
@@ -486,7 +496,7 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
                   </div>
                   <div>
                     <span className="font-medium">Due:</span>
-                    <span className="ml-2">{formatDate(taskProps.dueDate)}</span>
+                    <span className="ml-2">{formatDateTime(taskProps.dueDateTime ?? "No due date set")}</span>
                   </div>
                 </div>
 

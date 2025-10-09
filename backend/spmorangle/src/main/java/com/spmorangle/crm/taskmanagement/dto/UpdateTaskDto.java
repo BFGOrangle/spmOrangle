@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Getter
@@ -22,4 +23,5 @@ public class UpdateTaskDto {
     private final Status status;
     private final TaskType taskType;
     private final List<String> tags;
+    private final OffsetDateTime dueDateTime;
 }
