@@ -496,7 +496,11 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
                   </div>
                   <div>
                     <span className="font-medium">Due:</span>
-                    <span className="ml-2">{formatDateTime(taskProps.dueDateTime ?? "No due date set")}</span>
+                    <span className="ml-2">
+                      {taskProps.dueDateTime
+                        ? formatDateTime(taskProps.dueDateTime)
+                        : "No due date set"}
+                    </span>
                   </div>
                 </div>
 
