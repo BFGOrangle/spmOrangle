@@ -78,6 +78,16 @@ const formatDate = (value: string) =>
     year: "numeric",
   });
 
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString('en-SG', {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
 const getInitials = (value: string) =>
   value
     .split(" ")
@@ -189,7 +199,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
 
   useEffect(() => {
     const fetchFiles = async () => {
-      if (!task || !task.projectId) return;
+      if (!task || !Number.isInteger(task.projectId) || task.projectId === undefined) return;
 
       setIsLoadingFiles(true);
       try {
@@ -555,6 +565,15 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
                     <span>{formatDate(task.createdAt)}</span>
                   </div>
                 </div>
+                
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Due Date Time</p>
+                  <div className="flex items-center gap-2 text-sm">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                    <span>{task.dueDateTime ? formatDateTime(task.dueDateTime) : 'No due date set'}</span>
+                  </div>
+                </div>
+                
                 {task.updatedAt && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Last Updated</p>
