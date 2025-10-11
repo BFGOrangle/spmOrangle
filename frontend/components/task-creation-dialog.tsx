@@ -29,6 +29,7 @@ import { useCurrentUser } from "@/contexts/user-context";
 import { UserResponseDto } from "@/types/user";
 import { User, Crown, Loader2, X, Calendar } from "lucide-react";
 import { tagService } from "@/services/tag-service";
+import { useCreateTask } from "@/hooks/use-task-mutations";
 
 // Helper for file upload
 async function uploadFiles({ files, taskId, projectId }: { files: FileList | File[], taskId: number, projectId: number }) {
@@ -80,6 +81,7 @@ export function TaskCreationDialog({
   availableProjects = []
 }: TaskCreationDialogProps) {
   const { currentUser } = useCurrentUser();
+  const createTaskMutation = useCreateTask();
   const [formData, setFormData] = useState<Partial<CreateTaskRequest>>({
     title: '',
     description: '',
@@ -425,15 +427,11 @@ export function TaskCreationDialog({
       console.log('Creating task with data:', taskData);
       console.log('Using manager endpoint:', shouldUseManagerEndpoint);
 
-      let createdTask: TaskResponse;
-      
-      if (shouldUseManagerEndpoint) {
-        // Use the manager endpoint that allows specifying owner
-        createdTask = await projectService.createTaskWithSpecifiedOwner(taskData);
-      } else {
-        // Use the regular endpoint where the current user becomes the owner
-        createdTask = await projectService.createTask(taskData);
-      }
+      // Use the mutation hook for task creation with automatic cache invalidation
+      const createdTask = await createTaskMutation.mutateAsync({
+        taskData,
+        useManagerEndpoint: !!shouldUseManagerEndpoint
+      });
       
       console.log('Task created successfully:', createdTask);
 

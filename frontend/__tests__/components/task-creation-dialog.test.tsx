@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, mockUseCurrentUser } from '../test-utils';
 import userEvent from '@testing-library/user-event';
 import { TaskCreationDialog } from '../../components/task-creation-dialog';
 
@@ -62,19 +62,6 @@ jest.mock('../../services/tag-service', () => ({
       return Promise.resolve({ id: Date.now(), tagName });
     }),
   },
-}));
-
-// Mock the user context
-jest.mock('../../contexts/user-context', () => ({
-  useCurrentUser: jest.fn(() => ({
-    currentUser: {
-      id: '1',
-      backendStaffId: 1,
-      email: 'john@test.com',
-      fullName: 'John Manager',
-      role: 'MANAGER',
-    },
-  })),
 }));
 
 // Mock UI components that might not be available in test environment
@@ -165,7 +152,6 @@ jest.mock('lucide-react', () => ({
 
 const { projectService } = require('../../services/project-service');
 const { userManagementService } = require('../../services/user-management-service');
-const { useCurrentUser } = require('../../contexts/user-context');
 const { tagService } = require('../../services/tag-service');
 
 describe('TaskCreationDialog', () => {
@@ -268,6 +254,23 @@ describe('TaskCreationDialog', () => {
   });
 
   describe('Manager Project Selection', () => {
+    beforeEach(() => {
+      mockUseCurrentUser.mockReturnValue({
+        currentUser: {
+          id: '1',
+          backendStaffId: 1,
+          email: 'john@test.com',
+          fullName: 'John Manager',
+          role: 'MANAGER',
+        },
+        setCurrentUser: jest.fn(),
+        isLoading: false,
+        isAdmin: true,
+        isStaff: false,
+        signOut: jest.fn(),
+      });
+    });
+
     it('shows project selector for manager when projectId is not provided', async () => {
       render(
         <TaskCreationDialog 
@@ -330,6 +333,23 @@ describe('TaskCreationDialog', () => {
   });
 
   describe('Task Assignment for Managers', () => {
+    beforeEach(() => {
+      mockUseCurrentUser.mockReturnValue({
+        currentUser: {
+          id: '1',
+          backendStaffId: 1,
+          email: 'john@test.com',
+          fullName: 'John Manager',
+          role: 'MANAGER',
+        },
+        setCurrentUser: jest.fn(),
+        isLoading: false,
+        isAdmin: true,
+        isStaff: false,
+        signOut: jest.fn(),
+      });
+    });
+
     it('shows personal task assignment message', async () => {
       render(
         <TaskCreationDialog 
@@ -411,7 +431,7 @@ describe('TaskCreationDialog', () => {
 
   describe('Staff User Behavior', () => {
     beforeEach(() => {
-      useCurrentUser.mockReturnValue({
+      mockUseCurrentUser.mockReturnValue({
         currentUser: {
           id: '2',
           backendStaffId: 2,
@@ -419,6 +439,11 @@ describe('TaskCreationDialog', () => {
           fullName: 'Jane Staff',
           role: 'STAFF',
         },
+        setCurrentUser: jest.fn(),
+        isLoading: false,
+        isAdmin: false,
+        isStaff: true,
+        signOut: jest.fn(),
       });
     });
 
@@ -463,7 +488,7 @@ describe('TaskCreationDialog', () => {
 
   describe('Task Creation', () => {
     beforeEach(() => {
-      useCurrentUser.mockReturnValue({
+      mockUseCurrentUser.mockReturnValue({
         currentUser: {
           id: '1',
           backendStaffId: 1,
@@ -471,6 +496,11 @@ describe('TaskCreationDialog', () => {
           fullName: 'John Manager',
           role: 'MANAGER',
         },
+        setCurrentUser: jest.fn(),
+        isLoading: false,
+        isAdmin: true,
+        isStaff: false,
+        signOut: jest.fn(),
       });
     });
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '../test-utils';
 import userEvent from '@testing-library/user-event';
 import { TaskUpdateDialog } from '../../components/task-update-dialog';
 import type { TaskResponse } from '../../services/project-service';

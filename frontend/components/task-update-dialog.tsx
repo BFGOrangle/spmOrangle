@@ -28,6 +28,7 @@ import { useCurrentUser } from "@/contexts/user-context";
 import { TaskCollaboratorManagement } from "@/components/task-collaborator-management";
 import { userManagementService } from "@/services/user-management-service";
 import type { UserResponseDto } from "@/types/user";
+import { useUpdateTask } from "@/hooks/use-task-mutations";
 
 interface TaskUpdateDialogProps {
   task: TaskResponse;
@@ -56,6 +57,7 @@ export function TaskUpdateDialog({
   onOpenChange,
   onTaskUpdated,
 }: TaskUpdateDialogProps) {
+  const updateTaskMutation = useUpdateTask();
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || '');
   const [status, setStatus] = useState(task.status);
@@ -384,7 +386,8 @@ const formatDueDateTime = (localDateTime: string): string | undefined => {
       }
     }
 
-      const updatedTask = await projectService.updateTask(updateRequest);
+      // Use the mutation hook for task update with automatic cache invalidation
+      const updatedTask = await updateTaskMutation.mutateAsync(updateRequest);
       onTaskUpdated(updatedTask);
       onOpenChange(false);
     } catch (err) {

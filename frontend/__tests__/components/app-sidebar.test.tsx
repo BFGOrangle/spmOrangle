@@ -34,8 +34,39 @@ jest.mock("next/link", () => {
 });
 
 // Mock ThemeToggle component
-jest.mock("@/components/theme-toggle", () => ({
+jest.mock("../../components/theme-toggle", () => ({
   ThemeToggle: () => <div data-testid="theme-toggle">Theme Toggle</div>,
+}));
+
+// Mock Button component
+jest.mock("../../components/ui/button", () => ({
+  Button: ({ 
+    children, 
+    onClick, 
+    variant, 
+    size, 
+    className, 
+    title,
+    ...props 
+  }: { 
+    children: React.ReactNode; 
+    onClick?: () => void;
+    variant?: string;
+    size?: string;
+    className?: string;
+    title?: string;
+    [key: string]: unknown;
+  }) => (
+    <button 
+      data-testid="button" 
+      onClick={onClick} 
+      className={className}
+      title={title}
+      {...props}
+    >
+      {children}
+    </button>
+  ),
 }));
 
 // Mock SidebarProvider
@@ -108,6 +139,7 @@ jest.mock("lucide-react", () => ({
   LogOut: () => <div data-testid="logout-icon" />,
   RefreshCcwDot: () => <div data-testid="refresh-icon" />,
   User: () => <div data-testid="user-icon" />,
+  Calendar: () => <div data-testid="calendar-icon" />,
 }));
 
 // Helper function to render with SidebarProvider
@@ -255,7 +287,7 @@ describe("AppSidebar", () => {
     expect(
       screen.getByRole("button", { name: /sign out/i }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("link")).toHaveLength(4);
+    expect(screen.getAllByRole("link")).toHaveLength(5);
   });
 
   it("applies correct CSS classes to sign out button", () => {

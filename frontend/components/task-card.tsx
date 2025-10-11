@@ -41,6 +41,7 @@ import { TaskCollaboratorManagement } from "./task-collaborator-management";
 import { useQuery } from "@tanstack/react-query";
 import { userManagementService } from "@/services/user-management-service";
 import type { UserResponseDto } from "@/types/user";
+import { useDeleteTask } from "@/hooks/use-task-mutations";
 
 // Status and priority styles (moved from tasks page)
 const statusStyles: Record<TaskStatus, string> = {
@@ -142,6 +143,7 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted, onSubtaskUpdated, currentUserId = 1 }: TaskCardProps) {
+  const deleteTaskMutation = useDeleteTask();
   const taskProps = getTaskProperties(task);
   const [showDetails, setShowDetails] = useState(false);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
@@ -284,7 +286,8 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
 
   const handleDeleteConfirm = async () => {
     try {
-      await projectService.deleteTask(Number(taskProps.id));
+      // Use the mutation hook for task deletion with automatic cache invalidation
+      await deleteTaskMutation.mutateAsync(Number(taskProps.id));
       toast({
         title: "Task deleted",
         description: "The task has been successfully deleted.",
@@ -625,6 +628,7 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
 
 // Table variant component (simplified version of the existing TaskTableRow)
 function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSummary | TaskResponse; onTaskUpdated?: (updatedTask: TaskResponse) => void; onTaskDeleted?: (taskId: number) => void; }) {
+  const deleteTaskMutation = useDeleteTask();
   const router = useRouter();
   const { toast } = useToast();
   const taskProps = getTaskProperties(task);
@@ -715,7 +719,8 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
 
   const handleDeleteConfirm = async () => {
     try {
-      await projectService.deleteTask(Number(taskProps.id));
+      // Use the mutation hook for task deletion with automatic cache invalidation
+      await deleteTaskMutation.mutateAsync(Number(taskProps.id));
       toast({
         title: "Task deleted",
         description: "The task has been successfully deleted.",
