@@ -31,7 +31,7 @@ INSERT INTO syncup.notifications (
 -- Project invite
 (4, 11, 'PROJECT_INVITE', 'Project Collaboration Invite',
  'User 4 invited you to join the project "New Analytics Dashboard".', false, false, 'HIGH',
- '/tasks/1', '{"project_id":88,"invited_by":4}'),
+ '/tasks/1', '{"project_id":88,"invited_by":4}');
 
 -- Now seed notification channels for each notification
 -- (using currval to capture the last inserted ID)
