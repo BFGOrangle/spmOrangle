@@ -10,7 +10,7 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 import java.util.Properties;
 
 @Configuration
-@ConfigurationProperties
+@ConfigurationProperties()
 public class EmailConfig {
     @Value("${spring.mail.host}")
     private String mailHost;
