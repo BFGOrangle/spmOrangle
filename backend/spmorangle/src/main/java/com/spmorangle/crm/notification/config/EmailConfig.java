@@ -22,19 +22,19 @@ public class EmailConfig {
     @Value("${spring.mail.password}")
     private String mailPassword;
 
-    @Value("${spring.mail.properties.mail.smtp.auth}")
+    @Value("${spring.mail.properties.mail.smtp.auth:false}")
     private String auth;
 
     @Value("${spring.mail.properties.mail.smtp.ssl.enable:false}")
     private String sslEnable;
 
-    @Value("${spring.mail.properties.mail.smtp.starttls.enable}")
+    @Value("${spring.mail.properties.mail.smtp.starttls.enable:false}")
     private String enable;
 
-    @Value("${spring.mail.properties.mail.smtp.starttls.required}")
+    @Value("${spring.mail.properties.mail.smtp.starttls.required:false}")
     private String required;
 
-    @Value("${spring.mail.properties.mail.smtp.debug}")
+    @Value("${spring.mail.properties.mail.smtp.debug:false}")
     private String debug;
 
     @Bean
