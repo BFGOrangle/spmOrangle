@@ -26,4 +26,5 @@ public class CreateTaskResponseDto {
     private final Long createdBy;
     private final OffsetDateTime createdAt;
     private final List<Long> assignedUserIds;
+    private final OffsetDateTime dueDateTime;
 }

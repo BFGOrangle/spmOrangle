@@ -61,6 +61,7 @@ public class TaskServiceImpl implements TaskService {
         
         task.setCreatedBy(taskOwnerId);
         task.setCreatedAt(OffsetDateTime.now());
+        task.setDueDateTime(createTaskDto.getDueDateTime());
         
         Task savedTask = taskRepository.save(task);
         log.info("✅ Task created with ID: {}", savedTask.getId());
@@ -125,6 +126,7 @@ public class TaskServiceImpl implements TaskService {
                 .userHasDeleteAccess(canUserDeleteTask(savedTask.getId(), currentUserId))
                 .createdBy(savedTask.getCreatedBy())
                 .createdAt(savedTask.getCreatedAt())
+                .dueDateTime(savedTask.getDueDateTime())
                 .build();
     }
 
@@ -139,7 +141,7 @@ public class TaskServiceImpl implements TaskService {
                 .map((task) -> {
                     boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
                     boolean userHasDeleteAccess = userId.equals(projectOwnerId);
-                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess);
+                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, userId);
                 })
                 .toList();
     }
@@ -150,7 +152,7 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting personal tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
         return tasks.stream()
-                .map(task -> mapToTaskResponseDto(task, true, true))
+                .map(task -> mapToTaskResponseDto(task, true, true, userId))
                 .collect(Collectors.toList());
     }
 
@@ -169,9 +171,8 @@ public class TaskServiceImpl implements TaskService {
         
         return tasks.stream()
                 .map(task -> {
-                    boolean userHasDeleteAccess = task.getProjectId() != null 
-                        && userId.equals(projectOwnerMap.get(task.getProjectId()));
-                    return mapToTaskResponseDto(task, true, userHasDeleteAccess);
+                    boolean userHasDeleteAccess = task.getProjectId() == null || userId.equals(projectOwnerMap.get(task.getProjectId()));
+                    return mapToTaskResponseDto(task, true, userHasDeleteAccess, userId);
                 })
                 .collect(Collectors.toList());
     }
@@ -211,6 +212,7 @@ public class TaskServiceImpl implements TaskService {
             task.getTags().addAll(tagService.findOrCreateTags(updateTaskDto.getTags()));
         }
 
+        task.setDueDateTime(updateTaskDto.getDueDateTime());
         task.setUpdatedBy(currentUserId);
         task.setUpdatedAt(OffsetDateTime.now());
 
@@ -233,6 +235,7 @@ public class TaskServiceImpl implements TaskService {
                 .userHasDeleteAccess(canUserDeleteTask(updatedTask.getId(), currentUserId))
                 .updatedAt(updatedTask.getUpdatedAt())
                 .updatedBy(updatedTask.getUpdatedBy())
+                .dueDateTime(updatedTask.getDueDateTime())
                 .build();
     }
 
@@ -285,9 +288,9 @@ public class TaskServiceImpl implements TaskService {
 
 
 
-    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess, boolean userHasDeleteAccess) {
-        // Load subtasks for this task
-        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId());
+    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess, boolean userHasDeleteAccess, Long currentUserId) {
+        // Load subtasks for this task with permission information
+        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId(), currentUserId);
         
         return TaskResponseDto.builder()
                 .id(task.getId())
@@ -306,7 +309,9 @@ public class TaskServiceImpl implements TaskService {
                 .updatedAt(task.getUpdatedAt())
                 .createdBy(task.getCreatedBy())
                 .updatedBy(task.getUpdatedBy())
+                .dueDateTime(task.getDueDateTime())
                 .subtasks(subtasks)
                 .build();
     }
+
 }

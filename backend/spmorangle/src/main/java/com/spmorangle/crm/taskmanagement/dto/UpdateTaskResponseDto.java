@@ -25,4 +25,5 @@ public class UpdateTaskResponseDto {
     private final boolean userHasDeleteAccess;
     private final OffsetDateTime updatedAt;
     private final Long updatedBy;
+    private final OffsetDateTime dueDateTime;
 }

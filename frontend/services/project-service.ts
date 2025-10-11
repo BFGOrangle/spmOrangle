@@ -25,6 +25,8 @@ export interface SubtaskResponse {
   title: string;
   details?: string;
   status: 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
+  userHasEditAccess: boolean;
+  userHasDeleteAccess: boolean;
   createdAt: string;
   updatedAt?: string;
   createdBy: number;
@@ -48,6 +50,7 @@ export interface TaskResponse {
   createdBy: number;
   updatedBy?: number;
   subtasks?: SubtaskResponse[];
+  dueDateTime?: string;
 }
 
 export interface CreateTaskRequest {
@@ -59,6 +62,7 @@ export interface CreateTaskRequest {
   taskType: 'BUG' | 'FEATURE' | 'CHORE' | 'RESEARCH';
   tags?: string[];
   assignedUserIds?: number[];
+  dueDateTime?: string;
 }
 
 export interface CreateSubtaskRequest {
@@ -84,6 +88,7 @@ export interface UpdateTaskRequest {
   status?: 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
   taskType?: 'BUG' | 'FEATURE' | 'CHORE' | 'RESEARCH';
   tags?: string[];
+  dueDateTime?: string;
 }
 
 export interface CreateFileUpload{
