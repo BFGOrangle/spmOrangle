@@ -1,7 +1,6 @@
 package com.spmorangle.crm.notification.config;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -10,7 +9,6 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 import java.util.Properties;
 
 @Configuration
-@ConfigurationProperties()
 public class EmailConfig {
     @Value("${spring.mail.host}")
     private String mailHost;
@@ -24,13 +22,19 @@ public class EmailConfig {
     @Value("${spring.mail.password}")
     private String mailPassword;
 
-    @Value("${spring.mail.properties.mail.smtp.auth")
+    @Value("${spring.mail.properties.mail.smtp.auth}")
     private String auth;
 
-    @Value("${spring.mail.properties.mail.smtp.starttls.enable")
-    private String starttls;
+    @Value("${spring.mail.properties.mail.smtp.ssl.enable:false}")
+    private String sslEnable;
 
-    @Value("${spring.mail.properties.mail.smtp.debug")
+    @Value("${spring.mail.properties.mail.smtp.starttls.enable}")
+    private String enable;
+
+    @Value("${spring.mail.properties.mail.smtp.starttls.required}")
+    private String required;
+
+    @Value("${spring.mail.properties.mail.smtp.debug}")
     private String debug;
 
     @Bean
@@ -48,7 +52,9 @@ public class EmailConfig {
         Properties props = mailSender.getJavaMailProperties();
         props.put("mail.transport.protocol", "smtp");
         props.put("mail.smtp.auth", auth);
-        props.put("mail.smtp.starttls.enable", starttls);
+        props.put("mail.smtp.starttls.enable", enable);
+        props.put("mail.smtp.starttls.required", required);
+        props.put("mail.smtp.ssl.enable", sslEnable);
         props.put("mail.debug", debug);
 
         return mailSender;
