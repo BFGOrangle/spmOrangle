@@ -1,11 +1,17 @@
-import { render, screen } from "../test-utils";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppSidebar } from "../../components/app-sidebar";
 import { handleSignOut } from "@/lib/cognito-actions";
+import { render } from "../test-utils";
 
 // Mock the cognito-actions module
 jest.mock("@/lib/cognito-actions", () => ({
   handleSignOut: jest.fn(),
+}));
+
+// Mock NotificationBell component
+jest.mock("@/components/notification-bell", () => ({
+  NotificationBell: () => <div data-testid="notification-bell">Notification Bell</div>,
 }));
 
 // Mock Next.js Link

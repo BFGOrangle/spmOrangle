@@ -55,6 +55,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/test/**").permitAll() // Test endpoints
                         .requestMatchers("/api/vendor-applications").permitAll()
                         .requestMatchers("/swagger", "/swagger-ui/**", "/api-docs/**").permitAll() // Swagger UI
+                        .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth -> oauth

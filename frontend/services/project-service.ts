@@ -167,6 +167,13 @@ export class ProjectService {
   }
 
   /**
+   * Get a specific task by ID
+   */
+  async getTaskById(taskId: number): Promise<TaskResponse> {
+    return this.authenticatedClient.get(`/api/tasks/${taskId}`);
+  }
+
+  /**
    * Create a new task
    */
   async createTask(taskData: CreateTaskRequest): Promise<TaskResponse> {

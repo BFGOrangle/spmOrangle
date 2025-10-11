@@ -25,6 +25,7 @@ import Link from "next/link";
 import { Button } from "./ui/button";
 import { handleSignOut } from "@/lib/cognito-actions";
 import { ThemeToggle } from "./theme-toggle";
+import { NotificationBell } from "./notification-bell";
 
 // Menu items.
 const items = [
@@ -63,7 +64,10 @@ export function AppSidebar() {
           <RefreshCcwDot className="h-6 w-6 text-blue-600 shrink-0" />
           <div className="flex justify-between items-center w-full">
             <p className="font-semibold text-lg">SyncUp</p>
-            <ThemeToggle />
+            <div className="flex items-center gap-1">
+              <NotificationBell />
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </SidebarHeader>
