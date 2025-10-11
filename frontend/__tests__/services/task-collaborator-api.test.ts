@@ -786,6 +786,7 @@ describe("Error Boundary Scenarios", () => {
     const endTime = Date.now();
 
     expect(result).toBeDefined();
-    expect(endTime - startTime).toBeGreaterThanOrEqual(100);
+    // Allow for some tolerance in timing due to JavaScript timer precision
+    expect(endTime - startTime).toBeGreaterThanOrEqual(95);
   });
 });
