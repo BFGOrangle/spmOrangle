@@ -43,10 +43,30 @@ const config: Config = {
     "!jest.config.ts",
     "!jest.setup.ts",
     "!**/__tests__/test-utils.tsx",
+    "!**/__tests__/utils/**",
+    "!**/__tests__/mocks/**",
     "!**/components/ui/**",
+    // Next.js configuration and build files
     "!**/app/layout.tsx",
     "!**/app/page.tsx",
     "!next.config.ts",
+    "!next-env.d.ts",
+    "!eslint.config.mjs",
+    "!postcss.config.mjs",
+    // Next.js layout files (minimal wrapper files)
+    "!**/app/(app)/layout.tsx",
+    "!**/app/(app)/auth/layout.tsx",
+    // Next.js page wrappers (only import and export components)
+    "!**/app/(app)/auth/forgot-password/page.tsx",
+    "!**/app/(app)/auth/reset-password/page.tsx",
+    "!**/app/(app)/auth/signin/page.tsx",
+    "!**/app/(app)/auth/signup/page.tsx",
+    // Type definitions (no runtime logic)
+    "!**/types/**",
+    // Configuration files
+    "!**/lib/amplify-cognito-config.ts",
+    // Utility scripts
+    "!**/scripts/**",
   ],
 };
 

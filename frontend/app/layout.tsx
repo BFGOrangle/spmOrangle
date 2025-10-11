@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/lib/theme-context";
 import { UserProvider } from "@/contexts/user-context";
 import ConfigureAmplifyClientSide from "@/lib/amplify-cognito-config";
 import { Toaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,6 +39,7 @@ export default function RootLayout({
             <QueryProvider>{children}</QueryProvider>
           </UserProvider>
           <Toaster />
+          <SonnerToaster position="top-right" richColors />
         </ThemeProvider>
       </body>
     </html>

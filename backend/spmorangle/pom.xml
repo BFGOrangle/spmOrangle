@@ -194,6 +194,21 @@
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
 				<version>0.8.12</version>
+				<configuration>
+					<excludes>
+						<exclude>**/BackendApplication.class</exclude>
+						<exclude>**/*Config.class</exclude>
+						<exclude>**/*Configuration.class</exclude>
+						<exclude>**/*Constants.class</exclude>
+						<exclude>**/mapper/**/*Impl.class</exclude>
+						<exclude>**/Q*.class</exclude>
+						<exclude>**/dto/**/*.class</exclude>
+						<exclude>**/model/**/*.class</exclude>
+						<exclude>**/enums/**/*.class</exclude>
+						<exclude>**/events/**/*.class</exclude>
+						<exclude>**/generated/**/*.class</exclude>
+					</excludes>
+				</configuration>
 				<executions>
 					<execution>
 						<id>prepare-agent</id>

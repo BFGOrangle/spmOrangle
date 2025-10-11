@@ -51,12 +51,7 @@ public class TaskManagementController {
     public ResponseEntity<CreateTaskResponseDto> createTask(
             @Valid @RequestBody CreateTaskDto createTaskDto) {
         User user = userContextService.getRequestingUser();
-        log.info("🔵 [CONTROLLER] Creating task for user: {}", user.getId());
-        log.info("📋 [CONTROLLER] Received CreateTaskDto - Title: '{}', ProjectId: {}, AssignedUserIds: {}", 
-                 createTaskDto.getTitle(), createTaskDto.getProjectId(), createTaskDto.getAssignedUserIds());
         CreateTaskResponseDto response = taskService.createTask(createTaskDto, user.getId());
-        log.info("✅ [CONTROLLER] Task created successfully with ID: {}, Assigned to: {}", 
-                 response.getId(), response.getAssignedUserIds());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -119,6 +114,14 @@ public class TaskManagementController {
         log.info("Getting tasks for project: {}", projectId);
         List<TaskResponseDto> tasks = taskService.getProjectTasks(user.getId(), projectId);
         return ResponseEntity.ok(tasks);
+    }
+
+    @GetMapping("/{taskId}")
+    public ResponseEntity<TaskResponseDto> getTaskById(@PathVariable Long taskId) {
+        User user = userContextService.getRequestingUser();
+        log.info("Getting task by ID: {}", taskId);
+        TaskResponseDto task = taskService.getTaskById(taskId, user.getId());
+        return ResponseEntity.ok(task);
     }
 
     /**
