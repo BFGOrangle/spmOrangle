@@ -173,10 +173,10 @@ public class CommentNotificationMessageDto {
 
     public String generateNotificationLink() {
         if (taskId != null) {
-            return "/tasks/" + taskId + "/comments/" + commentId;
+            return "/tasks/" + taskId;
         } else if (subtaskId != null) {
-            return "/subtasks/" + subtaskId + "/comments/" + commentId;
+            return "/subtasks/" + subtaskId;
         }
-        return "/comments/" + commentId;
+        return "/";
     }
 }
