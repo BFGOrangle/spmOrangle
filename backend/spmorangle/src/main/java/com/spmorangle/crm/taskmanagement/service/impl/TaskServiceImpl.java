@@ -151,6 +151,7 @@ public class TaskServiceImpl implements TaskService {
     public List<TaskResponseDto> getPersonalTasks(Long userId) {
         log.info("Getting personal tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
+        log.info("Found {} personal tasks for user: {}", tasks.size(), userId);
         return tasks.stream()
                 .map(task -> mapToTaskResponseDto(task, true, true, userId))
                 .collect(Collectors.toList());

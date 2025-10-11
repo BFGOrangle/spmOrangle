@@ -149,7 +149,14 @@ export class ProjectService {
    * Get personal tasks (not associated with any project)
    */
   async getPersonalTasks(userId: number): Promise<TaskResponse[]> {
-    return this.authenticatedClient.get(`/api/tasks/personal`);
+    console.log('=== PROJECT SERVICE: getPersonalTasks ===');
+    console.log('Calling API endpoint: /api/tasks/personal');
+    console.log('userId parameter (not used in API):', userId);
+    const result: TaskResponse[] = await this.authenticatedClient.get(`/api/tasks/personal`);
+    console.log('API response:', result);
+    console.log('Number of tasks returned:', Array.isArray(result) ? result.length : 0);
+    console.log('=== END PROJECT SERVICE: getPersonalTasks ===');
+    return result;
   }
 
   /**

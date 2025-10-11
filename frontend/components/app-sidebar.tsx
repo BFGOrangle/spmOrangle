@@ -6,6 +6,7 @@ import {
   LogOut,
   RefreshCcwDot,
   User,
+  Calendar,
 } from "lucide-react";
 
 import {
@@ -31,6 +32,11 @@ const items = [
     title: "My Analytics",
     url: "/dashboard",
     icon: Layout,
+  },
+  {
+    title: "My Calendar",
+    url: "/calendar",
+    icon: Calendar,
   },
   {
     title: "Projects",
