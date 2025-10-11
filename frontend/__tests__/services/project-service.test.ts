@@ -420,6 +420,40 @@ describe("ProjectService", () => {
     });
   });
 
+  describe("getTaskById", () => {
+    it("successfully retrieves a task by ID", async () => {
+      const mockTask = {
+        id: 1,
+        title: 'Test Task',
+        description: 'Test Description',
+        projectId: 1,
+        ownerId: 1,
+        taskType: 'FEATURE' as const,
+        status: 'TODO' as const,
+        userHasEditAccess: true,
+        userHasDeleteAccess: false,
+        createdAt: '2023-01-01T00:00:00Z',
+        createdBy: 1,
+        subtasks: [],
+        assignedUserIds: [1, 2],
+      };
+
+      mockAuthenticatedClient.get.mockResolvedValueOnce(mockTask);
+
+      const result = await service.getTaskById(1);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/tasks/1');
+      expect(result).toEqual(mockTask);
+    });
+
+    it("handles task retrieval errors", async () => {
+      const error = new Error('Task not found');
+      mockAuthenticatedClient.get.mockRejectedValueOnce(error);
+
+      await expect(service.getTaskById(999)).rejects.toThrow('Task not found');
+    });
+  });
+
   describe("Singleton instance", () => {
     it("exports a singleton instance", () => {
       expect(projectService).toBeInstanceOf(ProjectService);
@@ -432,6 +466,7 @@ describe("ProjectService", () => {
       expect(typeof projectService.getUserProjects).toBe("function");
       expect(typeof projectService.getPersonalTasks).toBe("function");
       expect(typeof projectService.getAllUserTasks).toBe("function");
+      expect(typeof projectService.getTaskById).toBe("function");
     });
   });
 

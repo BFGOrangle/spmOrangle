@@ -145,6 +145,19 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional(readOnly = true)
+    public TaskResponseDto getTaskById(Long taskId, Long currentUserId) {
+        log.info("Getting task by ID: {}", taskId);
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+
+        boolean userHasEditAccess = canUserUpdateTask(taskId, currentUserId);
+        boolean userHasDeleteAccess = canUserDeleteTask(taskId, currentUserId);
+
+        return mapToTaskResponseDto(task, userHasEditAccess, userHasDeleteAccess, currentUserId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<TaskResponseDto> getPersonalTasks(Long userId) {
         log.info("Getting personal tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);

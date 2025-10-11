@@ -8,24 +8,14 @@ import com.spmorangle.common.enums.NotificationType;
 import com.spmorangle.crm.notification.enums.Channel;
 import com.spmorangle.crm.notification.enums.Priority;
 
-import jakarta.persistence.CollectionTable;
-import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "notifications")
+@Table(name = "notifications", schema = "syncup")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -47,14 +37,14 @@ public class Notification {
     @Column(name = "notification_type", nullable = false, length = 50)
     private NotificationType notificationType;
 
-    @Column(name = "subject", nullable = false, length = 255)
+    @Column(name = "subject", nullable = false)
     private String subject;
 
     @Column(name = "message", nullable = false, columnDefinition = "TEXT")
     private String message;
 
-    @ElementCollection(targetClass = Channel.class)
-    @CollectionTable(name = "notification_channels", 
+    @ElementCollection(targetClass = Channel.class, fetch = FetchType.EAGER)
+    @CollectionTable(name = "notification_channels", schema = "syncup",
                     joinColumns = @JoinColumn(name = "notification_id"))
     @Enumerated(EnumType.STRING)
     @Column(name = "channel")
