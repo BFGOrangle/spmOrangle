@@ -87,20 +87,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       // Get backend staff profile to get the actual staff ID
       let backendStaffId: number | undefined;
-      // TODO: integrate with user service
-      // try {
-      //   const { staffApiService } = await import("@/services/staff-api");
-      //   const staffProfile = await staffApiService.getCurrentUserProfile();
+      try {
+        const { userManagementService } = await import("@/services/user-management-service");
+        const staffProfile = await userManagementService.getUserByCognitoSub(cognitoSubId);
 
-      //   if (staffProfile) {
-      //     backendStaffId = staffProfile.id;
-      //     console.log("Backend staff ID from API:", backendStaffId);
-      //   } else {
-      //     console.warn("No backend staff profile found for current user");
-      //   }
-      // } catch (error) {
-      //   console.error("Error fetching backend staff profile:", error);
-      // }
+        if (staffProfile) {
+          backendStaffId = staffProfile.id;
+          console.log("Backend staff ID from API:", backendStaffId);
+        } else {
+          console.warn("No backend staff profile found for current user");
+        }
+      } catch (error) {
+        console.error("Error fetching backend staff profile:", error);
+      }
 
       // Map to your existing CurrentUser format
       const user: CurrentUser = {

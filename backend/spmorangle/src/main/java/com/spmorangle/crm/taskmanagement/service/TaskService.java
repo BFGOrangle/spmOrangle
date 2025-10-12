@@ -7,6 +7,7 @@ import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateTaskResponseDto;
+import com.spmorangle.crm.taskmanagement.model.Task;
 
 public interface TaskService {
 
@@ -21,6 +22,8 @@ public interface TaskService {
     CreateTaskResponseDto createTask(CreateTaskDto createTaskDto, Long taskOwnerId, Long currentUserId);
 
     List<TaskResponseDto> getProjectTasks(Long userId, Long projectId);
+
+    TaskResponseDto getTaskById(Long taskId, Long currentUserId);
     
     List<TaskResponseDto> getPersonalTasks(Long userId);
     

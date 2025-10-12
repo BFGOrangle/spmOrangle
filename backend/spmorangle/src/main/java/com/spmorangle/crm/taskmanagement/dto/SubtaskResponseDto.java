@@ -20,6 +20,8 @@ public class SubtaskResponseDto {
     private final String title;
     private final String details;
     private final Status status;
+    private final boolean userHasEditAccess;
+    private final boolean userHasDeleteAccess;
     private final OffsetDateTime createdAt;
     private final OffsetDateTime updatedAt;
     private final Long createdBy;

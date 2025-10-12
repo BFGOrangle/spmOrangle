@@ -35,4 +35,5 @@ public class CreateTaskDto {
 
     private final List<Long> assignedUserIds;
 
+    private final OffsetDateTime dueDateTime;
 }

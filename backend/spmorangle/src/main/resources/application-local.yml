@@ -36,6 +36,10 @@ spring:
           auth: true
           starttls:
             enable: true
+            required: true
+          ssl:
+            enable: false
+          debug: true
     from: ${MAIL_FROM:noreply@spmorangle.com}
 
 aws:

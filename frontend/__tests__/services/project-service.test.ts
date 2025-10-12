@@ -466,6 +466,7 @@ describe("ProjectService", () => {
       expect(typeof projectService.getUserProjects).toBe("function");
       expect(typeof projectService.getPersonalTasks).toBe("function");
       expect(typeof projectService.getAllUserTasks).toBe("function");
+      expect(typeof projectService.getTaskById).toBe("function");
     });
   });
 

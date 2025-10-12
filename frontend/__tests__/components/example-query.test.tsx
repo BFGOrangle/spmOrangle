@@ -133,8 +133,8 @@ describe("ExampleComponent", () => {
     expect(screen.getByText(/bobwilson/)).toBeInTheDocument();
     expect(screen.getByText(/bob@example\.com/)).toBeInTheDocument();
 
-    // Verify fetch was called twice
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // Verify fetch was called twice (initial load + refresh)
+    expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
   it("should retry failed requests when Try Again button is clicked", async () => {

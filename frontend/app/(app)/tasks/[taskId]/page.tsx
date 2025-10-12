@@ -6,13 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
 import {
   CalendarDays,
   ArrowLeft,
   Edit,
-  Trash2,
-  Users as UsersIcon,
+  Trash2
 } from "lucide-react";
 import { projectService, TaskResponse, SubtaskResponse } from "@/services/project-service";
 import { SubtaskList } from "@/components/subtask-list";
@@ -76,6 +74,16 @@ const formatDate = (value: string) =>
     month: "short",
     day: "numeric",
     year: "numeric",
+  });
+
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString('en-SG', {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
   });
 
 const getInitials = (value: string) =>
@@ -162,11 +170,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
 
       try {
         setLoading(true);
-        const userId = currentUser.backendStaffId || 1;
 
-        // Fetch all user tasks and find the one we need
-        const allTasks = await projectService.getAllUserTasks(userId);
-        const foundTask = allTasks.find(t => t.id === taskId);
+        // Use the new getTaskById endpoint instead of fetching all tasks
+        const foundTask = await projectService.getTaskById(taskId);
 
         if (!foundTask) {
           setError("Task not found");
@@ -189,7 +195,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
 
   useEffect(() => {
     const fetchFiles = async () => {
-      if (!task || !task.projectId) return;
+      if (!task || !Number.isInteger(task.projectId) || task.projectId === undefined) return;
 
       setIsLoadingFiles(true);
       try {
@@ -555,6 +561,15 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
                     <span>{formatDate(task.createdAt)}</span>
                   </div>
                 </div>
+                
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Due Date Time</p>
+                  <div className="flex items-center gap-2 text-sm">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                    <span>{task.dueDateTime ? formatDateTime(task.dueDateTime) : 'No due date set'}</span>
+                  </div>
+                </div>
+                
                 {task.updatedAt && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Last Updated</p>

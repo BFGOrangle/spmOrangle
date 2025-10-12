@@ -78,7 +78,9 @@ beforeAll(() => {
     if (
       typeof args[0] === 'string' &&
       args[0].includes('Warning: An update to') &&
-      args[0].includes('was not wrapped in act')
+      args[0].includes('was not wrapped in act') &&
+      args[0].includes('when testing, code that causes React state updates should be wrapped into act(...)') &&
+      args[0].includes('API Error 0: Network Error')
     ) {
       return;
     }
@@ -94,4 +96,14 @@ jest.mock('aws-amplify/auth', () => ({
   fetchAuthSession: jest.fn().mockResolvedValue({
     tokens: { accessToken: 'mocked-access-token' }
   }),
+  getCurrentUser: jest.fn().mockResolvedValue({
+    userId: 'mock-user-id',
+    username: 'mock-username'
+  }),
+  fetchUserAttributes: jest.fn().mockResolvedValue({
+    email: 'test@example.com',
+    given_name: 'Test',
+    family_name: 'User'
+  }),
+  signOut: jest.fn().mockResolvedValue(undefined),
 }));
