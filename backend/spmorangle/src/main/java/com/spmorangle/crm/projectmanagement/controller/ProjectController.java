@@ -1,6 +1,8 @@
 package com.spmorangle.crm.projectmanagement.controller;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
 import org.springframework.http.HttpStatus;
@@ -33,6 +35,16 @@ public class ProjectController {
         User user = userContextService.getRequestingUser();
         log.info("Getting projects for user: {}", user.getId());
         List<ProjectResponseDto> projects = projectService.getUserProjects(user.getId());
+        return ResponseEntity.ok(projects);
+    }
+
+    @GetMapping("/lookup")
+    public ResponseEntity<List<ProjectResponseDto>> getProjectsByIds(@RequestParam("ids") List<Long> projectIds) {
+        if (projectIds == null || projectIds.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        Set<Long> uniqueIds = new HashSet<>(projectIds);
+        List<ProjectResponseDto> projects = projectService.getProjectsByIds(uniqueIds);
         return ResponseEntity.ok(projects);
     }
 

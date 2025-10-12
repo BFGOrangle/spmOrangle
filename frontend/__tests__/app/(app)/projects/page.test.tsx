@@ -1,7 +1,9 @@
 import { render, screen, waitFor, act, within } from "../../../test-utils";
 import userEvent from "@testing-library/user-event";
 import ProjectsPage from "../../../../app/(app)/projects/page";
-import { projectService } from "@/services/project-service";
+import { projectService, type ProjectResponse, type TaskResponse } from "@/services/project-service";
+
+type _ProjectResponseTypeCheck = ProjectResponse;
 
 // Mock AWS Amplify Auth functions
 jest.mock("aws-amplify/auth", () => ({
@@ -23,6 +25,7 @@ jest.mock("@/services/project-service", () => ({
   projectService: {
     getUserProjects: jest.fn(),
     getRelatedProjectTasks: jest.fn(),
+    getProjectsByIds: jest.fn(),
   },
 }));
 
@@ -198,15 +201,15 @@ const mockProjectsData = [
   },
 ];
 
-const mockRelatedTasksData = [
+const mockRelatedTasksData: TaskResponse[] = [
   {
     id: 101,
     projectId: 2,
     ownerId: 20,
-    taskType: "FEATURE",
+    taskType: "FEATURE" as const,
     title: "Related Task 1",
     description: "",
-    status: "IN_PROGRESS",
+    status: "IN_PROGRESS" as const,
     tags: [],
     assignedUserIds: [],
     userHasEditAccess: false,
@@ -214,17 +217,17 @@ const mockRelatedTasksData = [
     createdAt: "2025-01-20T00:00:00.000Z",
     updatedAt: "2025-01-21T00:00:00.000Z",
     createdBy: 20,
-    updatedBy: null,
+    updatedBy: undefined,
     subtasks: [],
   },
   {
     id: 102,
     projectId: 3,
     ownerId: 30,
-    taskType: "CHORE",
+    taskType: "CHORE" as const,
     title: "Related Task 2",
     description: "",
-    status: "COMPLETED",
+    status: "COMPLETED" as const,
     tags: [],
     assignedUserIds: [],
     userHasEditAccess: false,
@@ -232,7 +235,7 @@ const mockRelatedTasksData = [
     createdAt: "2025-02-10T00:00:00.000Z",
     updatedAt: "2025-02-11T00:00:00.000Z",
     createdBy: 30,
-    updatedBy: null,
+    updatedBy: undefined,
     subtasks: [],
   },
 ];
@@ -244,10 +247,12 @@ describe("ProjectsPage", () => {
     // Reset all mocks before each test
     mockProjectService.getUserProjects.mockClear();
     mockProjectService.getRelatedProjectTasks.mockClear();
+    mockProjectService.getProjectsByIds.mockClear();
     
     // Default mock implementation that returns test project data
     mockProjectService.getUserProjects.mockResolvedValue(mockProjectsData);
     mockProjectService.getRelatedProjectTasks.mockResolvedValue(mockRelatedTasksData);
+    mockProjectService.getProjectsByIds.mockResolvedValue([]);
   });
 
   const setup = async () => {
@@ -386,6 +391,61 @@ describe("ProjectsPage", () => {
           screen.getByText("No related projects to show yet."),
         ).toBeInTheDocument();
       });
+    });
+
+    it("fetches metadata for related projects the user cannot access", async () => {
+      mockProjectService.getRelatedProjectTasks.mockResolvedValueOnce([
+        ...mockRelatedTasksData,
+        {
+          id: 103,
+          projectId: 99,
+          ownerId: 999,
+          taskType: "FEATURE" as const,
+          title: "External Task",
+          description: "",
+          status: "TODO" as const,
+          tags: [],
+          assignedUserIds: [],
+          userHasEditAccess: false,
+          userHasDeleteAccess: false,
+          createdAt: "2025-03-20T00:00:00.000Z",
+          updatedAt: "2025-03-21T00:00:00.000Z",
+          createdBy: 999,
+          updatedBy: undefined,
+          subtasks: [],
+        },
+      ]);
+
+      mockProjectService.getProjectsByIds.mockResolvedValueOnce([
+        {
+          id: 99,
+          name: "External Project",
+          description: "View only project",
+          ownerId: 50,
+          taskCount: 10,
+          completedTaskCount: 5,
+          createdAt: "2025-01-01T00:00:00.000Z",
+          updatedAt: "2025-01-05T00:00:00.000Z",
+        },
+      ] as any);
+
+      await setup();
+
+      await waitFor(() => {
+        expect(mockProjectService.getProjectsByIds).toHaveBeenCalledWith([99]);
+      });
+
+      const relatedSection = screen.getByRole("heading", {
+        level: 2,
+        name: "Related Projects",
+      }).closest("section");
+
+      expect(relatedSection).not.toBeNull();
+      if (!relatedSection) {
+        throw new Error("Related projects section not found");
+      }
+
+      expect(within(relatedSection).getByText("External Project")).toBeInTheDocument();
     });
   });
 

@@ -115,6 +115,7 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
   const [relatedTasks, setRelatedTasks] = useState<TaskResponse[]>([]);
   const [isRelatedLoading, setIsRelatedLoading] = useState(true);
   const [relatedError, setRelatedError] = useState<string | null>(null);
+  const [relatedProjectDetails, setRelatedProjectDetails] = useState<ProjectResponse[]>([]);
   const { currentUser } = useCurrentUser();
 
   useEffect(() => {
@@ -146,11 +147,34 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
         (task): task is TaskResponse & { projectId: number } => typeof task.projectId === "number",
       );
       setRelatedTasks(projectScopedTasks);
+
+      const knownProjectIds = new Set((projectsResult.status === "fulfilled" ? projectsResult.value : []).map(project => project.id));
+      const relatedProjectIds = new Set<number>();
+      projectScopedTasks.forEach(task => {
+        if (typeof task.projectId === "number") {
+          relatedProjectIds.add(task.projectId);
+        }
+      });
+
+      const missingProjectIds = Array.from(relatedProjectIds).filter((projectId) => !knownProjectIds.has(projectId));
+
+      if (missingProjectIds.length > 0) {
+        try {
+          const missingProjects = await projectService.getProjectsByIds(missingProjectIds);
+          setRelatedProjectDetails(missingProjects);
+        } catch (err) {
+          console.error("Error loading related project details:", err);
+          setRelatedProjectDetails([]);
+        }
+      } else {
+        setRelatedProjectDetails([]);
+      }
     } else {
       const cause = relatedTasksResult.reason;
       console.error("Error loading related project tasks:", cause);
       setRelatedTasks([]);
       setRelatedError(cause instanceof Error ? cause.message : "Failed to load related projects");
+      setRelatedProjectDetails([]);
     }
 
     setIsLoading(false);
@@ -183,8 +207,18 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
       }
     }
 
-    return projects.filter((project) => relatedProjectIds.has(project.id));
-  }, [projects, relatedTasks]);
+    const inUserProjects = projects.filter((project) => relatedProjectIds.has(project.id));
+    if (inUserProjects.length === relatedProjectIds.size) {
+      return inUserProjects;
+    }
+
+    const remainingIds = new Set([...relatedProjectIds]);
+    inUserProjects.forEach(project => remainingIds.delete(project.id));
+
+    const supplementalProjects = relatedProjectDetails.filter(project => remainingIds.has(project.id));
+
+    return [...inUserProjects, ...supplementalProjects];
+  }, [projects, relatedTasks, relatedProjectDetails]);
 
   if (isLoading) {
     return <FullPageSpinnerLoader />;

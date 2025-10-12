@@ -127,4 +127,16 @@ public class ProjectServiceImpl implements ProjectService {
         return projectRepository.findAllById(projectIds).stream()
                 .collect(Collectors.toMap(Project::getId, Project::getOwnerId));
     }
+
+    @Override
+    public List<ProjectResponseDto> getProjectsByIds(Set<Long> projectIds) {
+        if (projectIds == null || projectIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return projectRepository.findByIdIn(projectIds).stream()
+                .filter(project -> !project.isDeleteInd())
+                .map(this::mapToProjectResponseDto)
+                .toList();
+    }
 }

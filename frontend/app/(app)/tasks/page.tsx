@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -283,6 +283,71 @@ const TaskBoardCard = ({ task }: TaskBoardCardProps) => {
   );
 };
 
+const RelatedTaskCard = ({ task }: TaskBoardCardProps) => {
+  const { total, done, progress } = getSubtaskSummary(task);
+  const taskProps = getTaskDisplayProps(task);
+  const lastUpdatedLabel = formatRelativeDate(task.updatedAt || task.createdAt);
+
+  return (
+    <Card className="h-full border border-dashed border-muted-foreground/40">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-base leading-tight">{taskProps.title}</CardTitle>
+            <CardDescription>{taskProps.project}</CardDescription>
+          </div>
+          <Badge
+            variant="outline"
+            className="border-amber-500/60 bg-amber-50/80 text-[10px] font-semibold uppercase tracking-wide text-amber-600"
+          >
+            View only
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <UsersIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Owned by user {task.ownerId}</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Clock4 className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Updated {lastUpdatedLabel}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Badge variant="outline" className="px-2 py-0.5">
+            {mapBackendStatus(task.status)}
+          </Badge>
+          <Badge variant="secondary" className="px-2 py-0.5">
+            {mapTaskTypeToPriority(task.taskType)} priority
+          </Badge>
+          {task.tags && task.tags.length > 0 ? (
+            <span className="text-muted-foreground">
+              Tags: {task.tags.join(', ')}
+            </span>
+          ) : null}
+        </div>
+        {total > 0 && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {done}/{total} subtasks
+              </span>
+              <span>{progress}%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-muted">
+              <div
+                className="h-1.5 rounded-full bg-primary transition-all"
+                style={{ width: `${progress}%` }}
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 type TaskTableRowProps = {
   task: TaskResponse;
 };
@@ -393,8 +458,11 @@ export default function TasksPage() {
     useState<(typeof STATUS_FILTERS)[number]>("All");
   const [selectedTaskType, setSelectedTaskType] = useState<string>("All Tasks");
   const [tasks, setTasks] = useState<TaskResponse[]>([]);
+  const [relatedTasks, setRelatedTasks] = useState<TaskResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [relatedLoading, setRelatedLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [relatedError, setRelatedError] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("all"); // "all" | "personal" | "owned" | projectId string
@@ -511,50 +579,69 @@ export default function TasksPage() {
     }
   };
 
-  useEffect(() => {
-    const loadTasks = async () => {
-      try {
-        setLoading(true);
-        
-        // Check if we have a current user
-        if (!currentUser) {
-          setError("User not authenticated");
-          return;
-        }
-        
-        // Use backendStaffId if available, otherwise use a fallback (like parsing from cognitoSub or using 1)
-        const userId = currentUser.backendStaffId || 1; // Fallback to 1 for now
-        
-        let tasksData: TaskResponse[] = [];
-        if (selectedTaskType === "Personal Tasks") {
-          tasksData = await projectService.getPersonalTasks(userId);
-        } else if (selectedTaskType === "Project Tasks") {
-          // Get all user tasks and filter for those with projectId
-          const allTasks = await projectService.getAllUserTasks(userId);
-          tasksData = allTasks.filter(task => task.projectId !== null);
-        } else {
-          // All tasks
-          tasksData = await projectService.getAllUserTasks(userId);
-        }
-        
-        setTasks(tasksData);
-      } catch (err) {
-        console.error('Error loading tasks:', err);
-        setError("Failed to load tasks");
-        setTasks([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadTasks = useCallback(async () => {
+    setLoading(true);
+    setRelatedLoading(true);
+    setError(null);
+    setRelatedError(null);
 
-    // Only load tasks if we have a user and user context is not loading
-    if (!userLoading && currentUser) {
-      loadTasks();
-    } else if (!userLoading && !currentUser) {
+    if (!currentUser) {
+      setTasks([]);
+      setRelatedTasks([]);
+      setError("User not authenticated");
+      setRelatedError("User not authenticated");
       setLoading(false);
-      setError("Please log in to view tasks");
+      setRelatedLoading(false);
+      return;
     }
-  }, [selectedTaskType, currentUser, userLoading]);
+
+    const userId = currentUser.backendStaffId || 1;
+
+    const tasksPromise = (async () => {
+      if (selectedTaskType === "Personal Tasks") {
+        return projectService.getPersonalTasks(userId);
+      }
+      if (selectedTaskType === "Project Tasks") {
+        const allTasks = await projectService.getAllUserTasks(userId);
+        return allTasks.filter(task => task.projectId !== null);
+      }
+      return projectService.getAllUserTasks(userId);
+    })();
+
+    const relatedPromise = projectService.getRelatedProjectTasks();
+
+    const [tasksResult, relatedResult] = await Promise.allSettled([tasksPromise, relatedPromise]);
+
+    if (tasksResult.status === "fulfilled") {
+      setTasks(tasksResult.value);
+    } else {
+      const cause = tasksResult.reason;
+      console.error('Error loading tasks:', cause);
+      setTasks([]);
+      setError(cause instanceof Error ? cause.message : "Failed to load tasks");
+    }
+
+    if (relatedResult.status === "fulfilled") {
+      const projectScoped = relatedResult.value.filter(
+        (task): task is TaskResponse & { projectId: number } => typeof task.projectId === "number",
+      );
+      setRelatedTasks(projectScoped);
+    } else {
+      const cause = relatedResult.reason;
+      console.error('Error loading related tasks:', cause);
+      setRelatedTasks([]);
+      setRelatedError(cause instanceof Error ? cause.message : "Failed to load related tasks");
+    }
+
+    setLoading(false);
+    setRelatedLoading(false);
+  }, [currentUser, selectedTaskType]);
+
+  useEffect(() => {
+    if (!userLoading) {
+      loadTasks();
+    }
+  }, [userLoading, loadTasks]);
 
   // Load project list for project filter
   useEffect(() => {
@@ -968,6 +1055,42 @@ export default function TasksPage() {
               </DndContext>
             )}
           </div>
+        </section>
+
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold">Related project tasks</h2>
+            <p className="text-muted-foreground text-sm">
+              Tasks from other projects where teammates in your department are collaborating. These are view only.
+            </p>
+          </div>
+
+          {relatedLoading ? (
+            <div className="rounded-lg border border-dashed border-muted p-6 text-center text-muted-foreground">
+              Loading related tasks...
+            </div>
+          ) : relatedError ? (
+            <Card className="border-destructive/40 bg-destructive/5">
+              <CardContent className="flex flex-col gap-3 p-4 text-sm text-destructive">
+                <span>Failed to load related tasks: {relatedError}</span>
+                <div>
+                  <Button onClick={() => loadTasks()} variant="outline" size="sm">
+                    Retry
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : relatedTasks.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-muted p-6 text-center text-muted-foreground">
+              No related tasks to show yet.
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {relatedTasks.map((task) => (
+                <RelatedTaskCard key={task.id} task={task} />
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="space-y-4">

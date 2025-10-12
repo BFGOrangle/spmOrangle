@@ -83,8 +83,12 @@ public class TaskManagementController {
     public ResponseEntity<AddCollaboratorResponseDto> addCollaborator(
             @Valid
             @RequestBody AddCollaboratorRequestDto addCollaboratorRequestDto) {
-        log.info("Adding collaborator {} to task {}", addCollaboratorRequestDto.getCollaboratorId(), addCollaboratorRequestDto.getTaskId());
-        AddCollaboratorResponseDto response = collaboratorService.addCollaborator(addCollaboratorRequestDto);
+        User user = userContextService.getRequestingUser();
+        log.info("Adding collaborator {} to task {} by user {}",
+                 addCollaboratorRequestDto.getCollaboratorId(),
+                 addCollaboratorRequestDto.getTaskId(),
+                 user.getId());
+        AddCollaboratorResponseDto response = collaboratorService.addCollaborator(addCollaboratorRequestDto, user.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -96,8 +100,12 @@ public class TaskManagementController {
     public ResponseEntity<Void> removeCollaborator(
             @Valid
             @RequestBody RemoveCollaboratorRequestDto removeCollaboratorRequestDto) {
-        log.info("Removing collaborator {} from task {}", removeCollaboratorRequestDto.getCollaboratorId(), removeCollaboratorRequestDto.getTaskId());
-        collaboratorService.removeCollaborator(removeCollaboratorRequestDto);
+        User user = userContextService.getRequestingUser();
+        log.info("Removing collaborator {} from task {} by user {}",
+                 removeCollaboratorRequestDto.getCollaboratorId(),
+                 removeCollaboratorRequestDto.getTaskId(),
+                 user.getId());
+        collaboratorService.removeCollaborator(removeCollaboratorRequestDto, user.getId());
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 

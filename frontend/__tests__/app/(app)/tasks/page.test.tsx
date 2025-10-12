@@ -35,6 +35,8 @@ jest.mock("@/services/project-service", () => ({
     getAllUserTasks: jest.fn(),
     getPersonalTasks: jest.fn(),
     createTask: jest.fn(),
+    getRelatedProjectTasks: jest.fn(),
+    getUserProjects: jest.fn(),
   },
 }));
 
@@ -115,6 +117,8 @@ describe("TasksPage", () => {
     mockProjectService.getAllUserTasks.mockClear();
     mockProjectService.getPersonalTasks.mockClear();
     mockProjectService.createTask.mockClear();
+    mockProjectService.getRelatedProjectTasks.mockClear();
+    mockProjectService.getUserProjects.mockClear();
 
     // Default mock implementations that return demo data format
     const mockTasksData: TaskResponse[] = demoTasks.map((task, index) => ({
@@ -141,6 +145,8 @@ describe("TasksPage", () => {
     mockProjectService.getPersonalTasks.mockResolvedValue(
       mockTasksData.filter(task => !task.projectId)
     );
+    mockProjectService.getRelatedProjectTasks.mockResolvedValue([]);
+    mockProjectService.getUserProjects.mockResolvedValue([]);
   });
 
   const setup = async () => {

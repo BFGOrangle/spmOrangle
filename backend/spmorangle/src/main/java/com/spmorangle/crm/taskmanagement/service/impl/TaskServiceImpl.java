@@ -79,10 +79,9 @@ public class TaskServiceImpl implements TaskService {
                     AddCollaboratorRequestDto collaboratorRequest = AddCollaboratorRequestDto.builder()
                             .taskId(savedTask.getId())
                             .collaboratorId(userId)
-                            .assignedById(currentUserId)
                             .build();
-                    
-                    collaboratorService.addCollaborator(collaboratorRequest);
+
+                    collaboratorService.addCollaborator(collaboratorRequest, currentUserId);
                     assignedUserIds.add(userId);
                     log.info("✅ Task {} successfully assigned to user: {}", savedTask.getId(), userId);
                 } catch (Exception e) {

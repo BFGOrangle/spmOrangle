@@ -161,6 +161,17 @@ export class ProjectService {
     return this.authenticatedClient.get(`/api/tasks/user/related`);
   }
 
+  async getProjectsByIds(projectIds: number[]): Promise<ProjectResponse[]> {
+    if (!projectIds.length) {
+      return [];
+    }
+
+    const params = new URLSearchParams();
+    projectIds.forEach((id) => params.append('ids', id.toString()));
+
+    return this.authenticatedClient.get(`/api/projects/lookup?${params.toString()}`);
+  }
+
   /**
    * Create a new task
    */
