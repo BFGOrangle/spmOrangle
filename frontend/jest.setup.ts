@@ -1,6 +1,17 @@
 // Jest setup file
 import "@testing-library/jest-dom";
 
+// Polyfill for JSDOM to support Radix UI Select
+if (!HTMLElement.prototype.hasPointerCapture) {
+  HTMLElement.prototype.hasPointerCapture = jest.fn(() => false);
+}
+if (!HTMLElement.prototype.setPointerCapture) {
+  HTMLElement.prototype.setPointerCapture = jest.fn();
+}
+if (!HTMLElement.prototype.releasePointerCapture) {
+  HTMLElement.prototype.releasePointerCapture = jest.fn();
+}
+
 // Mock Next.js router
 jest.mock("next/navigation", () => ({
   useRouter() {

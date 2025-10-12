@@ -16,4 +16,6 @@ public interface CollaboratorService {
 
     List<Long> getTasksForWhichUserIsCollaborator(Long userId);
 
+    List<Long> getCollaboratorIdsByTaskId(Long taskId);
+
 }

@@ -34,7 +34,10 @@ export interface SubtaskResponse {
 export interface TaskResponse {
   id: number;
   projectId?: number;
+  projectName?: string;
   ownerId: number;
+  ownerName?: string;
+  ownerDepartment?: string;
   taskType: 'BUG' | 'FEATURE' | 'CHORE' | 'RESEARCH';
   title: string;
   description?: string;
@@ -136,29 +139,45 @@ export class ProjectService {
   /**
    * Get tasks for a specific project
    */
-  async getProjectTasks(projectId: number): Promise<TaskResponse[]> {
-    return this.authenticatedClient.get(`/api/tasks/project/${projectId}`);
+  async getProjectTasks(projectId: number, tags?: string[]): Promise<TaskResponse[]> {
+    const query = this.buildTagsQuery(tags);
+    const endpoint = query
+      ? `/api/tasks/project/${projectId}?${query}`
+      : `/api/tasks/project/${projectId}`;
+    return this.authenticatedClient.get(endpoint);
   }
 
   /**
    * Get personal tasks (not associated with any project)
    */
-  async getPersonalTasks(userId: number): Promise<TaskResponse[]> {
-    return this.authenticatedClient.get(`/api/tasks/personal`);
+  async getPersonalTasks(userId: number, tags?: string[]): Promise<TaskResponse[]> {
+    const query = this.buildTagsQuery(tags);
+    const endpoint = query
+      ? `/api/tasks/personal?${query}`
+      : `/api/tasks/personal`;
+    return this.authenticatedClient.get(endpoint);
   }
 
   /**
    * Get all tasks for a user (both personal and project tasks)
    */
-  async getAllUserTasks(userId: number): Promise<TaskResponse[]> {
-    return this.authenticatedClient.get(`/api/tasks/user`);
+  async getAllUserTasks(userId: number, tags?: string[]): Promise<TaskResponse[]> {
+    const query = this.buildTagsQuery(tags);
+    const endpoint = query
+      ? `/api/tasks/user?${query}`
+      : `/api/tasks/user`;
+    return this.authenticatedClient.get(endpoint);
   }
 
   /**
    * Get tasks from projects that are related to the current user's department
    */
-  async getRelatedProjectTasks(): Promise<TaskResponse[]> {
-    return this.authenticatedClient.get(`/api/tasks/user/related`);
+  async getRelatedProjectTasks(tags?: string[]): Promise<TaskResponse[]> {
+    const query = this.buildTagsQuery(tags);
+    const endpoint = query
+      ? `/api/tasks/user/related?${query}`
+      : `/api/tasks/user/related`;
+    return this.authenticatedClient.get(endpoint);
   }
 
   async getProjectsByIds(projectIds: number[]): Promise<ProjectResponse[]> {
@@ -238,6 +257,21 @@ export class ProjectService {
     formData.append('projectId', projectId.toString());
 
     return this.authenticatedClient.postMultipart('/api/files/upload', formData);
+  }
+
+  private buildTagsQuery(tags?: string[]): string | undefined {
+    if (!tags || tags.length === 0) {
+      return undefined;
+    }
+
+    const params = new URLSearchParams();
+    tags
+      .map((tag) => tag?.trim())
+      .filter((tag): tag is string => Boolean(tag && tag.length > 0))
+      .forEach((tag) => params.append('tags', tag));
+
+    const query = params.toString();
+    return query || undefined;
   }
 }
 

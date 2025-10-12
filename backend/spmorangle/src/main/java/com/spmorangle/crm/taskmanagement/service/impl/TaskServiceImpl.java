@@ -2,6 +2,7 @@ package com.spmorangle.crm.taskmanagement.service.impl;
 
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.projectmanagement.dto.ProjectResponseDto;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
 import com.spmorangle.crm.taskmanagement.dto.*;
 import com.spmorangle.crm.taskmanagement.model.Tag;
@@ -139,11 +140,15 @@ public class TaskServiceImpl implements TaskService {
         List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
         Long projectOwnerId = projectService.getOwnerId(projectId);
+
+        Map<Long, String> projectNames = resolveProjectNames(Collections.singleton(projectId));
+        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+
         return tasks.stream()
                 .map((task) -> {
                     boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
                     boolean userHasDeleteAccess = userId.equals(projectOwnerId);
-                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess);
+                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, projectNames, ownerDetails);
                 })
                 .toList();
     }
@@ -153,8 +158,9 @@ public class TaskServiceImpl implements TaskService {
     public List<TaskResponseDto> getPersonalTasks(Long userId) {
         log.info("Getting personal tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
+        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
         return tasks.stream()
-                .map(task -> mapToTaskResponseDto(task, true, true))
+                .map(task -> mapToTaskResponseDto(task, true, true, Collections.emptyMap(), ownerDetails))
                 .collect(Collectors.toList());
     }
 
@@ -163,19 +169,21 @@ public class TaskServiceImpl implements TaskService {
     public List<TaskResponseDto> getAllUserTasks(Long userId) {
         log.info("Getting all tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findUserTasks(userId);
-        
+
         Set<Long> projectIds = tasks.stream()
                 .map(Task::getProjectId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        
+
         Map<Long, Long> projectOwnerMap = projectService.getProjectOwners(projectIds);
-        
+        Map<Long, String> projectNames = resolveProjectNames(projectIds);
+        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+
         return tasks.stream()
                 .map(task -> {
-                    boolean userHasDeleteAccess = task.getProjectId() != null 
+                    boolean userHasDeleteAccess = task.getProjectId() != null
                         && userId.equals(projectOwnerMap.get(task.getProjectId()));
-                    return mapToTaskResponseDto(task, true, userHasDeleteAccess);
+                    return mapToTaskResponseDto(task, true, userHasDeleteAccess, projectNames, ownerDetails);
                 })
                 .collect(Collectors.toList());
     }
@@ -289,8 +297,11 @@ public class TaskServiceImpl implements TaskService {
             return rightTime.compareTo(leftTime);
         });
 
+        Map<Long, String> projectNames = resolveProjectNames(projectIds);
+        Map<Long, User> ownerDetails = resolveOwnerDetails(relatedTasks);
+
         return relatedTasks.stream()
-                .map(task -> mapToTaskResponseDto(task, false, false))
+                .map(task -> mapToTaskResponseDto(task, false, false, projectNames, ownerDetails))
                 .collect(Collectors.toList());
     }
 
@@ -404,21 +415,65 @@ public class TaskServiceImpl implements TaskService {
 
 
 
-    private TaskResponseDto mapToTaskResponseDto(Task task, boolean userHasEditAccess, boolean userHasDeleteAccess) {
+    private Map<Long, String> resolveProjectNames(Set<Long> projectIds) {
+        if (projectIds == null || projectIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return projectService.getProjectsByIds(projectIds).stream()
+                .collect(Collectors.toMap(ProjectResponseDto::getId, ProjectResponseDto::getName));
+    }
+
+    private Map<Long, User> resolveOwnerDetails(Collection<Task> tasks) {
+        if (tasks == null || tasks.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Set<Long> ownerIds = tasks.stream()
+                .map(Task::getOwnerId)
+                .collect(Collectors.toSet());
+
+        if (ownerIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return userRepository.findAllById(ownerIds).stream()
+                .collect(Collectors.toMap(User::getId, owner -> owner));
+    }
+
+    private TaskResponseDto mapToTaskResponseDto(
+            Task task,
+            boolean userHasEditAccess,
+            boolean userHasDeleteAccess,
+            Map<Long, String> projectNames,
+            Map<Long, User> ownerDetails) {
         // Load subtasks for this task
         List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId());
-        
+
+        // Load collaborator IDs for this task
+        List<Long> assignedUserIds = collaboratorService.getCollaboratorIdsByTaskId(task.getId());
+
+        User owner = ownerDetails != null ? ownerDetails.get(task.getOwnerId()) : null;
+        String projectName = null;
+        if (projectNames != null && task.getProjectId() != null) {
+            projectName = projectNames.get(task.getProjectId());
+        }
+
         return TaskResponseDto.builder()
                 .id(task.getId())
                 .projectId(task.getProjectId())
+                .projectName(projectName)
                 .ownerId(task.getOwnerId())
+                .ownerName(owner != null ? owner.getUserName() : null)
+                .ownerDepartment(owner != null ? owner.getDepartment() : null)
                 .taskType(task.getTaskType())
                 .title(task.getTitle())
                 .description(task.getDescription())
                 .status(task.getStatus())
-                .tags(task.getTags() != null 
-                        ? task.getTags().stream().map(Tag::getTagName).toList() 
+                .tags(task.getTags() != null
+                        ? task.getTags().stream().map(Tag::getTagName).toList()
                         : null)
+                .assignedUserIds(assignedUserIds)
                 .userHasEditAccess(userHasEditAccess)
                 .userHasDeleteAccess(userHasDeleteAccess)
                 .createdAt(task.getCreatedAt())

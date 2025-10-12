@@ -1,11 +1,13 @@
 package com.spmorangle.crm.taskmanagement.service;
 
+import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
 import com.spmorangle.crm.taskmanagement.model.TaskAssigneeCK;
 import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
+import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAlreadyExistsException;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAssignmentNotFoundException;
 import com.spmorangle.crm.taskmanagement.service.impl.CollaboratorServiceImpl;
@@ -27,6 +29,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,6 +41,12 @@ class FileUploadImplTest {
     @Mock
     private TaskAssigneeRepository taskAssigneeRepository;
 
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private TaskRepository taskRepository;
+
     @InjectMocks
     private CollaboratorServiceImpl collaboratorService;
 
@@ -47,8 +56,11 @@ class FileUploadImplTest {
 
     @BeforeEach
     void setUp() {
-        addRequest = new AddCollaboratorRequestDto(1L, 2L, 3L);
-        removeRequest = new RemoveCollaboratorRequestDto(1L, 2L, 3L);
+        addRequest = AddCollaboratorRequestDto.builder()
+                .taskId(1L)
+                .collaboratorId(2L)
+                .build();
+        removeRequest = new RemoveCollaboratorRequestDto(1L, 2L);
 
         taskAssignee = new TaskAssignee();
         taskAssignee.setTaskId(1L);
@@ -65,13 +77,16 @@ class FileUploadImplTest {
         @DisplayName("Should successfully add collaborator when assignment doesn't exist")
         void addCollaborator_ValidRequest_ReturnsResponseDto() {
             // Given
+            when(taskRepository.existsById(1L)).thenReturn(true);
+            when(userRepository.existsById(2L)).thenReturn(true);
+            when(userRepository.existsById(3L)).thenReturn(true);
             when(taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(1L, 2L, 3L))
                     .thenReturn(false);
             when(taskAssigneeRepository.save(any(TaskAssignee.class)))
                     .thenReturn(taskAssignee);
 
             // When
-            AddCollaboratorResponseDto result = collaboratorService.addCollaborator(addRequest);
+            AddCollaboratorResponseDto result = collaboratorService.addCollaborator(addRequest, 3L);
 
             // Then
             assertThat(result).isNotNull();
@@ -89,6 +104,8 @@ class FileUploadImplTest {
         @DisplayName("Should save TaskAssignee with correct properties")
         void addCollaborator_ValidRequest_SavesCorrectTaskAssignee() {
             // Given
+            when(taskRepository.existsById(anyLong())).thenReturn(true);
+            when(userRepository.existsById(anyLong())).thenReturn(true);
             when(taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(1L, 2L, 3L))
                     .thenReturn(false);
             when(taskAssigneeRepository.save(any(TaskAssignee.class)))
@@ -97,7 +114,7 @@ class FileUploadImplTest {
             ArgumentCaptor<TaskAssignee> taskAssigneeCaptor = ArgumentCaptor.forClass(TaskAssignee.class);
 
             // When
-            collaboratorService.addCollaborator(addRequest);
+            collaboratorService.addCollaborator(addRequest, 3L);
 
             // Then
             verify(taskAssigneeRepository).save(taskAssigneeCaptor.capture());
@@ -112,11 +129,14 @@ class FileUploadImplTest {
         @DisplayName("Should throw CollaboratorAlreadyExistsException when assignment already exists")
         void addCollaborator_CollaboratorAlreadyExists_ThrowsException() {
             // Given
+            when(taskRepository.existsById(1L)).thenReturn(true);
+            when(userRepository.existsById(2L)).thenReturn(true);
+            when(userRepository.existsById(3L)).thenReturn(true);
             when(taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(1L, 2L, 3L))
                     .thenReturn(true);
 
             // When & Then
-            assertThatThrownBy(() -> collaboratorService.addCollaborator(addRequest))
+            assertThatThrownBy(() -> collaboratorService.addCollaborator(addRequest, 3L))
                     .isInstanceOf(CollaboratorAlreadyExistsException.class)
                     .hasMessage("Collaborator 2 already assigned to task 1");
 
@@ -128,20 +148,26 @@ class FileUploadImplTest {
         @DisplayName("Should handle different task and collaborator IDs correctly")
         void addCollaborator_DifferentIds_HandlesCorrectly() {
             // Given
-            AddCollaboratorRequestDto differentRequest = new AddCollaboratorRequestDto(100L, 200L, 300L);
+            AddCollaboratorRequestDto differentRequest = AddCollaboratorRequestDto.builder()
+                    .taskId(100L)
+                    .collaboratorId(200L)
+                    .build();
             TaskAssignee differentTaskAssignee = new TaskAssignee();
             differentTaskAssignee.setTaskId(100L);
             differentTaskAssignee.setUserId(200L);
             differentTaskAssignee.setAssignedId(300L);
             differentTaskAssignee.setAssignedAt(OffsetDateTime.now());
 
+            when(taskRepository.existsById(100L)).thenReturn(true);
+            when(userRepository.existsById(200L)).thenReturn(true);
+            when(userRepository.existsById(300L)).thenReturn(true);
             when(taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(100L, 200L, 300L))
                     .thenReturn(false);
             when(taskAssigneeRepository.save(any(TaskAssignee.class)))
                     .thenReturn(differentTaskAssignee);
 
             // When
-            AddCollaboratorResponseDto result = collaboratorService.addCollaborator(differentRequest);
+            AddCollaboratorResponseDto result = collaboratorService.addCollaborator(differentRequest, 300L);
 
             // Then
             assertThat(result.getTaskId()).isEqualTo(100L);
@@ -164,7 +190,7 @@ class FileUploadImplTest {
                     .thenReturn(true);
 
             // When
-            collaboratorService.removeCollaborator(removeRequest);
+            collaboratorService.removeCollaborator(removeRequest, 3L);
 
             // Then
             verify(taskAssigneeRepository).existsByTaskIdAndUserIdAndAssignedId(1L, 2L, 3L);
@@ -181,7 +207,7 @@ class FileUploadImplTest {
             ArgumentCaptor<TaskAssigneeCK> keyCaptor = ArgumentCaptor.forClass(TaskAssigneeCK.class);
 
             // When
-            collaboratorService.removeCollaborator(removeRequest);
+            collaboratorService.removeCollaborator(removeRequest, 3L);
 
             // Then
             verify(taskAssigneeRepository).deleteById(keyCaptor.capture());
@@ -200,7 +226,7 @@ class FileUploadImplTest {
                     .thenReturn(false);
 
             // When & Then
-            assertThatThrownBy(() -> collaboratorService.removeCollaborator(removeRequest))
+            assertThatThrownBy(() -> collaboratorService.removeCollaborator(removeRequest, 3L))
                     .isInstanceOf(CollaboratorAssignmentNotFoundException.class)
                     .hasMessage("Collaborator 2 not assigned to task 1");
 
@@ -212,14 +238,14 @@ class FileUploadImplTest {
         @DisplayName("Should handle different task and collaborator IDs correctly")
         void removeCollaborator_DifferentIds_HandlesCorrectly() {
             // Given
-            RemoveCollaboratorRequestDto differentRequest = new RemoveCollaboratorRequestDto(500L, 600L, 700L);
+            RemoveCollaboratorRequestDto differentRequest = new RemoveCollaboratorRequestDto(500L, 600L);
             when(taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(500L, 600L, 700L))
                     .thenReturn(true);
 
             ArgumentCaptor<TaskAssigneeCK> keyCaptor = ArgumentCaptor.forClass(TaskAssigneeCK.class);
 
             // When
-            collaboratorService.removeCollaborator(differentRequest);
+            collaboratorService.removeCollaborator(differentRequest, 700L);
 
             // Then
             verify(taskAssigneeRepository).existsByTaskIdAndUserIdAndAssignedId(500L, 600L, 700L);

@@ -32,7 +32,10 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should pass validation with valid data")
         void addCollaboratorRequestDto_ValidData_PassesValidation() {
             // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(1L, 2L, 3L);
+            AddCollaboratorRequestDto dto = AddCollaboratorRequestDto.builder()
+                    .taskId(1L)
+                    .collaboratorId(2L)
+                    .build();
 
             // When
             Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -45,7 +48,10 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when taskId is null")
         void addCollaboratorRequestDto_NullTaskId_FailsValidation() {
             // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(null, 2L, 3L);
+            AddCollaboratorRequestDto dto = AddCollaboratorRequestDto.builder()
+                    .taskId(null)
+                    .collaboratorId(2L)
+                    .build();
 
             // When
             Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -59,21 +65,10 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when collaboratorId is null")
         void addCollaboratorRequestDto_NullCollaboratorId_FailsValidation() {
             // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(1L, null, 3L);
-
-            // When
-            Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
-
-            // Then
-            assertThat(violations).hasSize(1);
-            assertThat(violations.iterator().next().getMessage()).contains("must not be null");
-        }
-
-        @Test
-        @DisplayName("Should fail validation when assignedById is null")
-        void addCollaboratorRequestDto_NullAssignedById_FailsValidation() {
-            // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(1L, 2L, null);
+            AddCollaboratorRequestDto dto = AddCollaboratorRequestDto.builder()
+                    .taskId(1L)
+                    .collaboratorId(null)
+                    .build();
 
             // When
             Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -87,7 +82,10 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when taskId is zero")
         void addCollaboratorRequestDto_ZeroTaskId_FailsValidation() {
             // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(0L, 2L, 3L);
+            AddCollaboratorRequestDto dto = AddCollaboratorRequestDto.builder()
+                    .taskId(0L)
+                    .collaboratorId(2L)
+                    .build();
 
             // When
             Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -101,21 +99,10 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when collaboratorId is zero")
         void addCollaboratorRequestDto_ZeroCollaboratorId_FailsValidation() {
             // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(1L, 0L, 3L);
-
-            // When
-            Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
-
-            // Then
-            assertThat(violations).hasSize(1);
-            assertThat(violations.iterator().next().getMessage()).contains("must be greater than or equal to 1");
-        }
-
-        @Test
-        @DisplayName("Should fail validation when assignedById is zero")
-        void addCollaboratorRequestDto_ZeroAssignedById_FailsValidation() {
-            // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(1L, 2L, 0L);
+            AddCollaboratorRequestDto dto = AddCollaboratorRequestDto.builder()
+                    .taskId(1L)
+                    .collaboratorId(0L)
+                    .build();
 
             // When
             Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -129,7 +116,10 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when taskId is negative")
         void addCollaboratorRequestDto_NegativeTaskId_FailsValidation() {
             // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(-1L, 2L, 3L);
+            AddCollaboratorRequestDto dto = AddCollaboratorRequestDto.builder()
+                    .taskId(-1L)
+                    .collaboratorId(2L)
+                    .build();
 
             // When
             Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -143,21 +133,10 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when collaboratorId is negative")
         void addCollaboratorRequestDto_NegativeCollaboratorId_FailsValidation() {
             // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(1L, -1L, 3L);
-
-            // When
-            Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
-
-            // Then
-            assertThat(violations).hasSize(1);
-            assertThat(violations.iterator().next().getMessage()).contains("must be greater than or equal to 1");
-        }
-
-        @Test
-        @DisplayName("Should fail validation when assignedById is negative")
-        void addCollaboratorRequestDto_NegativeAssignedById_FailsValidation() {
-            // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(1L, 2L, -1L);
+            AddCollaboratorRequestDto dto = AddCollaboratorRequestDto.builder()
+                    .taskId(1L)
+                    .collaboratorId(-1L)
+                    .build();
 
             // When
             Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -171,33 +150,42 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when all fields are null")
         void addCollaboratorRequestDto_AllFieldsNull_FailsValidation() {
             // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(null, null, null);
+            AddCollaboratorRequestDto dto = AddCollaboratorRequestDto.builder()
+                    .taskId(null)
+                    .collaboratorId(null)
+                    .build();
 
             // When
             Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
 
             // Then
-            assertThat(violations).hasSize(3);
+            assertThat(violations).hasSize(2);
         }
 
         @Test
         @DisplayName("Should fail validation when all fields are zero")
         void addCollaboratorRequestDto_AllFieldsZero_FailsValidation() {
             // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(0L, 0L, 0L);
+            AddCollaboratorRequestDto dto = AddCollaboratorRequestDto.builder()
+                    .taskId(0L)
+                    .collaboratorId(0L)
+                    .build();
 
             // When
             Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
 
             // Then
-            assertThat(violations).hasSize(3);
+            assertThat(violations).hasSize(2);
         }
 
         @Test
         @DisplayName("Should pass validation with large valid values")
         void addCollaboratorRequestDto_LargeValidValues_PassesValidation() {
             // Given
-            AddCollaboratorRequestDto dto = new AddCollaboratorRequestDto(Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE);
+            AddCollaboratorRequestDto dto = AddCollaboratorRequestDto.builder()
+                    .taskId(Long.MAX_VALUE)
+                    .collaboratorId(Long.MAX_VALUE)
+                    .build();
 
             // When
             Set<ConstraintViolation<AddCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -215,7 +203,7 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should pass validation with valid data")
         void removeCollaboratorRequestDto_ValidData_PassesValidation() {
             // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(1L, 2L, 3L);
+            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(1L, 2L);
 
             // When
             Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -228,7 +216,7 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when taskId is null")
         void removeCollaboratorRequestDto_NullTaskId_FailsValidation() {
             // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(null, 2L, 3L);
+            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(null, 2L);
 
             // When
             Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -242,21 +230,7 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when collaboratorId is null")
         void removeCollaboratorRequestDto_NullCollaboratorId_FailsValidation() {
             // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(1L, null, 3L);
-
-            // When
-            Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
-
-            // Then
-            assertThat(violations).hasSize(1);
-            assertThat(violations.iterator().next().getMessage()).contains("must not be null");
-        }
-
-        @Test
-        @DisplayName("Should fail validation when assignedById is null")
-        void removeCollaboratorRequestDto_NullAssignedById_FailsValidation() {
-            // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(1L, 2L, null);
+            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(1L, null);
 
             // When
             Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -270,7 +244,7 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when taskId is zero")
         void removeCollaboratorRequestDto_ZeroTaskId_FailsValidation() {
             // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(0L, 2L, 3L);
+            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(0L, 2L);
 
             // When
             Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -284,21 +258,7 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when collaboratorId is zero")
         void removeCollaboratorRequestDto_ZeroCollaboratorId_FailsValidation() {
             // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(1L, 0L, 3L);
-
-            // When
-            Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
-
-            // Then
-            assertThat(violations).hasSize(1);
-            assertThat(violations.iterator().next().getMessage()).contains("must be greater than or equal to 1");
-        }
-
-        @Test
-        @DisplayName("Should fail validation when assignedById is zero")
-        void removeCollaboratorRequestDto_ZeroAssignedById_FailsValidation() {
-            // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(1L, 2L, 0L);
+            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(1L, 0L);
 
             // When
             Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -312,7 +272,7 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when taskId is negative")
         void removeCollaboratorRequestDto_NegativeTaskId_FailsValidation() {
             // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(-1L, 2L, 3L);
+            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(-1L, 2L);
 
             // When
             Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -326,21 +286,7 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when collaboratorId is negative")
         void removeCollaboratorRequestDto_NegativeCollaboratorId_FailsValidation() {
             // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(1L, -1L, 3L);
-
-            // When
-            Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
-
-            // Then
-            assertThat(violations).hasSize(1);
-            assertThat(violations.iterator().next().getMessage()).contains("must be greater than or equal to 1");
-        }
-
-        @Test
-        @DisplayName("Should fail validation when assignedById is negative")
-        void removeCollaboratorRequestDto_NegativeAssignedById_FailsValidation() {
-            // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(1L, 2L, -1L);
+            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(1L, -1L);
 
             // When
             Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
@@ -354,33 +300,33 @@ class CollaboratorDtoValidationTest {
         @DisplayName("Should fail validation when all fields are null")
         void removeCollaboratorRequestDto_AllFieldsNull_FailsValidation() {
             // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(null, null, null);
+            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(null, null);
 
             // When
             Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
 
             // Then
-            assertThat(violations).hasSize(3);
+            assertThat(violations).hasSize(2);
         }
 
         @Test
         @DisplayName("Should fail validation when all fields are zero")
         void removeCollaboratorRequestDto_AllFieldsZero_FailsValidation() {
             // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(0L, 0L, 0L);
+            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(0L, 0L);
 
             // When
             Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);
 
             // Then
-            assertThat(violations).hasSize(3);
+            assertThat(violations).hasSize(2);
         }
 
         @Test
         @DisplayName("Should pass validation with large valid values")
         void removeCollaboratorRequestDto_LargeValidValues_PassesValidation() {
             // Given
-            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE);
+            RemoveCollaboratorRequestDto dto = new RemoveCollaboratorRequestDto(Long.MAX_VALUE, Long.MAX_VALUE);
 
             // When
             Set<ConstraintViolation<RemoveCollaboratorRequestDto>> violations = validator.validate(dto);

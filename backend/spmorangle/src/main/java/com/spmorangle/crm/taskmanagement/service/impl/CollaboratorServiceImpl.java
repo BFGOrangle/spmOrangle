@@ -98,4 +98,9 @@ public class CollaboratorServiceImpl implements CollaboratorService {
     public List<Long> getTasksForWhichUserIsCollaborator(Long userId) {
         return taskAssigneeRepository.findTaskIdsUserIsAssigneeFor(userId);
     }
+
+    @Override
+    public List<Long> getCollaboratorIdsByTaskId(Long taskId) {
+        return taskAssigneeRepository.findAssigneeIdsByTaskId(taskId);
+    }
 }
