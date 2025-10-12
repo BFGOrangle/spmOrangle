@@ -10,6 +10,11 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
+// Constants for timeline display
+const MIN_EVENT_WIDTH_PERCENT = 2;
+const MAX_EVENT_STACKS = 3;
+const EVENT_STACK_HEIGHT = 16;
+
 export const CalendarTimelineView: React.FC<TimelineProps> = ({
   events,
   currentDate,
@@ -69,7 +74,7 @@ export const CalendarTimelineView: React.FC<TimelineProps> = ({
     const eventDay = Math.ceil((eventDate.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24));
     
     const leftPercent = (eventDay / totalDays) * 100;
-    const widthPercent = Math.max(2, 100 / totalDays); // Minimum 2% width
+    const widthPercent = Math.max(MIN_EVENT_WIDTH_PERCENT, 100 / totalDays); // Minimum width
     
     return {
       left: `${Math.max(0, Math.min(98, leftPercent))}%`,
@@ -175,7 +180,7 @@ export const CalendarTimelineView: React.FC<TimelineProps> = ({
                         style={{
                           left: position.left,
                           width: position.width,
-                          top: `${(index % 3) * 16}px`, // Stack events vertically if they overlap
+                          top: `${(index % MAX_EVENT_STACKS) * EVENT_STACK_HEIGHT}px`, // Stack events vertically if they overlap
                           height: '14px',
                           minWidth: '40px',
                         }}

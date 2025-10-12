@@ -17,6 +17,7 @@ import { projectService } from '../../../services/project-service';
 import { useCurrentUser } from '../../../contexts/user-context';
 
 // Components
+import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { CalendarControls } from '../../../components/calendar/calendar-controls';
 import { CalendarDayView } from '../../../components/calendar/calendar-day-view';
 import { CalendarWeekView } from '../../../components/calendar/calendar-week-view';
@@ -332,7 +333,7 @@ export default function CalendarPage() {
     return (
       <div className="h-full flex items-center justify-center bg-background text-foreground">
         <ErrorMessageCallout 
-          errorMessage="There was an error loading the projects. Please try again." 
+          errorMessage="There was an error loading the calendar. Please try again." 
         />
       </div>
     );
@@ -380,6 +381,20 @@ export default function CalendarPage() {
   };
 
   return (
+    <SidebarInset>
+    <div className="flex flex-1 flex-col gap-8 px-6 pt-12">
+        <header className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+                <SidebarTrigger className="-ml-1" />
+                <div>
+                <h1 className="text-2xl font-semibold tracking-tight">
+                    My Schedule
+                </h1>
+                </div>
+            </div>
+        </header>
+    </div>
+
     <div className="w-full min-h-screen p-1 mx-auto bg-background text-foreground" >
       {/* Calendar Controls */}
       <CalendarControls
@@ -408,8 +423,8 @@ export default function CalendarPage() {
           renderCalendarView()
         )}
       </div>
-
-    </div>
+      </div>
+    </SidebarInset>
   );
 }
 

@@ -9,6 +9,11 @@ import { CalendarViewProps, CalendarEvent } from '../../types/calendar';
 import { getWeekDays, filterEventsForWeekView, groupEventsByDateForWeekView } from '../../lib/calendar-utils';
 import { Card } from '../ui/card';
 
+// Constants for responsive event display
+const MOBILE_BREAKPOINT = 640;
+const MOBILE_MAX_EVENTS = 2;
+const DESKTOP_MAX_EVENTS = 3;
+
 interface WeekViewProps extends CalendarViewProps {}
 
 export const CalendarWeekView: React.FC<WeekViewProps> = ({
@@ -67,7 +72,7 @@ export const CalendarWeekView: React.FC<WeekViewProps> = ({
                 onClick={() => onDateClick(day)}
               >
                 <div className="space-y-1">
-                  {dayEvents.slice(0, window.innerWidth < 640 ? 2 : 3).map((event: CalendarEvent) => (
+                  {dayEvents.slice(0, window.innerWidth < MOBILE_BREAKPOINT ? MOBILE_MAX_EVENTS : DESKTOP_MAX_EVENTS).map((event: CalendarEvent) => (
                     <Card
                       key={event.id}
                       className={`p-1 sm:p-2 cursor-pointer hover:shadow-md transition-shadow ${event.color} text-white text-xs`}
@@ -90,9 +95,9 @@ export const CalendarWeekView: React.FC<WeekViewProps> = ({
                     </Card>
                   ))}
                   
-                  {dayEvents.length > (window.innerWidth < 640 ? 2 : 3) && (
+                  {dayEvents.length > (window.innerWidth < MOBILE_BREAKPOINT ? MOBILE_MAX_EVENTS : DESKTOP_MAX_EVENTS) && (
                     <div className="text-xs text-muted-foreground text-center py-1">
-                      +{dayEvents.length - (window.innerWidth < 640 ? 2 : 3)} more
+                      +{dayEvents.length - (window.innerWidth < MOBILE_BREAKPOINT ? MOBILE_MAX_EVENTS : DESKTOP_MAX_EVENTS)} more
                     </div>
                   )}
                 </div>

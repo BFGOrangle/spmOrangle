@@ -10,6 +10,9 @@ import { getCalendarWeeks, filterEventsForMonthView, groupEventsByDateForMonthVi
 import { highlightSearchTerm, getSearchHighlightClasses } from '../../lib/search-utils';
 import { Card } from '../ui/card';
 
+// Constants for event display
+const MAX_EVENTS_PER_DAY = 2;
+
 interface MonthViewProps extends CalendarViewProps {}
 
 export const CalendarMonthView: React.FC<MonthViewProps> = ({
@@ -86,16 +89,16 @@ export const CalendarMonthView: React.FC<MonthViewProps> = ({
                         {format(day, 'd')}
                       </span>
                       
-                      {dayEvents.length > 2 && (
+                      {dayEvents.length > MAX_EVENTS_PER_DAY && (
                         <span className="text-xs text-muted-foreground">
-                          +{dayEvents.length - 2}
+                          +{dayEvents.length - MAX_EVENTS_PER_DAY}
                         </span>
                       )}
                     </div>
 
                     {/* Events */}
                     <div className="space-y-1">
-                      {dayEvents.slice(0, 2).map((event: CalendarEvent) => (
+                      {dayEvents.slice(0, MAX_EVENTS_PER_DAY).map((event: CalendarEvent) => (
                         <div
                           key={event.id}
                           className={`text-xs p-1 rounded cursor-pointer hover:opacity-80 ${event.color} text-white truncate ${
@@ -120,7 +123,7 @@ export const CalendarMonthView: React.FC<MonthViewProps> = ({
                     </div>
 
                     {/* Overflow indicator */}
-                    {dayEvents.length > 2 && (
+                    {dayEvents.length > MAX_EVENTS_PER_DAY && (
                       <div className="absolute bottom-1 right-1">
                         <div className="w-2 h-2 bg-muted-foreground rounded-full"></div>
                       </div>
