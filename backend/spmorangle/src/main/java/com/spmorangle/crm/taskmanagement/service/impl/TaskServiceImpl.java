@@ -150,7 +150,7 @@ public class TaskServiceImpl implements TaskService {
                 .map((task) -> {
                     boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
                     boolean userHasDeleteAccess = userId.equals(projectOwnerId);
-                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, projectNames, ownerDetails);
+                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, projectNames, ownerDetails, userId);
                 })
                 .toList();
     }
@@ -165,7 +165,12 @@ public class TaskServiceImpl implements TaskService {
         boolean userHasEditAccess = canUserUpdateTask(taskId, currentUserId);
         boolean userHasDeleteAccess = canUserDeleteTask(taskId, currentUserId);
 
-        return mapToTaskResponseDto(task, userHasEditAccess, userHasDeleteAccess, currentUserId);
+        Map<Long, String> projectNames = task.getProjectId() != null
+            ? resolveProjectNames(Collections.singleton(task.getProjectId()))
+            : Collections.emptyMap();
+        Map<Long, User> ownerDetails = resolveOwnerDetails(Collections.singletonList(task));
+
+        return mapToTaskResponseDto(task, userHasEditAccess, userHasDeleteAccess, projectNames, ownerDetails, currentUserId);
     }
 
     @Override
@@ -175,7 +180,7 @@ public class TaskServiceImpl implements TaskService {
         List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
         Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
         return tasks.stream()
-                .map(task -> mapToTaskResponseDto(task, true, true, Collections.emptyMap(), ownerDetails))
+                .map(task -> mapToTaskResponseDto(task, true, true, Collections.emptyMap(), ownerDetails, userId))
                 .collect(Collectors.toList());
     }
 
@@ -198,7 +203,7 @@ public class TaskServiceImpl implements TaskService {
                 .map(task -> {
                     boolean userHasDeleteAccess = task.getProjectId() != null
                         && userId.equals(projectOwnerMap.get(task.getProjectId()));
-                    return mapToTaskResponseDto(task, true, userHasDeleteAccess, projectNames, ownerDetails);
+                    return mapToTaskResponseDto(task, true, userHasDeleteAccess, projectNames, ownerDetails, userId);
                 })
                 .collect(Collectors.toList());
     }
@@ -316,7 +321,7 @@ public class TaskServiceImpl implements TaskService {
         Map<Long, User> ownerDetails = resolveOwnerDetails(relatedTasks);
 
         return relatedTasks.stream()
-                .map(task -> mapToTaskResponseDto(task, false, false, projectNames, ownerDetails))
+                .map(task -> mapToTaskResponseDto(task, false, false, projectNames, ownerDetails, userId))
                 .collect(Collectors.toList());
     }
 
@@ -463,9 +468,10 @@ public class TaskServiceImpl implements TaskService {
             boolean userHasEditAccess,
             boolean userHasDeleteAccess,
             Map<Long, String> projectNames,
-            Map<Long, User> ownerDetails) {
+            Map<Long, User> ownerDetails,
+            Long userId) {
         // Load subtasks for this task
-        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId());
+        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(task.getId(), userId);
 
         // Load collaborator IDs for this task
         List<Long> assignedUserIds = collaboratorService.getCollaboratorIdsByTaskId(task.getId());
