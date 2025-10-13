@@ -55,6 +55,7 @@ export interface TaskResponseDto {
   createdBy: number;
   updatedBy?: number;
   subtasks?: SubtaskResponseDto[];
+  dueDateTime?: string;
 }
 
 // UI-specific interfaces for project and task management

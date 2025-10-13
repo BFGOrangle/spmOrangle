@@ -1,7 +1,39 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, RenderOptions } from "@testing-library/react";
+import { render as rtlRender, RenderOptions } from "@testing-library/react";
 import { ReactElement, ReactNode } from "react";
-import { UserProvider } from "@/contexts/user-context";
+
+// Mock the entire user context module to avoid authentication issues in tests
+const mockUseCurrentUser = jest.fn().mockReturnValue({
+  currentUser: {
+    id: "test-user-id",
+    firstName: "Test",
+    lastName: "User",
+    role: "STAFF",
+    jobTitle: "Developer",
+    email: "test@example.com",
+    fullName: "Test User",
+    cognitoSub: "cognito-test-sub",
+    backendStaffId: 1,
+  },
+  setCurrentUser: jest.fn(),
+  isLoading: false,
+  isAdmin: false,
+  isStaff: true,
+  signOut: jest.fn(),
+});
+
+jest.mock("@/contexts/user-context", () => ({
+  useCurrentUser: mockUseCurrentUser,
+  UserProvider: ({ children }: { children: ReactNode }) => children,
+}));
+
+// Export the mock for use in tests
+export { mockUseCurrentUser };
+
+// Simple wrapper that just returns children since we're mocking the context
+const MockUserProvider = ({ children }: { children: ReactNode }) => {
+  return <>{children}</>;
+};
 
 // Create a custom render function that includes QueryClient
 const createTestQueryClient = () =>
@@ -29,9 +61,9 @@ const AllTheProviders = ({
   queryClient?: QueryClient;
 }) => {
   return (
-    <UserProvider>
+    <MockUserProvider>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </UserProvider>
+    </MockUserProvider>
   );
 };
 
@@ -43,9 +75,11 @@ const customRender = (
     <AllTheProviders queryClient={queryClient}>{children}</AllTheProviders>
   );
 
-  return render(ui, { wrapper: Wrapper, ...options });
+  return rtlRender(ui, { wrapper: Wrapper, ...options });
 };
 
-// Re-export everything
+// Re-export everything from testing library
 export * from "@testing-library/react";
+
+// Override render with our custom render and export additional utilities
 export { customRender as render, createTestQueryClient };
