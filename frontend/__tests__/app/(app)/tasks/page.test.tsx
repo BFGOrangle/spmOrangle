@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import TasksPage from "../../../../app/(app)/tasks/page";
 import { demoTasks } from "@/lib/mvp-data";
 import { projectService, TaskResponse } from "@/services/project-service";
+import { tagService } from "@/services/tag-service";
 import { UserProvider } from "@/contexts/user-context";
 
 // Mock AWS Amplify Auth functions that are used by UserProvider
@@ -35,6 +36,14 @@ jest.mock("@/services/project-service", () => ({
     getAllUserTasks: jest.fn(),
     getPersonalTasks: jest.fn(),
     createTask: jest.fn(),
+    getRelatedProjectTasks: jest.fn(),
+    getUserProjects: jest.fn(),
+  },
+}));
+
+jest.mock("@/services/tag-service", () => ({
+  tagService: {
+    getTags: jest.fn(),
   },
 }));
 
@@ -72,7 +81,7 @@ jest.mock("@/components/task-card", () => ({
   TaskCard: ({ task, variant }: { task: any; variant: string }) => (
     <div data-testid={variant === "board" ? "board-card" : "table-row"}>
       <h3>{task.title}</h3>
-      <div data-testid="task-owner">{task.owner || `User ${task.ownerId}`}</div>
+      <div data-testid="task-owner">{task.ownerName || task.owner || `User ${task.ownerId}`}</div>
       {task.collaborators && task.collaborators.length > 0 && (
         <div data-testid="collaborators">
           {task.collaborators.map((collab: string, index: number) => (
@@ -94,11 +103,37 @@ jest.mock("@/components/task-card", () => ({
 }));
 
 const mockProjectService = projectService as jest.Mocked<typeof projectService>;
+const mockTagService = tagService as jest.Mocked<typeof tagService>;
 
 // Test wrapper component that provides UserProvider context
 const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <UserProvider>{children}</UserProvider>
 );
+
+const createTask = (
+  overrides: Partial<TaskResponse> & { id: number; title: string },
+): TaskResponse => ({
+  id: overrides.id,
+  title: overrides.title,
+  description: overrides.description ?? "",
+  status: overrides.status ?? "TODO",
+  taskType: overrides.taskType ?? "FEATURE",
+  projectId: overrides.projectId,
+  projectName: overrides.projectName,
+  ownerId: overrides.ownerId ?? 1,
+  ownerName: overrides.ownerName ?? `Owner ${overrides.ownerId ?? 1}`,
+  ownerDepartment: overrides.ownerDepartment ?? "Product",
+  createdAt: overrides.createdAt ?? "2024-12-01T00:00:00Z",
+  updatedAt:
+    overrides.updatedAt ?? overrides.createdAt ?? "2024-12-01T00:00:00Z",
+  createdBy: overrides.createdBy ?? (overrides.ownerId ?? 1),
+  updatedBy: overrides.updatedBy,
+  userHasEditAccess: overrides.userHasEditAccess ?? true,
+  userHasDeleteAccess: overrides.userHasDeleteAccess ?? false,
+  tags: overrides.tags ?? [],
+  assignedUserIds: overrides.assignedUserIds ?? [],
+  subtasks: overrides.subtasks ?? [],
+});
 
 describe("TasksPage", () => {
   beforeAll(() => {
@@ -115,6 +150,15 @@ describe("TasksPage", () => {
     mockProjectService.getAllUserTasks.mockClear();
     mockProjectService.getPersonalTasks.mockClear();
     mockProjectService.createTask.mockClear();
+    mockProjectService.getRelatedProjectTasks.mockClear();
+    mockProjectService.getUserProjects.mockClear();
+    mockTagService.getTags.mockClear();
+
+    mockTagService.getTags.mockResolvedValue([
+      { id: 1, tagName: "Backend" },
+      { id: 2, tagName: "Urgent" },
+      { id: 3, tagName: "Frontend" },
+    ]);
 
     // Default mock implementations that return demo data format
     const mockTasksData: TaskResponse[] = demoTasks.map((task, index) => ({
@@ -127,20 +171,29 @@ describe("TasksPage", () => {
               task.status === 'Review' ? 'IN_PROGRESS' :
               task.status === 'Done' ? 'COMPLETED' : 'TODO',
       taskType: 'FEATURE' as const,
-      ownerId: 1,
-      projectId: task.project ? 1 : undefined,
+      ownerId: index + 1,
+      ownerName: task.owner,
+      ownerDepartment: 'Product',
+      projectId: task.project ? index + 101 : undefined,
+      projectName: task.project || undefined,
       createdAt: task.dueDateTime || '2024-12-01T00:00:00Z',
       createdBy: 1,
       updatedAt: task.lastUpdated || '2024-12-01T00:00:00Z',
+      userHasEditAccess: task.userHasEditAccess,
+      userHasDeleteAccess: task.userHasDeleteAccess,
       // Add collaborators field for compatibility with TaskCard component
       collaborators: task.collaborators || [],
-      subtasks: task.subtasks || []
+      subtasks: task.subtasks || [],
+      tags: [],
+      assignedUserIds: []
     } as any));
     
     mockProjectService.getAllUserTasks.mockResolvedValue(mockTasksData);
     mockProjectService.getPersonalTasks.mockResolvedValue(
       mockTasksData.filter(task => !task.projectId)
     );
+    mockProjectService.getRelatedProjectTasks.mockResolvedValue([]);
+    mockProjectService.getUserProjects.mockResolvedValue([]);
   });
 
   const setup = async () => {
@@ -195,6 +248,41 @@ describe("TasksPage", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("applies tag filters and reloads tasks", async () => {
+    const { user } = await setup();
+
+    await waitFor(() => {
+      expect(mockTagService.getTags).toHaveBeenCalled();
+    });
+
+    const tagButton = await screen.findByRole("button", { name: /all tags/i });
+    await user.click(tagButton);
+
+    const backendOption = await screen.findByRole("menuitemcheckbox", {
+      name: "Backend",
+    });
+    await user.click(backendOption);
+
+    await waitFor(() => {
+      expect(mockProjectService.getAllUserTasks).toHaveBeenLastCalledWith(
+        expect.any(Number),
+        ["Backend"],
+      );
+    });
+
+    expect(screen.getByText("Backend")).toBeInTheDocument();
+
+    const clearButton = screen.getByRole("button", { name: /clear/i });
+    await user.click(clearButton);
+
+    await waitFor(() => {
+      expect(mockProjectService.getAllUserTasks).toHaveBeenLastCalledWith(
+        expect.any(Number),
+        [],
+      );
+    });
+  });
+
 
   it("renders card details including owner, collaborators, and subtasks", async () => {
     await setup();
@@ -209,7 +297,7 @@ describe("TasksPage", () => {
     const scoped = within(card as HTMLElement);
     
     // Check owner (using the transformed data format)
-    expect(scoped.getByTestId("task-owner")).toHaveTextContent(/User 1/i);
+    expect(scoped.getByTestId("task-owner")).toHaveTextContent(/Alicia Keys/i);
 
     // Check for collaborator avatars (initials)
     const collaboratorAvatars = scoped.getAllByTestId("collaborator-avatar");
@@ -222,6 +310,123 @@ describe("TasksPage", () => {
     expect(subtaskProgress).toHaveTextContent("1/3"); // 1 done out of 3 total
   });
 
+  it("allows grouping tasks by project with counts", async () => {
+    const groupingTasks: TaskResponse[] = [
+      createTask({
+        id: 101,
+        title: "Alpha plan",
+        projectId: 1001,
+        projectName: "Project Alpha",
+        ownerId: 10,
+        ownerName: "Alice",
+        ownerDepartment: "Engineering",
+        tags: ["Discovery"],
+      }),
+      createTask({
+        id: 102,
+        title: "Alpha retro",
+        projectId: 1001,
+        projectName: "Project Alpha",
+        ownerId: 11,
+        ownerName: "Bob",
+        ownerDepartment: "Engineering",
+        status: "IN_PROGRESS",
+        tags: [],
+      }),
+      createTask({
+        id: 201,
+        title: "Beta kickoff",
+        projectId: 1002,
+        projectName: "Project Beta",
+        ownerId: 12,
+        ownerName: "Cara",
+        ownerDepartment: "Product",
+        status: "BLOCKED",
+        tags: ["Discovery"],
+      }),
+    ];
+
+    mockProjectService.getAllUserTasks.mockResolvedValueOnce(groupingTasks);
+    mockProjectService.getPersonalTasks.mockResolvedValueOnce([]);
+    mockProjectService.getRelatedProjectTasks.mockResolvedValueOnce([]);
+
+    const { user } = await setup();
+
+    const groupBySelect = screen.getByRole("combobox", { name: /group tasks by/i });
+    await user.click(groupBySelect);
+    await user.click(await screen.findByRole("option", { name: /project view/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-project-1001")).toBeInTheDocument();
+    });
+
+    const projectAlphaGroup = screen.getByTestId("group-project-1001");
+    expect(within(projectAlphaGroup).getByText(/2 tasks?/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("board-column-todo")).not.toBeInTheDocument();
+  });
+
+  it("shows tasks under each tag grouping when grouped by tags", async () => {
+    const tagGroupingTasks: TaskResponse[] = [
+      createTask({
+        id: 301,
+        title: "Alpha kickoff",
+        projectId: 1001,
+        projectName: "Project Alpha",
+        ownerId: 21,
+        ownerName: "Dana",
+        ownerDepartment: "Engineering",
+        tags: ["Discovery", "Urgent"],
+      }),
+      createTask({
+        id: 302,
+        title: "Design QA",
+        projectId: 1001,
+        projectName: "Project Alpha",
+        ownerId: 22,
+        ownerName: "Evan",
+        ownerDepartment: "Design",
+        status: "IN_PROGRESS",
+        tags: ["Urgent"],
+      }),
+      createTask({
+        id: 303,
+        title: "Support follow-up",
+        ownerId: 23,
+        ownerName: "Fay",
+        ownerDepartment: "Support",
+        tags: [],
+      }),
+    ];
+
+    mockProjectService.getAllUserTasks.mockResolvedValueOnce(tagGroupingTasks);
+    mockProjectService.getPersonalTasks.mockResolvedValueOnce([]);
+    mockProjectService.getRelatedProjectTasks.mockResolvedValueOnce([]);
+
+    const { user } = await setup();
+
+    const groupBySelect = screen.getByRole("combobox", { name: /group tasks by/i });
+    await user.click(groupBySelect);
+    await user.click(await screen.findByRole("option", { name: /tag view/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-tag-discovery")).toBeInTheDocument();
+      expect(screen.getByTestId("group-tag-urgent")).toBeInTheDocument();
+      expect(screen.getByTestId("group-tag-none")).toBeInTheDocument();
+    });
+
+    const discoveryGroup = screen.getByTestId("group-tag-discovery");
+    expect(within(discoveryGroup).getByText("Alpha kickoff")).toBeInTheDocument();
+
+    const urgentGroup = screen.getByTestId("group-tag-urgent");
+    expect(
+      within(urgentGroup).getAllByText("Alpha kickoff").length,
+    ).toBeGreaterThan(0);
+    expect(within(urgentGroup).getByText("Design QA")).toBeInTheDocument();
+
+    const noTagGroup = screen.getByTestId("group-tag-none");
+    expect(within(noTagGroup).getByText("Support follow-up")).toBeInTheDocument();
+  });
+
 
   it("handles task type filter changes", async () => {
     const { user } = await setup();
@@ -230,7 +435,7 @@ describe("TasksPage", () => {
       await user.click(screen.getByRole("button", { name: "Personal Tasks" }));
     });
 
-    expect(mockProjectService.getPersonalTasks).toHaveBeenCalledWith(1);
+    expect(mockProjectService.getPersonalTasks).toHaveBeenCalledWith(1, []);
   });
 
   it("opens task creation dialog", async () => {
@@ -385,11 +590,18 @@ describe("TasksPage", () => {
         status: "TODO",
         taskType: "FEATURE",
         projectId: 1,
+        projectName: "Project 101",
         ownerId: 3,
+        ownerName: "Owner 3",
+        ownerDepartment: "Operations",
         createdAt: "2024-12-01T15:00:00Z",
         createdBy: 3,
+        updatedAt: "2024-12-01T15:00:00Z",
         userHasEditAccess: true,
-        userHasDeleteAccess: false
+        userHasDeleteAccess: false,
+        tags: [],
+        assignedUserIds: [],
+        subtasks: []
       };
 
       const mockTasksData: TaskResponse[] = demoTasks.map((task, index) => ({
@@ -402,13 +614,19 @@ describe("TasksPage", () => {
                 task.status === 'Review' ? 'IN_PROGRESS' :
                 task.status === 'Done' ? 'COMPLETED' : 'TODO',
         taskType: 'FEATURE' as const,
-        ownerId: 1,
-        projectId: task.project ? 1 : undefined,
+        ownerId: index + 1,
+        ownerName: task.owner,
+        ownerDepartment: 'Product',
+        projectId: task.project ? index + 101 : undefined,
+        projectName: task.project || undefined,
         createdAt: task.dueDateTime || '2024-12-01T00:00:00Z',
         createdBy: 1,
         updatedAt: task.lastUpdated || '2024-12-01T00:00:00Z',
         userHasEditAccess: task.userHasEditAccess,
-        userHasDeleteAccess: task.userHasDeleteAccess
+        userHasDeleteAccess: task.userHasDeleteAccess,
+        tags: [],
+        assignedUserIds: [],
+        subtasks: []
       }));
 
       const updatedTasks = [...mockTasksData, newTask];

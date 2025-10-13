@@ -1,5 +1,9 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
+import com.spmorangle.common.model.User;
+import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
+import com.spmorangle.crm.projectmanagement.dto.ProjectResponseDto;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
@@ -12,6 +16,7 @@ import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import com.spmorangle.crm.taskmanagement.model.Tag;
 import com.spmorangle.crm.taskmanagement.model.Task;
+import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
@@ -34,6 +39,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -67,6 +74,15 @@ class TaskServiceImplTest {
     @Mock
     private TagService tagService;
 
+    @Mock
+    private NotificationMessagePublisher notificationPublisher;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private TaskAssigneeRepository taskAssigneeRepository;
+
     @InjectMocks
     private TaskServiceImpl taskService;
 
@@ -90,6 +106,39 @@ class TaskServiceImplTest {
 
         // Mock subtaskService to return empty lists for all task IDs (lenient for tests that don't use it)
         lenient().when(subtaskService.getSubtasksByTaskId(anyLong(), anyLong())).thenReturn(Collections.emptyList());
+
+        lenient().when(projectService.getProjectOwners(any())).thenReturn(Collections.emptyMap());
+        lenient().when(projectService.getProjectsByIds(any())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Set<Long> ids = (Set<Long>) invocation.getArgument(0);
+            if (ids == null) {
+                return Collections.emptyList();
+            }
+            return ids.stream()
+                    .map(id -> ProjectResponseDto.builder()
+                            .id(id)
+                            .name("Project " + id)
+                            .description(null)
+                            .ownerId(0L)
+                            .createdAt(null)
+                            .updatedAt(null)
+                            .taskCount(0)
+                            .completedTaskCount(0)
+                            .build())
+                    .toList();
+        });
+
+        lenient().when(userRepository.findAllById(any())).thenAnswer(invocation -> {
+            Iterable<Long> ids = invocation.getArgument(0);
+            if (ids == null) {
+                return Collections.emptyList();
+            }
+            List<User> users = new ArrayList<>();
+            for (Long id : ids) {
+                users.add(createUser(id));
+            }
+            return users;
+        });
     }
 
     private Task createTestTask(Long id, Long projectId, Long ownerId, String title,
@@ -108,6 +157,16 @@ class TaskServiceImplTest {
         task.setUpdatedAt(fixedDateTime);
         task.setUpdatedBy(ownerId);
         return task;
+    }
+
+    private User createUser(Long id) {
+        User user = new User();
+        user.setId(id);
+        user.setUserName("Owner " + id);
+        user.setDepartment("Dept " + (id % 3));
+        user.setRoleType("STAFF");
+        user.setCognitoSub(UUID.randomUUID());
+        return user;
     }
 
     private Set<Tag> createTagsFromNames(List<String> tagNames) {
@@ -144,7 +203,10 @@ class TaskServiceImplTest {
             TaskResponseDto firstTask = result.get(0);
             assertThat(firstTask.getId()).isEqualTo(1L);
             assertThat(firstTask.getProjectId()).isEqualTo(101L);
+            assertThat(firstTask.getProjectName()).isEqualTo("Project 101");
             assertThat(firstTask.getOwnerId()).isEqualTo(201L);
+            assertThat(firstTask.getOwnerName()).isEqualTo("Owner 201");
+            assertThat(firstTask.getOwnerDepartment()).isEqualTo("Dept " + (201L % 3));
             assertThat(firstTask.getTitle()).isEqualTo("Task 1");
             assertThat(firstTask.getDescription()).isEqualTo("Description 1");
             assertThat(firstTask.getStatus()).isEqualTo(Status.TODO);
@@ -156,15 +218,19 @@ class TaskServiceImplTest {
             TaskResponseDto secondTask = result.get(1);
             assertThat(secondTask.getId()).isEqualTo(2L);
             assertThat(secondTask.getProjectId()).isEqualTo(102L);
+            assertThat(secondTask.getProjectName()).isEqualTo("Project 102");
+            assertThat(secondTask.getOwnerName()).isEqualTo("Owner 201");
             assertThat(secondTask.getStatus()).isEqualTo(Status.IN_PROGRESS);
             assertThat(secondTask.getTags()).containsExactlyInAnyOrder("tag3");
 
             // Verify third task
             TaskResponseDto thirdTask = result.get(2);
             assertThat(thirdTask.getId()).isEqualTo(3L);
+            assertThat(thirdTask.getProjectName()).isEqualTo("Project 103");
             assertThat(thirdTask.getDescription()).isNull();
             assertThat(thirdTask.getStatus()).isEqualTo(Status.COMPLETED);
             assertThat(thirdTask.getTags()).isEmpty();
+            assertThat(thirdTask.getOwnerDepartment()).isEqualTo("Dept " + (201L % 3));
 
             verify(taskRepository).findUserTasks(userId);
         }
@@ -847,7 +913,7 @@ class TaskServiceImplTest {
 
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
             when(taskRepository.findById(savedTask.getId())).thenReturn(Optional.of(savedTask));
-            when(collaboratorService.addCollaborator(any(AddCollaboratorRequestDto.class)))
+            when(collaboratorService.addCollaborator(any(AddCollaboratorRequestDto.class), anyLong()))
                     .thenReturn(AddCollaboratorResponseDto.builder()
                             .taskId(1L)
                             .collaboratorId(789L)
@@ -863,9 +929,8 @@ class TaskServiceImplTest {
 
             verify(collaboratorService, times(2)).addCollaborator(argThat(request ->
                 request.getTaskId().equals(1L) &&
-                request.getAssignedById().equals(123L) &&
                 (request.getCollaboratorId().equals(789L) || request.getCollaboratorId().equals(101L))
-            ));
+            ), eq(123L));
         }
 
         @Test
@@ -893,7 +958,7 @@ class TaskServiceImplTest {
 
             // Then
             assertThat(result.getAssignedUserIds()).isEmpty();
-            verify(collaboratorService, never()).addCollaborator(any());
+            verify(collaboratorService, never()).addCollaborator(any(), anyLong());
         }
 
         @Test
@@ -921,7 +986,7 @@ class TaskServiceImplTest {
 
             // Then
             assertThat(result.getAssignedUserIds()).isEmpty();
-            verify(collaboratorService, never()).addCollaborator(any());
+            verify(collaboratorService, never()).addCollaborator(any(), anyLong());
         }
 
         @Test
@@ -935,10 +1000,10 @@ class TaskServiceImplTest {
             when(taskRepository.findById(savedTask.getId())).thenReturn(Optional.of(savedTask));
 
             when(collaboratorService.addCollaborator(argThat(request ->
-                    request != null && request.getCollaboratorId().equals(789L))))
+                    request != null && request.getCollaboratorId().equals(789L)), anyLong()))
                     .thenThrow(new RuntimeException("Assignment failed for user 789"));
             when(collaboratorService.addCollaborator(argThat(request ->
-                    request != null && request.getCollaboratorId().equals(101L))))
+                    request != null && request.getCollaboratorId().equals(101L)), anyLong()))
                     .thenReturn(AddCollaboratorResponseDto.builder()
                             .taskId(1L)
                             .collaboratorId(101L)
@@ -951,7 +1016,7 @@ class TaskServiceImplTest {
 
             // Then
             assertThat(result.getAssignedUserIds()).containsExactly(101L);
-            verify(collaboratorService, times(2)).addCollaborator(any());
+            verify(collaboratorService, times(2)).addCollaborator(any(), anyLong());
         }
 
         @Test
@@ -1259,19 +1324,17 @@ class TaskServiceImplTest {
             assertThat(result.getOwnerId()).isEqualTo(currentUserId);
 
             verify(taskRepository).save(any(Task.class));
-            verify(collaboratorService, times(2)).addCollaborator(any(AddCollaboratorRequestDto.class));
-            
+            verify(collaboratorService, times(2)).addCollaborator(any(AddCollaboratorRequestDto.class), anyLong());
+
             // Verify the specific collaborator requests
-            verify(collaboratorService).addCollaborator(argThat(request -> 
-                request.getTaskId().equals(1L) && 
-                request.getCollaboratorId().equals(789L) && 
-                request.getAssignedById().equals(currentUserId)
-            ));
-            verify(collaboratorService).addCollaborator(argThat(request -> 
-                request.getTaskId().equals(1L) && 
-                request.getCollaboratorId().equals(101L) && 
-                request.getAssignedById().equals(currentUserId)
-            ));
+            verify(collaboratorService).addCollaborator(argThat(request ->
+                request.getTaskId().equals(1L) &&
+                request.getCollaboratorId().equals(789L)
+            ), eq(currentUserId));
+            verify(collaboratorService).addCollaborator(argThat(request ->
+                request.getTaskId().equals(1L) &&
+                request.getCollaboratorId().equals(101L)
+            ), eq(currentUserId));
         }
 
         @Test
@@ -1300,7 +1363,7 @@ class TaskServiceImplTest {
             assertThat(result.getOwnerId()).isEqualTo(currentUserId);
 
             verify(taskRepository).save(any(Task.class));
-            verify(collaboratorService, never()).addCollaborator(any());
+            verify(collaboratorService, never()).addCollaborator(any(), anyLong());
         }
 
         @Test

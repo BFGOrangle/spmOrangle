@@ -1,14 +1,18 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
+import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
 import com.spmorangle.crm.taskmanagement.model.TaskAssigneeCK;
 import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
+import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAlreadyExistsException;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAssignmentNotFoundException;
+import com.spmorangle.crm.taskmanagement.service.exception.TaskNotFoundException;
+import com.spmorangle.crm.taskmanagement.service.exception.UserNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,15 +25,34 @@ import java.util.List;
 public class CollaboratorServiceImpl implements CollaboratorService {
 
     private final TaskAssigneeRepository taskAssigneeRepository;
+    private final UserRepository userRepository;
+    private final TaskRepository taskRepository;
 
     @Override
-    public AddCollaboratorResponseDto addCollaborator(AddCollaboratorRequestDto requestDto) {
+    public AddCollaboratorResponseDto addCollaborator(AddCollaboratorRequestDto requestDto, Long assignedById) {
         long taskId = requestDto.getTaskId();
         long collaboratorId = requestDto.getCollaboratorId();
-        long assignedById = requestDto.getAssignedById();
 
-        log.info("🔵 [COLLABORATOR] Attempting to add collaborator - TaskId: {}, CollaboratorId: {}, AssignedById: {}", 
+        log.info("🔵 [COLLABORATOR] Attempting to add collaborator - TaskId: {}, CollaboratorId: {}, AssignedById: {}",
                  taskId, collaboratorId, assignedById);
+
+        // Validate task exists
+        if (!taskRepository.existsById(taskId)) {
+            log.error("❌ [COLLABORATOR] Task not found - TaskId: {}", taskId);
+            throw new TaskNotFoundException(taskId);
+        }
+
+        // Validate collaborator user exists
+        if (!userRepository.existsById(collaboratorId)) {
+            log.error("❌ [COLLABORATOR] Collaborator user not found - UserId: {}", collaboratorId);
+            throw new UserNotFoundException(collaboratorId, "collaborator");
+        }
+
+        // Validate assigned_by user exists
+        if (!userRepository.existsById(assignedById)) {
+            log.error("❌ [COLLABORATOR] Assigned by user not found - UserId: {}", assignedById);
+            throw new UserNotFoundException(assignedById, "assigned_by");
+        }
 
         if (taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(taskId, collaboratorId, assignedById)) {
             log.warn("⚠️ [COLLABORATOR] Collaborator already exists - TaskId: {}, CollaboratorId: {}", taskId, collaboratorId);
@@ -43,7 +66,7 @@ public class CollaboratorServiceImpl implements CollaboratorService {
 
         log.info("💾 [COLLABORATOR] Saving collaborator to database...");
         TaskAssignee savedAssignee = taskAssigneeRepository.save(taskAssignee);
-        log.info("✅ [COLLABORATOR] Successfully added collaborator - TaskId: {}, CollaboratorId: {}, AssignedAt: {}", 
+        log.info("✅ [COLLABORATOR] Successfully added collaborator - TaskId: {}, CollaboratorId: {}, AssignedAt: {}",
                  savedAssignee.getTaskId(), savedAssignee.getUserId(), savedAssignee.getAssignedAt());
 
         return AddCollaboratorResponseDto.builder()
@@ -55,10 +78,9 @@ public class CollaboratorServiceImpl implements CollaboratorService {
     }
 
     @Override
-    public void removeCollaborator(RemoveCollaboratorRequestDto requestDto) {
+    public void removeCollaborator(RemoveCollaboratorRequestDto requestDto, Long assignedById) {
         long taskId = requestDto.getTaskId();
         long collaboratorId = requestDto.getCollaboratorId();
-        long assignedById = requestDto.getAssignedById();
 
         if (!taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(taskId, collaboratorId, assignedById)) {
             throw new CollaboratorAssignmentNotFoundException(taskId, collaboratorId);
@@ -75,5 +97,10 @@ public class CollaboratorServiceImpl implements CollaboratorService {
     @Override
     public List<Long> getTasksForWhichUserIsCollaborator(Long userId) {
         return taskAssigneeRepository.findTaskIdsUserIsAssigneeFor(userId);
+    }
+
+    @Override
+    public List<Long> getCollaboratorIdsByTaskId(Long taskId) {
+        return taskAssigneeRepository.findAssigneeIdsByTaskId(taskId);
     }
 }

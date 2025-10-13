@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -90,9 +91,8 @@ public class TaskManagementControllerTest {
         validAddRequest = AddCollaboratorRequestDto.builder()
                 .taskId(1L)
                 .collaboratorId(2L)
-                .assignedById(3L)
                 .build();
-        validRemoveRequest = new RemoveCollaboratorRequestDto(1L, 2L, 3L);
+        validRemoveRequest = new RemoveCollaboratorRequestDto(1L, 2L);
         responseDto = AddCollaboratorResponseDto.builder()
                 .taskId(1L)
                 .collaboratorId(2L)
@@ -187,6 +187,54 @@ public class TaskManagementControllerTest {
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$.length()").value(0));
+        }
+
+        @Test
+        @DisplayName("Should filter tasks by all provided tags")
+        void getTasks_WithTagFilter_ReturnsOnlyMatchingTasks() throws Exception {
+            // Given
+            TaskResponseDto matchingTask = TaskResponseDto.builder()
+                    .id(1L)
+                    .projectId(101L)
+                    .ownerId(123L)
+                    .title("Backend sync")
+                    .description("Work on backend sync")
+                    .status(Status.TODO)
+                    .tags(Arrays.asList("Urgent", "Backend"))
+                    .createdBy(123L)
+                    .createdAt(OffsetDateTime.now())
+                    .build();
+
+            TaskResponseDto nonMatchingTask = TaskResponseDto.builder()
+                    .id(2L)
+                    .projectId(102L)
+                    .ownerId(123L)
+                    .title("Frontend polish")
+                    .description("Refine styles")
+                    .status(Status.IN_PROGRESS)
+                    .tags(Collections.singletonList("Frontend"))
+                    .createdBy(123L)
+                    .createdAt(OffsetDateTime.now())
+                    .build();
+
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(taskService.getAllUserTasks(eq(123L)))
+                    .thenReturn(Arrays.asList(matchingTask, nonMatchingTask));
+
+            // When & Then
+            mockMvc.perform(get("/api/tasks/user")
+                            .param("tags", "urgent")
+                            .param("tags", "backend")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.length()").value(1))
+                    .andExpect(jsonPath("$[0].id").value(1L))
+                    .andExpect(jsonPath("$[0].title").value("Backend sync"))
+                    .andExpect(jsonPath("$[0].tags.length()").value(2));
+
+            verify(taskService).getAllUserTasks(eq(123L));
         }
 
         @Test
@@ -912,7 +960,8 @@ public class TaskManagementControllerTest {
         @DisplayName("Should successfully add collaborator and return 201 with response")
         void addCollaborator_ValidRequest_ReturnsCreatedWithResponse() throws Exception {
             // Given
-            when(collaboratorService.addCollaborator(any(AddCollaboratorRequestDto.class)))
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(collaboratorService.addCollaborator(any(AddCollaboratorRequestDto.class), anyLong()))
                     .thenReturn(responseDto);
 
             // When & Then
@@ -932,7 +981,8 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 409 when collaborator already exists")
         void addCollaborator_CollaboratorAlreadyExists_ReturnsConflict() throws Exception {
             // Given
-            when(collaboratorService.addCollaborator(any(AddCollaboratorRequestDto.class)))
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            when(collaboratorService.addCollaborator(any(AddCollaboratorRequestDto.class), anyLong()))
                     .thenThrow(new CollaboratorAlreadyExistsException(1L, 2L));
 
             // When & Then
@@ -949,7 +999,6 @@ public class TaskManagementControllerTest {
             AddCollaboratorRequestDto invalidRequest = AddCollaboratorRequestDto.builder()
                     .taskId(null)
                     .collaboratorId(2L)
-                    .assignedById(3L)
                     .build();
 
             // When & Then
@@ -966,7 +1015,6 @@ public class TaskManagementControllerTest {
             AddCollaboratorRequestDto invalidRequest = AddCollaboratorRequestDto.builder()
                     .taskId(1L)
                     .collaboratorId(null)
-                    .assignedById(3L)
                     .build();
 
             // When & Then
@@ -976,22 +1024,7 @@ public class TaskManagementControllerTest {
                     .andExpect(status().isBadRequest());
         }
 
-        @Test
-        @DisplayName("Should return 400 when assigned by ID is null")
-        void addCollaborator_NullAssignedById_ReturnsBadRequest() throws Exception {
-            // Given
-            AddCollaboratorRequestDto invalidRequest = AddCollaboratorRequestDto.builder()
-                    .taskId(1L)
-                    .collaboratorId(2L)
-                    .assignedById(null)
-                    .build();
 
-            // When & Then
-            mockMvc.perform(post("/api/tasks/collaborator").with(csrf())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(invalidRequest)))
-                    .andExpect(status().isBadRequest());
-        }
 
         @Test
         @DisplayName("Should return 400 when task ID is zero")
@@ -1000,7 +1033,6 @@ public class TaskManagementControllerTest {
             AddCollaboratorRequestDto invalidRequest = AddCollaboratorRequestDto.builder()
                     .taskId(0L)
                     .collaboratorId(2L)
-                    .assignedById(3L)
                     .build();
 
             // When & Then
@@ -1039,7 +1071,8 @@ public class TaskManagementControllerTest {
         @DisplayName("Should successfully remove collaborator and return 204")
         void removeCollaborator_ValidRequest_ReturnsNoContent() throws Exception {
             // Given
-            doNothing().when(collaboratorService).removeCollaborator(any(RemoveCollaboratorRequestDto.class));
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
+            doNothing().when(collaboratorService).removeCollaborator(any(RemoveCollaboratorRequestDto.class), anyLong());
 
             // When & Then
             mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
@@ -1052,8 +1085,9 @@ public class TaskManagementControllerTest {
         @DisplayName("Should return 404 when collaborator assignment not found")
         void removeCollaborator_AssignmentNotFound_ReturnsNotFound() throws Exception {
             // Given
+            when(userContextService.getRequestingUser()).thenReturn(testUser);
             doThrow(new CollaboratorAssignmentNotFoundException(1L, 2L))
-                    .when(collaboratorService).removeCollaborator(any(RemoveCollaboratorRequestDto.class));
+                    .when(collaboratorService).removeCollaborator(any(RemoveCollaboratorRequestDto.class), anyLong());
 
             // When & Then
             mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
@@ -1069,7 +1103,6 @@ public class TaskManagementControllerTest {
             RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto();
             invalidRequest.setTaskId(null);
             invalidRequest.setCollaboratorId(2L);
-            invalidRequest.setAssignedById(3L);
 
             // When & Then
             mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
@@ -1085,7 +1118,6 @@ public class TaskManagementControllerTest {
             RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto();
             invalidRequest.setTaskId(1L);
             invalidRequest.setCollaboratorId(null);
-            invalidRequest.setAssignedById(3L);
 
             // When & Then
             mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
@@ -1094,21 +1126,7 @@ public class TaskManagementControllerTest {
                     .andExpect(status().isBadRequest());
         }
 
-        @Test
-        @DisplayName("Should return 400 when assigned by ID is null")
-        void removeCollaborator_NullAssignedById_ReturnsBadRequest() throws Exception {
-            // Given
-            RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto();
-            invalidRequest.setTaskId(1L);
-            invalidRequest.setCollaboratorId(2L);
-            invalidRequest.setAssignedById(null);
 
-            // When & Then
-            mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(invalidRequest)))
-                    .andExpect(status().isBadRequest());
-        }
 
         @Test
         @DisplayName("Should return 400 when collaborator ID is zero")
@@ -1117,7 +1135,6 @@ public class TaskManagementControllerTest {
             RemoveCollaboratorRequestDto invalidRequest = new RemoveCollaboratorRequestDto();
             invalidRequest.setTaskId(1L);
             invalidRequest.setCollaboratorId(0L);
-            invalidRequest.setAssignedById(3L);
 
             // When & Then
             mockMvc.perform(delete("/api/tasks/collaborator").with(csrf())

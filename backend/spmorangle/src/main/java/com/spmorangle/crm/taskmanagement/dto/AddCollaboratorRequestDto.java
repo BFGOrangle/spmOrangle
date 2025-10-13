@@ -22,8 +22,4 @@ public class AddCollaboratorRequestDto {
     @NotNull
     @Min(1)
     private Long collaboratorId;
-
-    @NotNull
-    @Min(1)
-    private Long assignedById;
 }

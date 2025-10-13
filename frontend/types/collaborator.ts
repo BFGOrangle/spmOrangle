@@ -3,13 +3,11 @@
 export interface AddCollaboratorRequestDto {
   taskId: number;
   collaboratorId: number;
-  assignedById: number;
 }
 
 export interface RemoveCollaboratorRequestDto {
   taskId: number;
   collaboratorId: number;
-  assignedById: number;
 }
 
 export interface AddCollaboratorResponseDto {

@@ -31,6 +31,10 @@ public class User {
     @Column(name = "role_type", nullable = false)
     private String roleType;
 
+    @Size(max = 100)
+    @Column(name = "department")
+    private String department;
+
     @NotNull
     @Column(name = "cognito_sub", nullable = false)
     private UUID cognitoSub;

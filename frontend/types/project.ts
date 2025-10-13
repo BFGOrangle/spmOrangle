@@ -47,6 +47,7 @@ export interface TaskResponseDto {
   description?: string;
   status: TaskStatus;
   tags?: string[];
+  assignedUserIds?: number[];
   userHasEditAccess: boolean;
   userHasDeleteAccess: boolean;
   createdAt: string;
@@ -54,6 +55,7 @@ export interface TaskResponseDto {
   createdBy: number;
   updatedBy?: number;
   subtasks?: SubtaskResponseDto[];
+  dueDateTime?: string;
 }
 
 // UI-specific interfaces for project and task management

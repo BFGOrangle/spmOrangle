@@ -284,6 +284,14 @@ describe("ProjectService", () => {
       expect(result).toEqual(mockTasks);
     });
 
+    it("includes tag filters when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+
+      await service.getProjectTasks(1, ['Urgent', ' Backend ']);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/tasks/project/1?tags=Urgent&tags=Backend');
+    });
+
     it("handles project tasks retrieval errors", async () => {
       const error = new Error('Project not found');
       mockAuthenticatedClient.get.mockRejectedValueOnce(error);
@@ -370,6 +378,14 @@ describe("ProjectService", () => {
       expect(result).toEqual(mockPersonalTasks);
     });
 
+    it("includes tag filters when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+
+      await service.getPersonalTasks(1, ['focus', 'deep work']);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/tasks/personal?tags=focus&tags=deep+work');
+    });
+
     it("handles personal tasks retrieval errors", async () => {
       const error = new Error('Unauthorized');
       mockAuthenticatedClient.get.mockRejectedValueOnce(error);
@@ -412,6 +428,14 @@ describe("ProjectService", () => {
       expect(result).toEqual(mockAllTasks);
     });
 
+    it("includes tag filters when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+
+      await service.getAllUserTasks(1, ['backend']);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/tasks/user?tags=backend');
+    });
+
     it("handles all user tasks retrieval errors", async () => {
       const error = new Error('Unauthorized');
       mockAuthenticatedClient.get.mockRejectedValueOnce(error);
@@ -420,37 +444,13 @@ describe("ProjectService", () => {
     });
   });
 
-  describe("getTaskById", () => {
-    it("successfully retrieves a task by ID", async () => {
-      const mockTask = {
-        id: 1,
-        title: 'Test Task',
-        description: 'Test Description',
-        projectId: 1,
-        ownerId: 1,
-        taskType: 'FEATURE' as const,
-        status: 'TODO' as const,
-        userHasEditAccess: true,
-        userHasDeleteAccess: false,
-        createdAt: '2023-01-01T00:00:00Z',
-        createdBy: 1,
-        subtasks: [],
-        assignedUserIds: [1, 2],
-      };
+  describe("getRelatedProjectTasks", () => {
+    it("includes tag filters when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
 
-      mockAuthenticatedClient.get.mockResolvedValueOnce(mockTask);
+      await service.getRelatedProjectTasks(['Research']);
 
-      const result = await service.getTaskById(1);
-
-      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/tasks/1');
-      expect(result).toEqual(mockTask);
-    });
-
-    it("handles task retrieval errors", async () => {
-      const error = new Error('Task not found');
-      mockAuthenticatedClient.get.mockRejectedValueOnce(error);
-
-      await expect(service.getTaskById(999)).rejects.toThrow('Task not found');
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/tasks/user/related?tags=Research');
     });
   });
 
