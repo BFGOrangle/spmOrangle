@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -30,6 +30,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -46,13 +54,17 @@ import {
 } from "@/lib/mvp-data";
 import {
   CalendarDays,
+  ChevronDown,
+  ChevronRight,
   Clock4,
   MoreHorizontal,
   Paperclip,
   Plus,
   Users as UsersIcon,
+  X,
 } from "lucide-react";
 import { projectService, TaskResponse, ProjectResponse } from "@/services/project-service";
+import { tagService } from "@/services/tag-service";
 import { TaskCreationDialog } from "@/components/task-creation-dialog";
 import { TaskCard } from "@/components/task-card";
 import { DraggableTaskCard } from "@/components/draggable-task-card";
@@ -71,6 +83,15 @@ const TASK_TYPE_FILTERS = [
   "All Tasks",
   "Personal Tasks",
 ];
+
+const GROUPING_OPTIONS = [
+  { value: "status", label: "Status board" },
+  { value: "project", label: "Project view" },
+  { value: "department", label: "Team/Department view" },
+  { value: "tag", label: "Tag view" },
+] as const;
+
+type GroupByOption = (typeof GROUPING_OPTIONS)[number]["value"];
 
 // Map backend status to frontend status
 const mapBackendStatus = (status: string): TaskStatus => {
@@ -92,6 +113,12 @@ const mapTaskTypeToPriority = (taskType: string): TaskPriority => {
     case 'RESEARCH': return 'Medium';
     default: return 'Medium';
   }
+};
+
+const normalizeKey = (value: string) => {
+  const trimmed = value.trim().toLowerCase();
+  const normalized = trimmed.replace(/[^a-z0-9]+/g, "-");
+  return normalized.length > 0 ? normalized : "none";
 };
 
 const statusOrder: TaskStatus[] = [
@@ -170,12 +197,13 @@ const getTaskDisplayProps = (task: TaskResponse) => {
     status: mapBackendStatus(task.status),
     key: `TASK-${task.id}`,
     priority: mapTaskTypeToPriority(task.taskType),
-    owner: `User ${task.ownerId}`,
+    owner: task.ownerName || `User ${task.ownerId}`,
+    ownerDepartment: task.ownerDepartment || "Unassigned department",
     collaborators: [] as string[], // TODO: Add collaborators when available in API
     dueDate: task.createdAt, // Using createdAt as placeholder for due date
     lastUpdated: task.updatedAt || task.createdAt,
     attachments: 0, // TODO: Add attachment count when available
-    project: task.projectId ? `Project ${task.projectId}` : 'Personal Task',
+    project: task.projectName || (task.projectId ? `Project ${task.projectId}` : 'Personal Task'),
     subtasks: task.subtasks || [],
     ownerId: task.ownerId,
     projectId: task.projectId
@@ -283,6 +311,71 @@ const TaskBoardCard = ({ task }: TaskBoardCardProps) => {
   );
 };
 
+const RelatedTaskCard = ({ task }: TaskBoardCardProps) => {
+  const { total, done, progress } = getSubtaskSummary(task);
+  const taskProps = getTaskDisplayProps(task);
+  const lastUpdatedLabel = formatRelativeDate(task.updatedAt || task.createdAt);
+
+  return (
+    <Card className="h-full border border-dashed border-muted-foreground/40">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-base leading-tight">{taskProps.title}</CardTitle>
+            <CardDescription>{taskProps.project}</CardDescription>
+          </div>
+          <Badge
+            variant="outline"
+            className="border-amber-500/60 bg-amber-50/80 text-[10px] font-semibold uppercase tracking-wide text-amber-600"
+          >
+            View only
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <UsersIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Owned by user {task.ownerId}</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Clock4 className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Updated {lastUpdatedLabel}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Badge variant="outline" className="px-2 py-0.5">
+            {mapBackendStatus(task.status)}
+          </Badge>
+          <Badge variant="secondary" className="px-2 py-0.5">
+            {mapTaskTypeToPriority(task.taskType)} priority
+          </Badge>
+          {task.tags && task.tags.length > 0 ? (
+            <span className="text-muted-foreground">
+              Tags: {task.tags.join(', ')}
+            </span>
+          ) : null}
+        </div>
+        {total > 0 && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {done}/{total} subtasks
+              </span>
+              <span>{progress}%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-muted">
+              <div
+                className="h-1.5 rounded-full bg-primary transition-all"
+                style={{ width: `${progress}%` }}
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 type TaskTableRowProps = {
   task: TaskResponse;
 };
@@ -387,23 +480,109 @@ const TaskTableRow = ({ task }: TaskTableRowProps) => {
   );
 };
 
+type TaskGroup = {
+  key: string;
+  label: string;
+  count: number;
+  tasks: TaskResponse[];
+  helper?: string;
+};
+
+const GroupedTaskSection = ({ groups }: { groups: TaskGroup[] }) => {
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  if (!groups.length) {
+    return (
+      <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-muted-foreground/40">
+        <div className="space-y-2 text-center">
+          <p className="text-base font-semibold">No tasks in this grouping yet</p>
+          <p className="text-muted-foreground text-sm">
+            Switch filters or create a task to see it appear here.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups((prev) => ({
+      ...prev,
+      [key]: !(prev[key] ?? true),
+    }));
+  };
+
+  return (
+    <div className="space-y-3">
+      {groups.map((group) => {
+        const isOpen = openGroups[group.key] ?? true;
+        return (
+          <div
+            key={group.key}
+            className="overflow-hidden rounded-lg border border-border/70 bg-background shadow-sm"
+            data-testid={`group-${group.key}`}
+          >
+            <button
+              type="button"
+              onClick={() => toggleGroup(group.key)}
+              className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">{group.label}</p>
+                {group.helper ? (
+                  <p className="text-muted-foreground text-xs">{group.helper}</p>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge variant="secondary" className="px-2 py-0.5 text-xs">
+                  {group.count} task{group.count === 1 ? "" : "s"}
+                </Badge>
+                {isOpen ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                )}
+              </div>
+            </button>
+            {isOpen ? (
+              <div className="border-t border-border/60 bg-muted/10">
+                <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {group.tasks.map((task, index) => (
+                    <TaskBoardCard key={`${group.key}-${task.id}-${index}`} task={task} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export default function TasksPage() {
   const { currentUser, isLoading: userLoading } = useCurrentUser();
   const [selectedStatus, setSelectedStatus] =
     useState<(typeof STATUS_FILTERS)[number]>("All");
   const [selectedTaskType, setSelectedTaskType] = useState<string>("All Tasks");
   const [tasks, setTasks] = useState<TaskResponse[]>([]);
+  const [relatedTasks, setRelatedTasks] = useState<TaskResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [relatedLoading, setRelatedLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [relatedError, setRelatedError] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("all"); // "all" | "personal" | "owned" | projectId string
   const [dateFrom, setDateFrom] = useState<string>(""); // yyyy-MM-dd
   const [dateTo, setDateTo] = useState<string>("");
   const [activeTask, setActiveTask] = useState<TaskResponse | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
 
   type SortBy = "due" | "status" | "updated";
   const [sortBy, setSortBy] = useState<SortBy>("due");
+  const [groupBy, setGroupBy] = useState<GroupByOption>("status");
 
   // Get current user ID, fallback to 1 for now
   const currentUserId = currentUser?.backendStaffId || 1;
@@ -427,6 +606,33 @@ export default function TasksPage() {
       default: return 'TODO';
     }
   };
+
+  const toggleTagFilter = useCallback((rawTag: string) => {
+    const tag = rawTag.trim();
+    if (!tag) {
+      return;
+    }
+
+    setSelectedTags((prev) => {
+      if (prev.includes(tag)) {
+        return prev.filter((item) => item !== tag);
+      }
+      return [...prev, tag];
+    });
+  }, []);
+
+  const clearTagFilters = useCallback(() => {
+    setSelectedTags([]);
+  }, []);
+
+  const resetFilters = useCallback(() => {
+    setSelectedStatus("All");
+    setSelectedProject("all");
+    setDateFrom("");
+    setDateTo("");
+    setSortBy("due");
+    clearTagFilters();
+  }, [clearTagFilters]);
 
   // Custom collision detection for columns
   const collisionDetectionStrategy = (args: any) => {
@@ -511,50 +717,99 @@ export default function TasksPage() {
     }
   };
 
+  const loadTasks = useCallback(async () => {
+    setLoading(true);
+    setRelatedLoading(true);
+    setError(null);
+    setRelatedError(null);
+
+    if (!currentUser) {
+      setTasks([]);
+      setRelatedTasks([]);
+      setError("User not authenticated");
+      setRelatedError("User not authenticated");
+      setLoading(false);
+      setRelatedLoading(false);
+      return;
+    }
+
+    const userId = currentUser.backendStaffId || 1;
+
+    const tasksPromise = (async () => {
+      if (selectedTaskType === "Personal Tasks") {
+        return projectService.getPersonalTasks(userId, selectedTags);
+      }
+      if (selectedTaskType === "Project Tasks") {
+        const allTasks = await projectService.getAllUserTasks(userId, selectedTags);
+        return allTasks.filter(task => task.projectId !== null);
+      }
+      return projectService.getAllUserTasks(userId, selectedTags);
+    })();
+
+    const relatedPromise = projectService.getRelatedProjectTasks(selectedTags);
+
+    const [tasksResult, relatedResult] = await Promise.allSettled([tasksPromise, relatedPromise]);
+
+    if (tasksResult.status === "fulfilled") {
+      setTasks(tasksResult.value);
+    } else {
+      const cause = tasksResult.reason;
+      console.error('Error loading tasks:', cause);
+      setTasks([]);
+      setError(cause instanceof Error ? cause.message : "Failed to load tasks");
+    }
+
+    if (relatedResult.status === "fulfilled") {
+      const projectScoped = relatedResult.value.filter(
+        (task): task is TaskResponse & { projectId: number } => typeof task.projectId === "number",
+      );
+      setRelatedTasks(projectScoped);
+    } else {
+      const cause = relatedResult.reason;
+      console.error('Error loading related tasks:', cause);
+      setRelatedTasks([]);
+      setRelatedError(cause instanceof Error ? cause.message : "Failed to load related tasks");
+    }
+
+    setLoading(false);
+    setRelatedLoading(false);
+  }, [currentUser, selectedTaskType, selectedTags]);
+
   useEffect(() => {
-    const loadTasks = async () => {
+    if (!userLoading) {
+      loadTasks();
+    }
+  }, [userLoading, loadTasks]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchTags = async () => {
+      setTagsLoading(true);
       try {
-        setLoading(true);
-        
-        // Check if we have a current user
-        if (!currentUser) {
-          setError("User not authenticated");
+        const tags = await tagService.getTags();
+        if (!isMounted) {
           return;
         }
-        
-        // Use backendStaffId if available, otherwise use a fallback (like parsing from cognitoSub or using 1)
-        const userId = currentUser.backendStaffId || 1; // Fallback to 1 for now
-        
-        let tasksData: TaskResponse[] = [];
-        if (selectedTaskType === "Personal Tasks") {
-          tasksData = await projectService.getPersonalTasks(userId);
-        } else if (selectedTaskType === "Project Tasks") {
-          // Get all user tasks and filter for those with projectId
-          const allTasks = await projectService.getAllUserTasks(userId);
-          tasksData = allTasks.filter(task => task.projectId !== null);
-        } else {
-          // All tasks
-          tasksData = await projectService.getAllUserTasks(userId);
-        }
-        
-        setTasks(tasksData);
+        setAvailableTags(tags.map((tag) => tag.tagName));
       } catch (err) {
-        console.error('Error loading tasks:', err);
-        setError("Failed to load tasks");
-        setTasks([]);
+        console.error('Error loading tags:', err);
+        if (isMounted) {
+          setAvailableTags([]);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setTagsLoading(false);
+        }
       }
     };
 
-    // Only load tasks if we have a user and user context is not loading
-    if (!userLoading && currentUser) {
-      loadTasks();
-    } else if (!userLoading && !currentUser) {
-      setLoading(false);
-      setError("Please log in to view tasks");
-    }
-  }, [selectedTaskType, currentUser, userLoading]);
+    fetchTags();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Load project list for project filter
   useEffect(() => {
@@ -705,6 +960,99 @@ export default function TasksPage() {
     return tasksToFilter;
   }, [selectedStatus, sortedTasks, tasksByStatus]);
 
+  const groupedTasks = useMemo<TaskGroup[]>(() => {
+    if (groupBy === "status") {
+      return [];
+    }
+
+    const groups = new Map<string, { label: string; helper?: string; tasks: TaskResponse[] }>();
+
+    const pushTask = (key: string, label: string, helper: string | undefined, task: TaskResponse) => {
+      const existing = groups.get(key);
+      if (existing) {
+        existing.tasks.push(task);
+        return;
+      }
+      groups.set(key, { label, helper, tasks: [task] });
+    };
+
+    filteredTasks.forEach((task) => {
+      if (groupBy === "project") {
+        const hasProject = typeof task.projectId === "number";
+        const label = task.projectName || (hasProject ? `Project ${task.projectId}` : "Personal Tasks");
+        const helper = hasProject ? undefined : "Tasks that aren't assigned to a project";
+        const key = hasProject ? `project-${task.projectId}` : "project-none";
+        pushTask(key, label, helper, task);
+        return;
+      }
+
+      if (groupBy === "department") {
+        const department = task.ownerDepartment && task.ownerDepartment.trim().length > 0
+          ? task.ownerDepartment
+          : "Unassigned department";
+        const key = `department-${normalizeKey(department)}`;
+        pushTask(key, department, undefined, task);
+        return;
+      }
+
+      if (groupBy === "tag") {
+        const normalizedTags = (task.tags ?? [])
+          .map((tag) => (tag ? tag.trim() : ""))
+          .filter((tag) => tag.length > 0);
+
+        if (normalizedTags.length === 0) {
+          pushTask("tag-none", "No tags", "Tasks without any tags", task);
+          return;
+        }
+
+        normalizedTags.forEach((tag) => {
+          const key = `tag-${normalizeKey(tag)}`;
+          pushTask(key, tag, undefined, task);
+        });
+      }
+    });
+
+    return Array.from(groups.entries())
+      .map(([key, value]) => ({
+        key,
+        label: value.label,
+        helper: value.helper,
+        count: value.tasks.length,
+        tasks: value.tasks,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+  }, [filteredTasks, groupBy]);
+
+  const groupHeading = groupBy === "status" ? "Board view" : "Grouped tasks";
+
+  const groupDescription = useMemo(() => {
+    if (groupBy === "status") {
+      if (selectedTaskType === "Personal Tasks") {
+        return "Your personal tasks organized by status.";
+      }
+      if (selectedTaskType === "Project Tasks") {
+        return "Tasks from your projects organized by status.";
+      }
+      return "All your tasks organized by status.";
+    }
+
+    if (groupBy === "project") {
+      return "See how work is distributed across projects.";
+    }
+    if (groupBy === "department") {
+      return "Understand workload across teams and departments while respecting permissions.";
+    }
+    if (groupBy === "tag") {
+      return "Surface workstreams by tag; tasks with multiple tags appear in each tag group.";
+    }
+    return "Organize tasks by the selected grouping.";
+  }, [groupBy, selectedTaskType]);
+
+  const hasAnyTasks = displayTasks.length > 0;
+  const hasVisibleTasks = groupBy === "status"
+    ? filteredTasks.length > 0
+    : groupedTasks.length > 0;
+
   return (
     <SidebarInset>
       <div className="flex flex-1 flex-col gap-4 p-4 pb-8 lg:p-6">
@@ -778,7 +1126,7 @@ export default function TasksPage() {
             <div>
               <h2 className="text-lg font-semibold">Task Management</h2>
               <p className="text-muted-foreground text-sm">
-                Filter between personal tasks and project tasks, then organize by status.
+                Filter between personal and project work, then choose the layout or grouping that fits your review.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -798,14 +1146,8 @@ export default function TasksPage() {
           {/* Status + Additional Filters */}
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold">Board view</h3>
-              <p className="text-muted-foreground text-sm">
-                {selectedTaskType === "Personal Tasks" 
-                  ? "Your personal tasks organized by status."
-                  : selectedTaskType === "Project Tasks"
-                  ? "Tasks from your projects organized by status."
-                  : "All your tasks organized by status."}
-              </p>
+              <h3 className="text-base font-semibold">{groupHeading}</h3>
+              <p className="text-muted-foreground text-sm">{groupDescription}</p>
             </div>
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -837,6 +1179,52 @@ export default function TasksPage() {
                 </Select>
               </div>
               <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Tags</Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8">
+                      {tagsLoading
+                        ? "Loading..."
+                        : selectedTags.length > 0
+                        ? `${selectedTags.length} selected`
+                        : "All tags"}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56">
+                    <DropdownMenuLabel>Select tags</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {tagsLoading ? (
+                      <span className="px-2 py-1.5 text-xs text-muted-foreground">
+                        Loading tags...
+                      </span>
+                    ) : availableTags.length === 0 ? (
+                      <span className="px-2 py-1.5 text-xs text-muted-foreground">
+                        No tags available
+                      </span>
+                    ) : (
+                      availableTags.map((tag) => (
+                        <DropdownMenuCheckboxItem
+                          key={tag}
+                          checked={selectedTags.includes(tag)}
+                          onCheckedChange={() => toggleTagFilter(tag)}
+                        >
+                          {tag}
+                        </DropdownMenuCheckboxItem>
+                      ))
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-2 text-xs"
+                  onClick={clearTagFilters}
+                  disabled={selectedTags.length === 0}
+                >
+                  Clear
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
                 <Label htmlFor="from" className="text-xs text-muted-foreground">Due from</Label>
                 <Input id="from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-8 w-[150px]" />
                 <Label htmlFor="to" className="text-xs text-muted-foreground">to</Label>
@@ -855,7 +1243,39 @@ export default function TasksPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Group by</Label>
+                <Select value={groupBy} onValueChange={(value) => setGroupBy(value as GroupByOption)}>
+                  <SelectTrigger className="h-8 w-[210px]" aria-label="Group tasks by">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GROUPING_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            {selectedTags.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedTags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => toggleTagFilter(tag)}
+                      className="ml-1 rounded-full p-0.5 transition-colors hover:text-destructive focus:outline-none focus:ring-1 focus:ring-ring"
+                      aria-label={`Remove tag ${tag}`}
+                    >
+                      <X className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex-1">
@@ -873,18 +1293,30 @@ export default function TasksPage() {
                   <div className="text-muted-foreground">Please try refreshing the page</div>
                 </div>
               </div>
-            ) : displayTasks.length === 0 ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center space-y-4">
-                  <div className="text-lg font-semibold">No tasks yet</div>
-                  <div className="text-muted-foreground">Create your first task to get started</div>
+            ) : !hasVisibleTasks ? (
+              <div className="flex h-64 flex-col items-center justify-center gap-4 text-center">
+                <div>
+                  <div className="text-lg font-semibold">
+                    {hasAnyTasks ? "No tasks match your filters" : "No tasks yet"}
+                  </div>
+                  <div className="text-muted-foreground">
+                    {hasAnyTasks
+                      ? "Adjust your filters or grouping to surface tasks."
+                      : "Create your first task to get started."}
+                  </div>
+                </div>
+                {hasAnyTasks ? (
+                  <Button variant="outline" size="sm" onClick={resetFilters}>
+                    Reset filters
+                  </Button>
+                ) : (
                   <Button onClick={() => setShowCreateDialog(true)}>
                     <Plus className="mr-2 h-4 w-4" />
                     Create Task
                   </Button>
-                </div>
+                )}
               </div>
-            ) : (
+            ) : groupBy === "status" ? (
               <DndContext
                 sensors={sensors}
                 collisionDetection={collisionDetectionStrategy}
@@ -966,8 +1398,46 @@ export default function TasksPage() {
                   ) : null}
                 </DragOverlay>
               </DndContext>
+            ) : (
+              <GroupedTaskSection groups={groupedTasks} />
             )}
           </div>
+        </section>
+
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold">Related project tasks</h2>
+            <p className="text-muted-foreground text-sm">
+              Tasks from other projects where teammates in your department are collaborating. These are view only.
+            </p>
+          </div>
+
+          {relatedLoading ? (
+            <div className="rounded-lg border border-dashed border-muted p-6 text-center text-muted-foreground">
+              Loading related tasks...
+            </div>
+          ) : relatedError ? (
+            <Card className="border-destructive/40 bg-destructive/5">
+              <CardContent className="flex flex-col gap-3 p-4 text-sm text-destructive">
+                <span>Failed to load related tasks: {relatedError}</span>
+                <div>
+                  <Button onClick={() => loadTasks()} variant="outline" size="sm">
+                    Retry
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : relatedTasks.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-muted p-6 text-center text-muted-foreground">
+              No related tasks to show yet.
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {relatedTasks.map((task) => (
+                <RelatedTaskCard key={task.id} task={task} />
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="space-y-4">

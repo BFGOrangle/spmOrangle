@@ -47,6 +47,7 @@ export interface TaskResponseDto {
   description?: string;
   status: TaskStatus;
   tags?: string[];
+  assignedUserIds?: number[];
   userHasEditAccess: boolean;
   userHasDeleteAccess: boolean;
   createdAt: string;

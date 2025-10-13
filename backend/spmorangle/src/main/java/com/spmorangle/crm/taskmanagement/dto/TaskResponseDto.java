@@ -16,12 +16,16 @@ import lombok.Getter;
 public class TaskResponseDto {
     private final Long id;
     private final Long projectId;
+    private final String projectName;
     private final Long ownerId;
+    private final String ownerName;
+    private final String ownerDepartment;
     private final TaskType taskType;
     private final String title;
     private final String description;
     private final Status status;
     private final List<String> tags;
+    private final List<Long> assignedUserIds;
     private final boolean userHasEditAccess;
     private final boolean userHasDeleteAccess;
     private final OffsetDateTime createdAt;

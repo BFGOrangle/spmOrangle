@@ -66,7 +66,6 @@ describe("TaskCollaboratorApiService", () => {
     const mockRequest: AddCollaboratorRequestDto = {
       taskId: 1,
       collaboratorId: 2,
-      assignedById: 3,
     };
 
     const mockResponse: AddCollaboratorResponseDto = {
@@ -147,7 +146,6 @@ describe("TaskCollaboratorApiService", () => {
     const mockRequest: RemoveCollaboratorRequestDto = {
       taskId: 1,
       collaboratorId: 2,
-      assignedById: 3,
     };
 
     it("should successfully remove a collaborator", async () => {
@@ -373,7 +371,6 @@ describe("TaskCollaboratorApiClient Integration", () => {
       const removeRequest: RemoveCollaboratorRequestDto = {
         taskId: 1,
         collaboratorId: 2,
-        assignedById: 3,
       };
 
       // Mock successful remove
@@ -392,7 +389,6 @@ describe("TaskCollaboratorApiClient Integration", () => {
       const removeRequest: RemoveCollaboratorRequestDto = {
         taskId: 1,
         collaboratorId: 2,
-        assignedById: 3,
       };
 
       const deleteError = new CollaboratorApiError(404, "Not Found", [
@@ -413,7 +409,6 @@ describe("TaskCollaboratorApiClient Integration", () => {
       const request: AddCollaboratorRequestDto = {
         taskId: 1,
         collaboratorId: 2,
-        assignedById: 3,
       };
 
       const errorScenarios = [
@@ -466,7 +461,7 @@ describe("Environment Configuration", () => {
       assignedAt: "2023-12-01T10:00:00Z",
     });
 
-    const testPayload = { taskId: 1, collaboratorId: 2, assignedById: 3 };
+    const testPayload = { taskId: 1, collaboratorId: 2 };
     apiService.addCollaborator(testPayload);
 
     // The URL should contain the expected endpoint path
@@ -489,8 +484,8 @@ describe("Environment Configuration", () => {
     });
     mockClient.deleteWithBody = jest.fn().mockResolvedValue(undefined);
 
-    const addPayload = { taskId: 1, collaboratorId: 2, assignedById: 3 };
-    const removePayload = { taskId: 1, collaboratorId: 2, assignedById: 3 };
+    const addPayload = { taskId: 1, collaboratorId: 2 };
+    const removePayload = { taskId: 1, collaboratorId: 2 };
 
     // Test both operations use the same endpoint
     apiService.addCollaborator(addPayload);
@@ -536,7 +531,6 @@ describe("Integration Scenarios", () => {
       const addRequest: AddCollaboratorRequestDto = {
         taskId: 1,
         collaboratorId: 2,
-        assignedById: 3,
       };
 
       const addResponse: AddCollaboratorResponseDto = {
@@ -549,7 +543,6 @@ describe("Integration Scenarios", () => {
       const removeRequest: RemoveCollaboratorRequestDto = {
         taskId: 1,
         collaboratorId: 2,
-        assignedById: 3,
       };
 
       // Mock successful add
@@ -581,7 +574,6 @@ describe("Integration Scenarios", () => {
       const addRequest: AddCollaboratorRequestDto = {
         taskId: 1,
         collaboratorId: 2,
-        assignedById: 3,
       };
 
       const businessRuleError = new CollaboratorApiError(409, "Conflict", [
@@ -609,7 +601,6 @@ describe("Integration Scenarios", () => {
       const addRequest: AddCollaboratorRequestDto = {
         taskId: 1,
         collaboratorId: 2,
-        assignedById: 3,
       };
 
       const permissionError = new CollaboratorApiError(403, "Forbidden", [
@@ -629,9 +620,9 @@ describe("Integration Scenarios", () => {
 
     it("should handle cascading failures gracefully", async () => {
       const requests = [
-        { taskId: 1, collaboratorId: 2, assignedById: 3 },
-        { taskId: 1, collaboratorId: 4, assignedById: 3 },
-        { taskId: 1, collaboratorId: 5, assignedById: 3 },
+        { taskId: 1, collaboratorId: 2 },
+        { taskId: 1, collaboratorId: 4 },
+        { taskId: 1, collaboratorId: 5 },
       ];
 
       // First succeeds, second fails, third should still be attempted
@@ -658,7 +649,6 @@ describe("Integration Scenarios", () => {
       const validRequest: AddCollaboratorRequestDto = {
         taskId: 1,
         collaboratorId: 2,
-        assignedById: 3,
       };
 
       const validResponse: AddCollaboratorResponseDto = {
@@ -688,7 +678,6 @@ describe("Integration Scenarios", () => {
       const request: AddCollaboratorRequestDto = {
         taskId: 1,
         collaboratorId: 2,
-        assignedById: 3,
       };
 
       // Server returns different IDs than requested (edge case)
@@ -725,7 +714,6 @@ describe("Error Boundary Scenarios", () => {
     const largeBatchRequests = Array.from({ length: 100 }, (_, i) => ({
       taskId: 1,
       collaboratorId: i + 1,
-      assignedById: 3,
     }));
 
     // Mock all to succeed
@@ -764,7 +752,6 @@ describe("Error Boundary Scenarios", () => {
     const request: AddCollaboratorRequestDto = {
       taskId: 1,
       collaboratorId: 2,
-      assignedById: 3,
     };
 
     // Simulate service degradation with slow responses

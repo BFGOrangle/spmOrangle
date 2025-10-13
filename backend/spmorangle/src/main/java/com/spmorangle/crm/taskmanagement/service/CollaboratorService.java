@@ -8,12 +8,14 @@ import java.util.List;
 
 public interface CollaboratorService {
 
-    AddCollaboratorResponseDto addCollaborator(AddCollaboratorRequestDto requestDto);
+    AddCollaboratorResponseDto addCollaborator(AddCollaboratorRequestDto requestDto, Long assignedById);
 
-    void removeCollaborator(RemoveCollaboratorRequestDto requestDto);
+    void removeCollaborator(RemoveCollaboratorRequestDto requestDto, Long assignedById);
 
     boolean isUserTaskCollaborator(Long taskId, Long userId);
 
     List<Long> getTasksForWhichUserIsCollaborator(Long userId);
+
+    List<Long> getCollaboratorIdsByTaskId(Long taskId);
 
 }
