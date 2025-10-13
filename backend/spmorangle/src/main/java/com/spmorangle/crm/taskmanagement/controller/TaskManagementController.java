@@ -1,7 +1,10 @@
 package com.spmorangle.crm.taskmanagement.controller;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.spmorangle.common.model.User;
@@ -78,8 +81,12 @@ public class TaskManagementController {
     public ResponseEntity<AddCollaboratorResponseDto> addCollaborator(
             @Valid
             @RequestBody AddCollaboratorRequestDto addCollaboratorRequestDto) {
-        log.info("Adding collaborator {} to task {}", addCollaboratorRequestDto.getCollaboratorId(), addCollaboratorRequestDto.getTaskId());
-        AddCollaboratorResponseDto response = collaboratorService.addCollaborator(addCollaboratorRequestDto);
+        User user = userContextService.getRequestingUser();
+        log.info("Adding collaborator {} to task {} by user {}",
+                 addCollaboratorRequestDto.getCollaboratorId(),
+                 addCollaboratorRequestDto.getTaskId(),
+                 user.getId());
+        AddCollaboratorResponseDto response = collaboratorService.addCollaborator(addCollaboratorRequestDto, user.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -91,8 +98,12 @@ public class TaskManagementController {
     public ResponseEntity<Void> removeCollaborator(
             @Valid
             @RequestBody RemoveCollaboratorRequestDto removeCollaboratorRequestDto) {
-        log.info("Removing collaborator {} from task {}", removeCollaboratorRequestDto.getCollaboratorId(), removeCollaboratorRequestDto.getTaskId());
-        collaboratorService.removeCollaborator(removeCollaboratorRequestDto);
+        User user = userContextService.getRequestingUser();
+        log.info("Removing collaborator {} from task {} by user {}",
+                 removeCollaboratorRequestDto.getCollaboratorId(),
+                 removeCollaboratorRequestDto.getTaskId(),
+                 user.getId());
+        collaboratorService.removeCollaborator(removeCollaboratorRequestDto, user.getId());
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
@@ -109,11 +120,13 @@ public class TaskManagementController {
      */
     @GetMapping("/project/{projectId}")
     public ResponseEntity<List<TaskResponseDto>> getProjectTasks(
-            @PathVariable Long projectId) {
+            @PathVariable Long projectId,
+            @RequestParam(value = "tags", required = false) List<String> tags) {
         User user = userContextService.getRequestingUser();
         log.info("Getting tasks for project: {}", projectId);
         List<TaskResponseDto> tasks = taskService.getProjectTasks(user.getId(), projectId);
-        return ResponseEntity.ok(tasks);
+        List<TaskResponseDto> filteredTasks = filterTasksByTags(tasks, tags);
+        return ResponseEntity.ok(filteredTasks);
     }
 
     @GetMapping("/{taskId}")
@@ -129,11 +142,13 @@ public class TaskManagementController {
      * @return List<TaskResponseDto>
      */
     @GetMapping("/personal")
-    public ResponseEntity<List<TaskResponseDto>> getPersonalTasks() {
+    public ResponseEntity<List<TaskResponseDto>> getPersonalTasks(
+            @RequestParam(value = "tags", required = false) List<String> tags) {
         User user = userContextService.getRequestingUser();
         log.info("Fetching tasks for user {}", user.getId());
         List<TaskResponseDto> tasks = taskService.getPersonalTasks(user.getId());
-        return ResponseEntity.ok(tasks);
+        List<TaskResponseDto> filteredTasks = filterTasksByTags(tasks, tags);
+        return ResponseEntity.ok(filteredTasks);
     }
 
     /**
@@ -141,11 +156,23 @@ public class TaskManagementController {
      * @return List<TaskResponseDto>
      */
     @GetMapping("/user")
-    public ResponseEntity<List<TaskResponseDto>> getAllUserTasks() {
+    public ResponseEntity<List<TaskResponseDto>> getAllUserTasks(
+            @RequestParam(value = "tags", required = false) List<String> tags) {
         User user = userContextService.getRequestingUser();
         log.info("Getting all tasks for user: {}", user.getId());
         List<TaskResponseDto> tasks = taskService.getAllUserTasks(user.getId());
-        return ResponseEntity.ok(tasks);
+        List<TaskResponseDto> filteredTasks = filterTasksByTags(tasks, tags);
+        return ResponseEntity.ok(filteredTasks);
+    }
+
+    @GetMapping("/user/related")
+    public ResponseEntity<List<TaskResponseDto>> getRelatedTasks(
+            @RequestParam(value = "tags", required = false) List<String> tags){
+        User user = userContextService.getRequestingUser();
+        log.info("Getting all related project tasks for user: {}", user.getId());
+        List<TaskResponseDto> tasks = taskService.getRelatedTasks(user.getId());
+        List<TaskResponseDto> filteredTasks = filterTasksByTags(tasks, tags);
+        return ResponseEntity.status(HttpStatus.OK).body(filteredTasks);
     }
 
     /**
@@ -311,5 +338,38 @@ public class TaskManagementController {
                 .filter(author -> author != null)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(authors);
+    }
+
+    private List<TaskResponseDto> filterTasksByTags(List<TaskResponseDto> tasks, List<String> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return tasks;
+        }
+
+        Set<String> normalizedTags = tags.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(tag -> !tag.isEmpty())
+                .map(String::toLowerCase)
+                .collect(Collectors.toCollection(HashSet::new));
+
+        if (normalizedTags.isEmpty()) {
+            return tasks;
+        }
+
+        return tasks.stream()
+                .filter(task -> {
+                    List<String> taskTags = task.getTags();
+                    if (taskTags == null || taskTags.isEmpty()) {
+                        return false;
+                    }
+                    Set<String> normalizedTaskTags = taskTags.stream()
+                            .filter(Objects::nonNull)
+                            .map(String::trim)
+                            .filter(tag -> !tag.isEmpty())
+                            .map(String::toLowerCase)
+                            .collect(Collectors.toSet());
+                    return normalizedTaskTags.containsAll(normalizedTags);
+                })
+                .collect(Collectors.toList());
     }
 }

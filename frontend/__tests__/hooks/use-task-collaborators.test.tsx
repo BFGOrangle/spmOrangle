@@ -62,7 +62,6 @@ describe("useAddCollaboratorMutation", () => {
   const mockRequest: AddCollaboratorRequestDto = {
     taskId: 1,
     collaboratorId: 2,
-    assignedById: 3,
   };
 
   const mockResponse: AddCollaboratorResponseDto = {
@@ -263,7 +262,6 @@ describe("useRemoveCollaboratorMutation", () => {
   const mockRequest: RemoveCollaboratorRequestDto = {
     taskId: 1,
     collaboratorId: 2,
-    assignedById: 3,
   };
 
   it("should initialize with correct default state", () => {
@@ -439,13 +437,11 @@ describe("useTaskCollaboratorMutations", () => {
   const mockAddRequest: AddCollaboratorRequestDto = {
     taskId: 1,
     collaboratorId: 2,
-    assignedById: 3,
   };
 
   const mockRemoveRequest: RemoveCollaboratorRequestDto = {
     taskId: 1,
     collaboratorId: 2,
-    assignedById: 3,
   };
 
   const mockAddResponse: AddCollaboratorResponseDto = {
@@ -640,13 +636,11 @@ describe("Concurrent Mutations and Edge Cases", () => {
   const mockAddRequest: AddCollaboratorRequestDto = {
     taskId: 1,
     collaboratorId: 2,
-    assignedById: 3,
   };
 
   const mockRemoveRequest: RemoveCollaboratorRequestDto = {
     taskId: 1,
     collaboratorId: 2,
-    assignedById: 3,
   };
 
   const mockAddResponse: AddCollaboratorResponseDto = {
@@ -1003,7 +997,6 @@ describe("Concurrent Mutations and Edge Cases", () => {
       const minimalRequest: AddCollaboratorRequestDto = {
         taskId: 1,
         collaboratorId: 2,
-        assignedById: 3,
       };
 
       const minimalResponse: AddCollaboratorResponseDto = {
@@ -1034,11 +1027,11 @@ describe("Concurrent Mutations and Edge Cases", () => {
       const largeRequest: AddCollaboratorRequestDto = {
         taskId: Number.MAX_SAFE_INTEGER,
         collaboratorId: Number.MAX_SAFE_INTEGER - 1,
-        assignedById: Number.MAX_SAFE_INTEGER - 2,
       };
 
       const largeResponse: AddCollaboratorResponseDto = {
         ...largeRequest,
+        assignedById: 1,
         assignedAt: "2023-12-01T10:00:00Z",
       };
 

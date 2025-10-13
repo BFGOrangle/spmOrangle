@@ -148,7 +148,6 @@ export function TaskCollaboratorManagement({
       const response = await addCollaboratorMutation.mutateAsync({
         taskId,
         collaboratorId,
-        assignedById: currentUserId,
       });
 
       const collaborator = collaboratorMap.get(response.collaboratorId);
@@ -183,7 +182,6 @@ export function TaskCollaboratorManagement({
       await removeCollaboratorMutation.mutateAsync({
         taskId,
         collaboratorId,
-        assignedById: currentUserId,
       });
 
       if (onCollaboratorsChange) {

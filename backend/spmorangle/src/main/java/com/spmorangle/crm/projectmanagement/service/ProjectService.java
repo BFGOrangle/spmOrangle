@@ -15,4 +15,5 @@ public interface ProjectService {
     List<UserResponseDto> getProjectMembers(Long projectId);
     Long getOwnerId(Long projectId);
     Map<Long, Long> getProjectOwners(Set<Long> projectIds);
+    List<ProjectResponseDto> getProjectsByIds(Set<Long> projectIds);
 }

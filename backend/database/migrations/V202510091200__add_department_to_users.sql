@@ -1,0 +1,2 @@
+ALTER TABLE syncup.users
+ADD COLUMN IF NOT EXISTS department VARCHAR(100);
