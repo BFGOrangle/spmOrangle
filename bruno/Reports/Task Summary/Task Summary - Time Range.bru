@@ -1,0 +1,21 @@
+meta {
+  name: Task Summary - Time Range
+  type: http
+  seq: 4
+}
+
+get {
+  url: http://localhost:8080/api/reports/task-summary?startDate=2024-01-01&endDate=2024-12-31
+  body: none
+  auth: inherit
+}
+
+params:query {
+  startDate: 2024-01-01
+  endDate: 2024-12-31
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

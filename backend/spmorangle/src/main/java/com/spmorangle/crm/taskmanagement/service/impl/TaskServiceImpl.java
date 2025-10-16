@@ -15,6 +15,8 @@ import com.spmorangle.crm.taskmanagement.service.TagService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
 import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
 import com.spmorangle.crm.notification.messaging.dto.TaskNotificationMessageDto;
+import com.spmorangle.crm.reporting.service.ReportService;
+import com.spmorangle.crm.taskmanagement.enums.Status;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,7 @@ public class TaskServiceImpl implements TaskService {
     private final NotificationMessagePublisher notificationPublisher;
     private final UserRepository userRepository;
     private final TaskAssigneeRepository taskAssigneeRepository;
+    private final ReportService reportService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -349,7 +352,12 @@ public class TaskServiceImpl implements TaskService {
         }
 
         if (updateTaskDto.getStatus() != null) {
-            task.setStatus(updateTaskDto.getStatus());
+            Status oldStatus = task.getStatus();
+            Status newStatus = updateTaskDto.getStatus();
+            task.setStatus(newStatus);
+            
+            // Handle time tracking for status transitions
+            handleTimeTracking(task.getId(), currentUserId, oldStatus, newStatus);
         }
 
         if (updateTaskDto.getTaskType() != null) {
@@ -506,6 +514,32 @@ public class TaskServiceImpl implements TaskService {
                 .dueDateTime(task.getDueDateTime())
                 .subtasks(subtasks)
                 .build();
+    }
+    
+    /**
+     * Handle time tracking when task status changes
+     */
+    private void handleTimeTracking(Long taskId, Long userId, Status oldStatus, Status newStatus) {
+        try {
+            // Start time tracking when moving from TODO to IN_PROGRESS
+            if (oldStatus == Status.TODO && newStatus == Status.IN_PROGRESS) {
+                log.info("Starting time tracking for task: {} by user: {}", taskId, userId);
+                reportService.startTimeTracking(taskId, userId);
+            }
+            // End time tracking when moving to COMPLETED
+            else if (newStatus == Status.COMPLETED && oldStatus != Status.COMPLETED) {
+                log.info("Ending time tracking for task: {} by user: {}", taskId, userId);
+                reportService.endTimeTracking(taskId, userId);
+            }
+            // Restart time tracking if moving back to IN_PROGRESS from COMPLETED
+            else if (oldStatus == Status.COMPLETED && newStatus == Status.IN_PROGRESS) {
+                log.info("Restarting time tracking for task: {} by user: {}", taskId, userId);
+                reportService.startTimeTracking(taskId, userId);
+            }
+        } catch (Exception e) {
+            log.error("Error handling time tracking for task: {} by user: {}", taskId, userId, e);
+            // Don't fail the task update if time tracking fails
+        }
     }
 
 }

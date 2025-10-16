@@ -1,0 +1,27 @@
+meta {
+  name: Create Task
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:8080/api/tasks
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "Test Task 2",
+    "description": "Task 2",
+    "status": "TODO",
+    "taskType": "FEATURE",
+    "projectId": 2,
+    "assignedUserIds": [11]
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
