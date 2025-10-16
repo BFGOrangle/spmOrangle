@@ -76,4 +76,49 @@ public class FileServiceImpl implements FileService {
         log.info("Found {} files for projectId={}", files.size(), projectId);
         return files;
     }
+
+    @Override
+    @Transactional
+    public File updateFile(Long fileId, String fileUrl, Long updatedBy) {
+        log.info("Updating file record: fileId={}, fileUrl={}, updatedBy={}",
+                 fileId, fileUrl, updatedBy);
+
+        File file = fileRepository.findById(fileId)
+            .orElseThrow(() -> new RuntimeException("File not found with ID: " + fileId));
+
+        if (fileUrl != null && !fileUrl.isEmpty()) {
+            file.setFileUrl(fileUrl);
+        }
+        
+        file.setUpdatedBy(updatedBy);
+        file.setUpdatedAt(OffsetDateTime.now());
+
+        File updatedFile = fileRepository.save(file);
+        log.info("File record updated successfully with ID: {}", updatedFile.getId());
+        
+        return updatedFile;
+    }
+
+    @Override
+    @Transactional
+    public boolean deleteFile(Long fileId, Long deletedBy) {
+        log.info("Deleting file record: fileId={}, deletedBy={}", fileId, deletedBy);
+
+        if (!fileRepository.existsById(fileId)) {
+            log.error("File with ID {} not found", fileId);
+            return false;
+        }
+
+        fileRepository.deleteById(fileId);
+        log.info("File record deleted successfully with ID: {}", fileId);
+        
+        return true;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<File> getFileById(Long fileId) {
+        log.info("Fetching file by ID: {}", fileId);
+        return fileRepository.findById(fileId);
+    }
 }

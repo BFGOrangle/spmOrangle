@@ -272,10 +272,25 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
     router.push(`/tasks/${taskProps.id}`);
   };
 
-  const handleTaskUpdate = (updatedTask: TaskResponse) => {
+  const handleTaskUpdate = async (updatedTask: TaskResponse) => {
     setCurrentTask(updatedTask);
     setSubtasks(updatedTask.subtasks || []);
     setShowUpdateDialog(false);
+    
+    // Refetch files after task update to show newly uploaded files
+    try {
+      setIsLoadingFiles(true);
+      const fetchedFiles = await fileService.getFilesByTaskAndProject(
+        Number(taskProps.id),
+        taskProps.projectId || 0
+      );
+      setFiles(fetchedFiles);
+    } catch (error) {
+      console.error("Error refetching files after task update:", error);
+    } finally {
+      setIsLoadingFiles(false);
+    }
+    
     onTaskUpdated?.(updatedTask);
   };
 
@@ -302,6 +317,24 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
         variant: "destructive",
       });
       setShowDeleteDialog(false);
+    }
+  };
+
+  const handleDeleteFile = async (fileId: number) => {
+    try {
+      await fileService.deleteFile(fileId);
+      setFiles(prev => prev.filter(f => f.id !== fileId));
+      toast({
+        title: "File deleted",
+        description: "File has been successfully deleted.",
+      });
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      toast({
+        title: "Failed to delete file",
+        description: error instanceof Error ? error.message : "An error occurred while deleting the file.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -583,7 +616,7 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
                       <div className="h-8 w-8 bg-muted rounded" />
                     </div>
                   ) : files.length > 0 ? (
-                    <FileList files={files} size="lg" showDownload={true} />
+                    <FileList files={files} size="lg" showDownload={true} showDelete={true} onDelete={handleDeleteFile} />
                   ) : (
                     <p className="text-sm text-muted-foreground">No files attached to this task.</p>
                   )}
@@ -706,9 +739,24 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
     router.push(`/tasks/${taskProps.id}`);
   };
 
-  const handleTaskUpdate = (updatedTask: TaskResponse) => {
+  const handleTaskUpdate = async (updatedTask: TaskResponse) => {
     setCurrentTask(updatedTask);
     setShowUpdateDialog(false);
+    
+    // Refetch files after task update to show newly uploaded files
+    try {
+      setIsLoadingFiles(true);
+      const fetchedFiles = await fileService.getFilesByTaskAndProject(
+        Number(taskProps.id),
+        taskProps.projectId || 0
+      );
+      setFiles(fetchedFiles);
+    } catch (error) {
+      console.error("Error refetching files after task update:", error);
+    } finally {
+      setIsLoadingFiles(false);
+    }
+    
     onTaskUpdated?.(updatedTask);
   };
 
@@ -735,6 +783,24 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
         variant: "destructive",
       });
       setShowDeleteDialog(false);
+    }
+  };
+
+  const handleDeleteFile = async (fileId: number) => {
+    try {
+      await fileService.deleteFile(fileId);
+      setFiles(prev => prev.filter(f => f.id !== fileId));
+      toast({
+        title: "File deleted",
+        description: "File has been successfully deleted.",
+      });
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      toast({
+        title: "Failed to delete file",
+        description: error instanceof Error ? error.message : "An error occurred while deleting the file.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -828,7 +894,7 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
         {/* Show file icons instead of just attachment count */}
         {!isLoadingFiles && files.length > 0 && (
           <div className="flex items-center gap-1">
-            <FileList files={files} maxDisplay={2} size="sm" />
+            <FileList files={files} maxDisplay={2} size="sm" showDelete={true} onDelete={handleDeleteFile} />
           </div>
         )}
 

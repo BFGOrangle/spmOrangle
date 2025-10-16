@@ -32,4 +32,28 @@ public interface FileService {
      */
     List<File> getFilesByProjectId(Long projectId);
 
+    /**
+     * Update a file record in the database
+     * @param fileId the file ID to update
+     * @param fileUrl the new file URL (optional)
+     * @param updatedBy the user who updated the file
+     * @return the updated File entity
+     */
+    File updateFile(Long fileId, String fileUrl, Long updatedBy);
+
+    /**
+     * Delete a file record from the database
+     * @param fileId the file ID to delete
+     * @param deletedBy the user who deleted the file
+     * @return true if deletion was successful
+     */
+    boolean deleteFile(Long fileId, Long deletedBy);
+
+    /**
+     * Get a file by ID
+     * @param fileId the file ID
+     * @return the file entity if found
+     */
+    Optional<File> getFileById(Long fileId);
+
 }
