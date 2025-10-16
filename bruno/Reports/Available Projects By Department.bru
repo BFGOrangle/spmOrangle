@@ -1,0 +1,19 @@
+meta {
+  name: Available Projects By Department
+  type: http
+  seq: 6
+}
+
+get {
+  url: http://localhost:8080/api/reports/projects?department=Software
+  body: none
+  auth: inherit
+}
+
+params:query {
+  department: Software
+}
+
+settings {
+  encodeUrl: true
+}
