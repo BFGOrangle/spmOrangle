@@ -176,7 +176,8 @@ public class FileServiceController {
 
         } catch (RuntimeException e) {
             log.error("Error updating file {}: {}", fileId, e.getMessage(), e);
-            throw new RuntimeException("Failed to update file: " + e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(null);
         }
     }
 
