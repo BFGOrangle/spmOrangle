@@ -416,11 +416,17 @@ const formatDueDateTime = (localDateTime: string): string | undefined => {
       // Upload files if any
       if (selectedFiles && updatedTask.id) {
         console.log('Starting file upload...');
+        const projectId = updatedTask.projectId ?? task.projectId;
+        if (projectId === undefined || projectId === null) {
+          setError('Cannot upload files: missing project ID.');
+          setIsSubmitting(false);
+          return; // Don't close dialog if upload fails
+        }
         try {
           await uploadFiles({
             files: selectedFiles,
             taskId: updatedTask.id,
-            projectId: updatedTask.projectId ?? task.projectId ?? 0,
+            projectId: projectId,
           });
           console.log('File upload completed successfully');
         } catch (uploadError) {
