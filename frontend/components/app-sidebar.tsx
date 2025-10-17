@@ -7,6 +7,7 @@ import {
   RefreshCcwDot,
   User,
   Calendar,
+  BarChart3,
 } from "lucide-react";
 
 import {
@@ -48,6 +49,11 @@ const items = [
     title: "Tasks",
     url: "/tasks",
     icon: CheckSquare,
+  },
+  {
+    title: "Reports",
+    url: "/reports",
+    icon: BarChart3,
   },
   {
     title: "My Profile",

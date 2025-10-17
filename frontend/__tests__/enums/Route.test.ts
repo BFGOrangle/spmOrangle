@@ -17,6 +17,7 @@ describe("Route Enum", () => {
       "Dashboard", 
       "Profile",
       "Projects",
+      "Reports",
       "Unauthorized",
       "ConfirmSignUp",
       "NewPassword",
@@ -32,7 +33,7 @@ describe("Route Enum", () => {
 
   test("should have correct number of routes", () => {
     const routeKeys = Object.keys(Route);
-    expect(routeKeys).toHaveLength(10);
+    expect(routeKeys).toHaveLength(11);
   });
 
   test("should contain auth-related routes", () => {
