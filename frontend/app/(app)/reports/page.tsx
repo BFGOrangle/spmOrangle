@@ -28,13 +28,16 @@ import {
   Clock, 
   CheckCircle2,
   AlertCircle,
-  Loader2
+  Loader2,
+  Users
 } from "lucide-react";
+import { StaffBreakdownTable } from "@/components/staff-breakdown-table";
 import { reportService } from "@/services/report-service";
 import {
   ReportFilterDto,
   TaskSummaryReportDto,
   TimeAnalyticsReportDto,
+  StaffBreakdownDto,
   ProjectOptionDto,
   TimeRange,
   ReportFormat,
@@ -50,14 +53,19 @@ export default function ReportsPage() {
   const [projectIds, setProjectIds] = useState<number[]>([]);
   const [timeRange, setTimeRange] = useState<TimeRange>("MONTHLY");
   const [format, setFormat] = useState<ReportFormat>("JSON");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>(
+    new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]
+  );
+  const [endDate, setEndDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
 
   // Data state
   const [departments, setDepartments] = useState<string[]>([]);
   const [projects, setProjects] = useState<ProjectOptionDto[]>([]);
   const [taskSummary, setTaskSummary] = useState<TaskSummaryReportDto | null>(null);
   const [timeAnalytics, setTimeAnalytics] = useState<TimeAnalyticsReportDto | null>(null);
+  const [staffBreakdown, setStaffBreakdown] = useState<StaffBreakdownDto[]>([]);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -118,13 +126,24 @@ export default function ReportsPage() {
       setLoading(true);
       setError(null);
 
+      // Validate required dates
+      if (!startDate || !endDate) {
+        toast({
+          title: "Validation Error",
+          description: "Start date and end date are required",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       const filters: ReportFilterDto = {
         department: department || undefined,
         projectIds: projectIds.length > 0 ? projectIds : undefined,
         timeRange,
         format,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
+        startDate,
+        endDate,
       };
 
       // If format is PDF or CSV, download the file
@@ -144,6 +163,7 @@ export default function ReportsPage() {
         
         setTaskSummary(reportData.taskSummary);
         setTimeAnalytics(reportData.timeAnalytics);
+        setStaffBreakdown(reportData.staffBreakdown || []);
         
         toast({
           title: "Report Generated",
@@ -555,6 +575,27 @@ export default function ReportsPage() {
                     </CardContent>
                   </Card>
                 )}
+              </div>
+            )}
+
+            {/* Staff Breakdown Section */}
+            {staffBreakdown && staffBreakdown.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Users className="h-6 w-6" />
+                  Staff Breakdown
+                </h2>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Task Distribution & Hours by Staff</CardTitle>
+                    <CardDescription>
+                      View task counts by status and logged hours for each staff member
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <StaffBreakdownTable data={staffBreakdown} />
+                  </CardContent>
+                </Card>
               </div>
             )}
           </>

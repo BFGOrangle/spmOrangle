@@ -54,9 +54,9 @@ public class ReportServiceImpl implements ReportService {
         // Convert null to empty string for department
         String dept = departmentFilter != null ? departmentFilter : "";
         
-        // Use very old/future dates if not specified
-        LocalDate startDate = filters.getStartDate() != null ? filters.getStartDate() : LocalDate.of(1900, 1, 1);
-        LocalDate endDate = filters.getEndDate() != null ? filters.getEndDate() : LocalDate.of(2099, 12, 31);
+        // Dates are now required (validated at controller level)
+        LocalDate startDate = filters.getStartDate();
+        LocalDate endDate = filters.getEndDate();
         
         // Get task counts by status - choose the right method based on filters
         List<Object[]> statusCounts;
@@ -183,9 +183,9 @@ public class ReportServiceImpl implements ReportService {
         // Convert null to empty string for department
         String dept = departmentFilter != null ? departmentFilter : "";
         
-        // Use very old/future dates if not specified
-        LocalDate startDate = filters.getStartDate() != null ? filters.getStartDate() : LocalDate.of(1900, 1, 1);
-        LocalDate endDate = filters.getEndDate() != null ? filters.getEndDate() : LocalDate.of(2099, 12, 31);
+        // Dates are now required (validated at controller level)
+        LocalDate startDate = filters.getStartDate();
+        LocalDate endDate = filters.getEndDate();
         
         // Get hours by department
         List<Object[]> departmentHours = taskTimeTrackingRepository.getHoursByDepartment(
@@ -364,10 +364,9 @@ public class ReportServiceImpl implements ReportService {
             return null;
         }
         
-        LocalDate startDate = filters.getStartDate() != null ? 
-            filters.getStartDate() : LocalDate.of(1900, 1, 1);
-        LocalDate endDate = filters.getEndDate() != null ? 
-            filters.getEndDate() : LocalDate.of(2099, 12, 31);
+        // Dates are now required (validated at controller level)
+        LocalDate startDate = filters.getStartDate();
+        LocalDate endDate = filters.getEndDate();
         
         // Generate all periods (including empty ones)
         List<Period> periods = generatePeriods(startDate, endDate, filters.getTimeRange());
@@ -550,9 +549,9 @@ public class ReportServiceImpl implements ReportService {
         // Convert null to empty string for department
         String dept = departmentFilter != null ? departmentFilter : "";
         
-        // Use very old/future dates if not specified
-        LocalDate startDate = filters.getStartDate() != null ? filters.getStartDate() : LocalDate.of(1900, 1, 1);
-        LocalDate endDate = filters.getEndDate() != null ? filters.getEndDate() : LocalDate.of(2099, 12, 31);
+        // Dates are now required (validated at controller level)
+        LocalDate startDate = filters.getStartDate();
+        LocalDate endDate = filters.getEndDate();
         
         // Get project filter - convert empty list to null for query compatibility
         List<Long> projectIds = filters.getProjectIds();

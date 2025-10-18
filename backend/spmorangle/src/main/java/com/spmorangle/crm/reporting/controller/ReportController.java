@@ -36,8 +36,8 @@ public class ReportController {
     public ResponseEntity<TaskSummaryReportDto> getTaskSummaryReport(
             @RequestParam(required = false) String department,
             @RequestParam(required = false) List<Long> projectIds,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) ReportFilterDto.TimeRange timeRange) {
         
         User user = userContextService.getRequestingUser();
@@ -60,8 +60,8 @@ public class ReportController {
     public ResponseEntity<TimeAnalyticsReportDto> getTimeAnalyticsReport(
             @RequestParam(required = false) String department,
             @RequestParam(required = false) List<Long> projectIds,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) ReportFilterDto.TimeRange timeRange) {
         
         User user = userContextService.getRequestingUser();

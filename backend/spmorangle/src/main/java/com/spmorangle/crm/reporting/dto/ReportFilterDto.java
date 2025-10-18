@@ -1,5 +1,6 @@
 package com.spmorangle.crm.reporting.dto;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,8 +16,13 @@ import java.util.List;
 public class ReportFilterDto {
     private String department;
     private List<Long> projectIds;
+    
+    @NotNull(message = "Start date is required")
     private LocalDate startDate;
+    
+    @NotNull(message = "End date is required")
     private LocalDate endDate;
+    
     private TimeRange timeRange;
     private ExportFormat exportFormat;
     
