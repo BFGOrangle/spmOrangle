@@ -3,6 +3,7 @@ package com.spmorangle.crm.reporting.controller;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.reporting.dto.ReportFilterDto;
+import com.spmorangle.crm.reporting.dto.StaffBreakdownDto;
 import com.spmorangle.crm.reporting.dto.TaskSummaryReportDto;
 import com.spmorangle.crm.reporting.dto.TimeAnalyticsReportDto;
 import com.spmorangle.crm.reporting.dto.TimeSeriesDataPoint;
@@ -35,8 +36,8 @@ public class ReportController {
     public ResponseEntity<TaskSummaryReportDto> getTaskSummaryReport(
             @RequestParam(required = false) String department,
             @RequestParam(required = false) List<Long> projectIds,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) ReportFilterDto.TimeRange timeRange) {
         
         User user = userContextService.getRequestingUser();
@@ -59,8 +60,8 @@ public class ReportController {
     public ResponseEntity<TimeAnalyticsReportDto> getTimeAnalyticsReport(
             @RequestParam(required = false) String department,
             @RequestParam(required = false) List<Long> projectIds,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) ReportFilterDto.TimeRange timeRange) {
         
         User user = userContextService.getRequestingUser();
@@ -116,12 +117,14 @@ public class ReportController {
             // Generate all report components
             TaskSummaryReportDto taskSummary = reportService.generateTaskSummaryReport(filters, user.getId());
             TimeAnalyticsReportDto timeAnalytics = reportService.generateTimeAnalyticsReport(filters, user.getId());
+            List<StaffBreakdownDto> staffBreakdown = reportService.generateStaffBreakdown(filters, user.getId());
             List<TimeSeriesDataPoint> timeSeriesData = reportService.generateTimeSeriesData(filters, user.getId());
             
             // Build report data map
             Map<String, Object> reportData = new java.util.HashMap<>();
             reportData.put("taskSummary", taskSummary);
             reportData.put("timeAnalytics", timeAnalytics);
+            reportData.put("staffBreakdown", staffBreakdown);
             reportData.put("filters", filters);
             reportData.put("generatedAt", java.time.OffsetDateTime.now());
             

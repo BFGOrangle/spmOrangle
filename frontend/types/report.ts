@@ -5,11 +5,22 @@
 export type TimeRange = 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | 'CUSTOM';
 export type ReportFormat = 'PDF' | 'CSV' | 'JSON';
 
+export interface StaffBreakdownDto {
+  userId: number;
+  userName: string;
+  department: string;
+  todoTasks: number;
+  inProgressTasks: number;
+  completedTasks: number;
+  blockedTasks: number;
+  loggedHours: number;
+}
+
 export interface ReportFilterDto {
   department?: string;
   projectIds?: number[];
-  startDate?: string;
-  endDate?: string;
+  startDate: string;
+  endDate: string;
   timeRange?: TimeRange;
   format?: ReportFormat;
 }
@@ -69,11 +80,13 @@ export interface TimeSeriesDataPoint {
   endDate: string;
   taskSummary: TaskSummaryReportDto;
   timeAnalytics: TimeAnalyticsReportDto;
+  staffBreakdown: StaffBreakdownDto[];
 }
 
 export interface ComprehensiveReportDto {
   taskSummary: TaskSummaryReportDto;
   timeAnalytics: TimeAnalyticsReportDto;
+  staffBreakdown: StaffBreakdownDto[];
   timeSeriesData?: TimeSeriesDataPoint[];
   filters: ReportFilterDto;
   generatedAt: string;

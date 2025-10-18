@@ -1,6 +1,7 @@
 package com.spmorangle.crm.reporting.service;
 
 import com.spmorangle.crm.reporting.dto.ReportFilterDto;
+import com.spmorangle.crm.reporting.dto.StaffBreakdownDto;
 import com.spmorangle.crm.reporting.dto.TaskSummaryReportDto;
 import com.spmorangle.crm.reporting.dto.TimeAnalyticsReportDto;
 import com.spmorangle.crm.reporting.dto.TimeSeriesDataPoint;
@@ -62,5 +63,14 @@ public interface ReportService {
      * @return List of time-series data points, null if timeRange is not specified or CUSTOM
      */
     List<TimeSeriesDataPoint> generateTimeSeriesData(ReportFilterDto filters, Long userId);
+    
+    /**
+     * Generate staff breakdown report showing task counts by status and logged hours per user
+     * Includes tasks where user is owner OR assignee
+     * @param filters Report filters (department, project, date range)
+     * @param userId Current user ID for permission checking
+     * @return List of staff breakdown data
+     */
+    List<StaffBreakdownDto> generateStaffBreakdown(ReportFilterDto filters, Long userId);
 }
 

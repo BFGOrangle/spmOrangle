@@ -5,6 +5,7 @@ import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.crm.reporting.dto.Period;
 import com.spmorangle.crm.reporting.dto.ReportFilterDto;
+import com.spmorangle.crm.reporting.dto.StaffBreakdownDto;
 import com.spmorangle.crm.reporting.dto.TaskSummaryReportDto;
 import com.spmorangle.crm.reporting.dto.TimeAnalyticsReportDto;
 import com.spmorangle.crm.reporting.dto.TimeSeriesDataPoint;
@@ -53,9 +54,9 @@ public class ReportServiceImpl implements ReportService {
         // Convert null to empty string for department
         String dept = departmentFilter != null ? departmentFilter : "";
         
-        // Use very old/future dates if not specified
-        LocalDate startDate = filters.getStartDate() != null ? filters.getStartDate() : LocalDate.of(1900, 1, 1);
-        LocalDate endDate = filters.getEndDate() != null ? filters.getEndDate() : LocalDate.of(2099, 12, 31);
+        // Dates are now required (validated at controller level)
+        LocalDate startDate = filters.getStartDate();
+        LocalDate endDate = filters.getEndDate();
         
         // Get task counts by status - choose the right method based on filters
         List<Object[]> statusCounts;
@@ -182,9 +183,9 @@ public class ReportServiceImpl implements ReportService {
         // Convert null to empty string for department
         String dept = departmentFilter != null ? departmentFilter : "";
         
-        // Use very old/future dates if not specified
-        LocalDate startDate = filters.getStartDate() != null ? filters.getStartDate() : LocalDate.of(1900, 1, 1);
-        LocalDate endDate = filters.getEndDate() != null ? filters.getEndDate() : LocalDate.of(2099, 12, 31);
+        // Dates are now required (validated at controller level)
+        LocalDate startDate = filters.getStartDate();
+        LocalDate endDate = filters.getEndDate();
         
         // Get hours by department
         List<Object[]> departmentHours = taskTimeTrackingRepository.getHoursByDepartment(
@@ -363,10 +364,9 @@ public class ReportServiceImpl implements ReportService {
             return null;
         }
         
-        LocalDate startDate = filters.getStartDate() != null ? 
-            filters.getStartDate() : LocalDate.of(1900, 1, 1);
-        LocalDate endDate = filters.getEndDate() != null ? 
-            filters.getEndDate() : LocalDate.of(2099, 12, 31);
+        // Dates are now required (validated at controller level)
+        LocalDate startDate = filters.getStartDate();
+        LocalDate endDate = filters.getEndDate();
         
         // Generate all periods (including empty ones)
         List<Period> periods = generatePeriods(startDate, endDate, filters.getTimeRange());
@@ -386,6 +386,7 @@ public class ReportServiceImpl implements ReportService {
                 // Generate reports for this period
                 TaskSummaryReportDto periodTaskSummary = generateTaskSummaryReport(periodFilter, userId);
                 TimeAnalyticsReportDto periodTimeAnalytics = generateTimeAnalyticsReport(periodFilter, userId);
+                List<StaffBreakdownDto> periodStaffBreakdown = generateStaffBreakdown(periodFilter, userId);
                 
                 return TimeSeriesDataPoint.builder()
                     .period(period.getPeriod())
@@ -394,6 +395,7 @@ public class ReportServiceImpl implements ReportService {
                     .endDate(period.getEndDate())
                     .taskSummary(periodTaskSummary)
                     .timeAnalytics(periodTimeAnalytics)
+                    .staffBreakdown(periodStaffBreakdown)
                     .build();
             })
             .collect(Collectors.toList());
@@ -532,6 +534,82 @@ public class ReportServiceImpl implements ReportService {
         }
         
         return periods;
+    }
+    
+    @Override
+    public List<StaffBreakdownDto> generateStaffBreakdown(ReportFilterDto filters, Long userId) {
+        log.info("Generating staff breakdown report for user: {}", userId);
+        
+        User currentUser = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        // Apply role-based filtering
+        String departmentFilter = applyDepartmentFilter(filters.getDepartment(), currentUser);
+        
+        // Convert null to empty string for department
+        String dept = departmentFilter != null ? departmentFilter : "";
+        
+        // Dates are now required (validated at controller level)
+        LocalDate startDate = filters.getStartDate();
+        LocalDate endDate = filters.getEndDate();
+        
+        // Get project filter - convert empty list to null for query compatibility
+        List<Long> projectIds = filters.getProjectIds();
+        if (projectIds != null && projectIds.isEmpty()) {
+            projectIds = null;
+        }
+        
+        // Get all relevant users - single query handles both department-only and project filters
+        List<Object[]> users = reportingRepository.getUsersForStaffBreakdown(dept, projectIds);
+        
+        // For each user, fetch their task counts and logged hours
+        List<StaffBreakdownDto> staffBreakdowns = new ArrayList<>();
+        for (Object[] userRow : users) {
+            Long staffUserId = (Long) userRow[0];
+            String userName = (String) userRow[1];
+            String userDepartment = (String) userRow[2];
+            
+            // Get task counts by status for this user
+            List<Object[]> taskCounts = reportingRepository.getTaskCountsByStatusForUser(
+                staffUserId, projectIds, startDate, endDate);
+            
+            // Initialize counters
+            long todoTasks = 0;
+            long inProgressTasks = 0;
+            long completedTasks = 0;
+            long blockedTasks = 0;
+            
+            // Process task counts
+            for (Object[] countRow : taskCounts) {
+                Status status = (Status) countRow[0];
+                Long count = (Long) countRow[1];
+                
+                switch (status) {
+                    case TODO -> todoTasks = count;
+                    case IN_PROGRESS -> inProgressTasks = count;
+                    case COMPLETED -> completedTasks = count;
+                    case BLOCKED -> blockedTasks = count;
+                }
+            }
+            
+            // Get logged hours for this user
+            BigDecimal loggedHours = reportingRepository.getLoggedHoursForUser(
+                staffUserId, startDate, endDate);
+            
+            // Always include all users, even with zero activity
+            staffBreakdowns.add(StaffBreakdownDto.builder()
+                .userId(staffUserId)
+                .userName(userName)
+                .department(userDepartment)
+                .todoTasks(todoTasks)
+                .inProgressTasks(inProgressTasks)
+                .completedTasks(completedTasks)
+                .blockedTasks(blockedTasks)
+                .loggedHours(loggedHours != null ? loggedHours : BigDecimal.ZERO)
+                .build());
+        }
+        
+        return staffBreakdowns;
     }
 }
 
