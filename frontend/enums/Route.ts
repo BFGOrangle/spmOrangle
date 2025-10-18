@@ -3,6 +3,7 @@ export enum Route {
   Dashboard = "/dashboard",
   Profile = "/profile",
   Projects = "/projects",
+  Reports = "/reports",
   Unauthorized = "/unauthorized",
   ConfirmSignUp = "/auth/confirm-signup",
   NewPassword = "/auth/new-password",

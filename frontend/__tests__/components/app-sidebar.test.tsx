@@ -140,6 +140,7 @@ jest.mock("lucide-react", () => ({
   RefreshCcwDot: () => <div data-testid="refresh-icon" />,
   User: () => <div data-testid="user-icon" />,
   Calendar: () => <div data-testid="calendar-icon" />,
+  BarChart3: () => <div data-testid="barchart3-icon" />,
 }));
 
 // Helper function to render with SidebarProvider
@@ -162,6 +163,7 @@ describe("AppSidebar", () => {
     expect(screen.getByText("My Analytics")).toBeInTheDocument();
     expect(screen.getByText("Projects")).toBeInTheDocument();
     expect(screen.getByText("Tasks")).toBeInTheDocument();
+    expect(screen.getByText("Reports")).toBeInTheDocument();
     expect(screen.getByText("My Profile")).toBeInTheDocument();
 
     // Check for links
@@ -176,6 +178,10 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: /tasks/i })).toHaveAttribute(
       "href",
       "/tasks",
+    );
+    expect(screen.getByRole("link", { name: /reports/i })).toHaveAttribute(
+      "href",
+      "/reports",
     );
     expect(screen.getByRole("link", { name: /my profile/i })).toHaveAttribute(
       "href",
@@ -249,6 +255,7 @@ describe("AppSidebar", () => {
     expect(linkTexts).toContain("My Analytics");
     expect(linkTexts).toContain("Projects");
     expect(linkTexts).toContain("Tasks");
+    expect(linkTexts).toContain("Reports");
     expect(linkTexts).toContain("My Profile");
   });
 
@@ -261,6 +268,7 @@ describe("AppSidebar", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /projects/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /tasks/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /reports/i })).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /my profile/i }),
     ).toBeInTheDocument();
@@ -287,7 +295,7 @@ describe("AppSidebar", () => {
     expect(
       screen.getByRole("button", { name: /sign out/i }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("link")).toHaveLength(5);
+    expect(screen.getAllByRole("link")).toHaveLength(6);
   });
 
   it("applies correct CSS classes to sign out button", () => {
