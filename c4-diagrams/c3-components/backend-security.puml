@@ -1,0 +1,98 @@
+@startuml backend-security
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - Backend Security & Authentication System
+
+Container_Ext(frontend, "Frontend", "Next.js", "User interface with AWS Amplify")
+System_Ext(cognito, "AWS Cognito", "User Pool", "Authentication service")
+ContainerDb_Ext(database, "PostgreSQL", "Database", "User data")
+
+Container_Boundary(security_system, "Security & Authentication") {
+    Component(security_config, "SecurityConfig", "Spring Security Configuration", "Configures:\n- JWT authentication\n- Role-based authorization\n- CORS policies\n- Endpoint security rules\n- OAuth2 resource server")
+    
+    Component(jwt_filter, "JWT Authentication Filter", "Spring Security Filter", "Validates JWT tokens:\n1. Extract token from Authorization header\n2. Validate signature with Cognito JWK\n3. Extract claims (userId, email, roles)\n4. Create SecurityContext")
+    
+    Component(user_context_service, "UserContextService", "Spring Service", "Extracts user information:\n- getUserId() from JWT claims\n- getUserEmail() from JWT\n- getCurrentUser() with User entity\n- Role-based access checks")
+    
+    Component(cognito_service, "CognitoUserService", "AWS Service Client", "User management operations:\n- Create user\n- Update user attributes\n- Assign to groups (roles)\n- Enable/disable users")
+    
+    Component(user_repository, "UserRepository", "Spring Data JPA", "User entity persistence:\n- Find by Cognito sub\n- Find by email\n- User CRUD operations")
+    
+    Component(user_converter, "UserConverter", "Utility Component", "Converts between:\n- Cognito user attributes ↔ User entity\n- DTOs ↔ Domain models")
+}
+
+Container_Boundary(protected_resources, "Protected Resources") {
+    Component(task_controller, "TaskController", "REST Controller", "@PreAuthorize annotations")
+    Component(report_controller, "ReportController", "REST Controller", "Requires HR or MANAGER role")
+}
+
+Rel(frontend, security_config, "Sends JWT token", "HTTPS\nAuthorization: Bearer <token>")
+
+Rel(security_config, jwt_filter, "Applies filter chain")
+Rel(jwt_filter, cognito, "Validates token signature", "HTTPS\nJWKS endpoint")
+Rel(jwt_filter, user_context_service, "Populates SecurityContext")
+
+Rel(user_context_service, user_repository, "Fetches User entity")
+Rel(user_repository, database, "Queries users", "JDBC")
+
+Rel(cognito_service, cognito, "Manages users", "AWS SDK")
+Rel(cognito_service, user_converter, "Converts user data")
+
+Rel(security_config, task_controller, "Protects endpoints")
+Rel(security_config, report_controller, "Enforces role requirements")
+
+Rel(task_controller, user_context_service, "Gets current user")
+Rel(report_controller, user_context_service, "Gets current user")
+
+note right of jwt_filter
+  JWT Token Flow:
+  1. Frontend gets token from Cognito
+  2. Includes token in Authorization header
+  3. Filter validates signature
+  4. Extracts claims: sub, email, cognito:groups
+  5. Creates Authentication object
+  6. Stores in SecurityContext
+  
+  Token Validation:
+  - Signature check (RSA public key from JWK)
+  - Expiration check
+  - Issuer verification
+end note
+
+note bottom of security_config
+  Security Configuration:
+  
+  OAuth2 Resource Server:
+  - JWT decoder with Cognito issuer
+  - JWK set URI for public keys
+  
+  Role Hierarchy:
+  - HR (full access)
+  - MANAGER (department-scoped)
+  - STAFF (task-level)
+  
+  CORS:
+  - Allowed origins: frontend URL
+  - Allowed methods: GET, POST, PUT, DELETE, PATCH
+end note
+
+note left of user_context_service
+  User Context:
+  
+  Provides current user info to services:
+  - Long getUserId()
+  - String getUserEmail()
+  - User getCurrentUser()
+  - boolean hasRole(String role)
+  
+  Used by services to:
+  - Filter data by user
+  - Check permissions
+  - Audit operations
+end note
+
+@enduml
+
+
