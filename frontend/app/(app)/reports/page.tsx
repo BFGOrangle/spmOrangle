@@ -297,11 +297,11 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Date Range - Optional for all time ranges */}
+            {/* Date Range - Required */}
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="startDate">
-                  Start Date {!isCustomTimeRange && <span className="text-muted-foreground">(Optional)</span>}
+                  Start Date
                 </Label>
                 <Input
                   id="startDate"
@@ -318,7 +318,7 @@ export default function ReportsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="endDate">
-                  End Date {!isCustomTimeRange && <span className="text-muted-foreground">(Optional)</span>}
+                  End Date
                 </Label>
                 <Input
                   id="endDate"
