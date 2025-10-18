@@ -12,18 +12,19 @@ post {
 
 body:json {
   {
-    "department": "Software",
-    "projectIds": [1,2],
+    "department": "",
+    "projectIds": [1],
     "startDate": "2025-01-02",
     "endDate": "2025-12-31",
-    "timeRange": "CUSTOM",
+    "timeRange": "QUARTERLY",
     "exportFormat":"JSON"
   }
   
   // Response
   // ├── taskSummary (overall summary for entire period)
   // ├── timeAnalytics (overall analytics for entire period)
-  // ├── timeSeriesData (quarterly breakdown - NEW!)
+  // ├── staffBreakdown (overall staff breakdown)
+  // ├── timeSeriesData (breakdown - WEEKLY, MONTHLY, QUARTERLY, YEARLY, CUSTOM)
   // │   ├── Q1 2025 (Jan-Mar)
   // │   ├── Q2 2025 (Apr-Jun)
   // │   ├── Q3 2025 (Jul-Sep)
