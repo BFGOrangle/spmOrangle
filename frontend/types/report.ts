@@ -20,44 +20,55 @@ export interface TaskSummaryReportDto {
   inProgressTasks: number;
   blockedTasks: number;
   todoTasks: number;
-  completionRate: number;
-  tasksByType: {
-    BUG: number;
-    FEATURE: number;
-    CHORE: number;
-    RESEARCH: number;
+  completedPercentage: number;
+  inProgressPercentage: number;
+  todoPercentage: number;
+  blockedPercentage: number;
+  departmentBreakdown?: {
+    [key: string]: TaskStatusCounts;
   };
-  tasksByPriority?: {
-    HIGH: number;
-    MEDIUM: number;
-    LOW: number;
+  projectBreakdown?: {
+    [key: string]: TaskStatusCounts;
   };
+}
+
+export interface TaskStatusCounts {
+  total: number;
+  completed: number;
+  inProgress: number;
+  todo: number;
+  blocked: number;
 }
 
 export interface TimeAnalyticsReportDto {
-  totalTimeSpent: number;
-  averageTimePerTask: number;
-  timeByProject: {
-    projectId: number;
-    projectName: string;
-    timeSpent: number;
-  }[];
-  timeByDepartment: {
-    department: string;
-    timeSpent: number;
-  }[];
-  timeByUser?: {
-    userId: number;
-    userName: string;
-    timeSpent: number;
-  }[];
+  totalHours: number;
+  hoursByDepartment?: {
+    [key: string]: number;
+  };
+  hoursByProject?: {
+    [key: string]: number;
+  };
+  projectDetails?: {
+    [key: string]: ProjectTimeDetails;
+  };
+}
+
+export interface ProjectTimeDetails {
+  projectName: string;
+  department: string;
+  totalHours: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  averageHoursPerTask: number;
 }
 
 export interface TimeSeriesDataPoint {
-  date: string;
-  tasksCompleted: number;
-  tasksCreated: number;
-  timeSpent: number;
+  period: string;
+  periodLabel: string;
+  startDate: string;
+  endDate: string;
+  taskSummary: TaskSummaryReportDto;
+  timeAnalytics: TimeAnalyticsReportDto;
 }
 
 export interface ComprehensiveReportDto {

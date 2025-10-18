@@ -38,13 +38,14 @@ import {
   ProjectOptionDto,
   TimeRange,
   ReportFormat,
+  ComprehensiveReportDto,
 } from "@/types/report";
 import { useToast } from "@/hooks/use-toast";
 
 export default function ReportsPage() {
   const { toast } = useToast();
 
-  // Filter state
+  // Filter state - matching backend request body fields
   const [department, setDepartment] = useState<string>("");
   const [projectIds, setProjectIds] = useState<number[]>([]);
   const [timeRange, setTimeRange] = useState<TimeRange>("MONTHLY");
@@ -137,14 +138,12 @@ export default function ReportsPage() {
           description: `Your ${format} report has been downloaded successfully.`,
         });
       } else {
-        // For JSON format, load and display the data
-        const [taskSum, timeAnal] = await Promise.all([
-          reportService.getTaskSummaryReport(filters),
-          reportService.getTimeAnalyticsReport(filters),
-        ]);
+        // For JSON format, the generate endpoint returns complete data
+        // It automatically includes both taskSummary and timeAnalytics
+        const reportData = await reportService.generateReport(filters) as ComprehensiveReportDto;
         
-        setTaskSummary(taskSum);
-        setTimeAnalytics(timeAnal);
+        setTaskSummary(reportData.taskSummary);
+        setTimeAnalytics(reportData.timeAnalytics);
         
         toast({
           title: "Report Generated",
@@ -212,7 +211,7 @@ export default function ReportsPage() {
 
               {/* Project Filter */}
               <div className="space-y-2">
-                <Label htmlFor="project">Project</Label>
+                <Label htmlFor="project">Projects</Label>
                 <Select
                   value={projectIds[0]?.toString() || "ALL_PROJECTS"}
                   onValueChange={(value) =>
@@ -232,6 +231,11 @@ export default function ReportsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {projectIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {projectIds.length} project{projectIds.length !== 1 ? 's' : ''} selected
+                  </p>
+                )}
               </div>
 
               {/* Time Range Filter */}
@@ -254,14 +258,14 @@ export default function ReportsPage() {
                 </Select>
               </div>
 
-              {/* Format Filter */}
+              {/* Export Format Filter */}
               <div className="space-y-2">
-                <Label htmlFor="format">Format</Label>
+                <Label htmlFor="exportFormat">Export Format</Label>
                 <Select
                   value={format}
                   onValueChange={(value) => setFormat(value as ReportFormat)}
                 >
-                  <SelectTrigger id="format">
+                  <SelectTrigger id="exportFormat">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -273,29 +277,43 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Custom Date Range */}
-            {isCustomTimeRange && (
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="startDate">Start Date</Label>
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="endDate">End Date</Label>
-                  <Input
-                    id="endDate"
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-                </div>
+            {/* Date Range - Optional for all time ranges */}
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="startDate">
+                  Start Date {!isCustomTimeRange && <span className="text-muted-foreground">(Optional)</span>}
+                </Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  placeholder="YYYY-MM-DD"
+                />
+                {!isCustomTimeRange && startDate && (
+                  <p className="text-xs text-muted-foreground">
+                    Overrides {timeRange.toLowerCase()} range start
+                  </p>
+                )}
               </div>
-            )}
+              <div className="space-y-2">
+                <Label htmlFor="endDate">
+                  End Date {!isCustomTimeRange && <span className="text-muted-foreground">(Optional)</span>}
+                </Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  placeholder="YYYY-MM-DD"
+                />
+                {!isCustomTimeRange && endDate && (
+                  <p className="text-xs text-muted-foreground">
+                    Overrides {timeRange.toLowerCase()} range end
+                  </p>
+                )}
+              </div>
+            </div>
 
             {/* Generate Button */}
             <div className="mt-6">
@@ -365,7 +383,7 @@ export default function ReportsPage() {
                         {taskSummary.completedTasks}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {taskSummary.completionRate.toFixed(1)}% completion rate
+                        {taskSummary.completedPercentage?.toFixed(1)}% completion rate
                       </p>
                     </CardContent>
                   </Card>
@@ -399,43 +417,55 @@ export default function ReportsPage() {
                   </Card>
                 </div>
 
-                {/* Tasks by Type */}
+                {/* Tasks by Status Breakdown */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Tasks by Type</CardTitle>
+                    <CardTitle>Task Status Distribution</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid gap-4 md:grid-cols-4">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Bug</span>
-                          <Badge variant="destructive">
-                            {taskSummary.tasksByType.BUG}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Feature</span>
-                          <Badge variant="default">
-                            {taskSummary.tasksByType.FEATURE}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Chore</span>
+                          <span className="text-sm font-medium">To Do</span>
                           <Badge variant="secondary">
-                            {taskSummary.tasksByType.CHORE}
+                            {taskSummary.todoTasks}
                           </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {taskSummary.todoPercentage?.toFixed(1)}%
                         </div>
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Research</span>
-                          <Badge variant="outline">
-                            {taskSummary.tasksByType.RESEARCH}
+                          <span className="text-sm font-medium">In Progress</span>
+                          <Badge variant="default">
+                            {taskSummary.inProgressTasks}
                           </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {taskSummary.inProgressPercentage?.toFixed(1)}%
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Completed</span>
+                          <Badge variant="outline" className="bg-green-50">
+                            {taskSummary.completedTasks}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {taskSummary.completedPercentage?.toFixed(1)}%
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Blocked</span>
+                          <Badge variant="destructive">
+                            {taskSummary.blockedTasks}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {taskSummary.blockedPercentage?.toFixed(1)}%
                         </div>
                       </div>
                     </div>
@@ -459,39 +489,41 @@ export default function ReportsPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-3xl font-bold">
-                        {timeAnalytics.totalTimeSpent.toFixed(1)} hrs
+                        {timeAnalytics.totalHours?.toFixed(1)} hrs
                       </div>
                     </CardContent>
                   </Card>
 
                   <Card>
                     <CardHeader>
-                      <CardTitle>Average Time per Task</CardTitle>
+                      <CardTitle>Project Details</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-3xl font-bold">
-                        {timeAnalytics.averageTimePerTask.toFixed(1)} hrs
+                      <div className="text-sm text-muted-foreground">
+                        {timeAnalytics.projectDetails 
+                          ? `${Object.keys(timeAnalytics.projectDetails).length} projects tracked`
+                          : 'No project data available'}
                       </div>
                     </CardContent>
                   </Card>
                 </div>
 
                 {/* Time by Project */}
-                {timeAnalytics.timeByProject.length > 0 && (
+                {timeAnalytics.hoursByProject && Object.keys(timeAnalytics.hoursByProject).length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle>Time by Project</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {timeAnalytics.timeByProject.map((proj) => (
+                        {Object.entries(timeAnalytics.hoursByProject).map(([projectName, hours]) => (
                           <div
-                            key={proj.projectId}
+                            key={projectName}
                             className="flex items-center justify-between"
                           >
-                            <span className="font-medium">{proj.projectName}</span>
+                            <span className="font-medium">{projectName}</span>
                             <Badge variant="secondary">
-                              {proj.timeSpent.toFixed(1)} hrs
+                              {Number(hours).toFixed(1)} hrs
                             </Badge>
                           </div>
                         ))}
@@ -501,21 +533,21 @@ export default function ReportsPage() {
                 )}
 
                 {/* Time by Department */}
-                {timeAnalytics.timeByDepartment.length > 0 && (
+                {timeAnalytics.hoursByDepartment && Object.keys(timeAnalytics.hoursByDepartment).length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle>Time by Department</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {timeAnalytics.timeByDepartment.map((dept) => (
+                        {Object.entries(timeAnalytics.hoursByDepartment).map(([department, hours]) => (
                           <div
-                            key={dept.department}
+                            key={department}
                             className="flex items-center justify-between"
                           >
-                            <span className="font-medium">{dept.department}</span>
+                            <span className="font-medium">{department}</span>
                             <Badge variant="secondary">
-                              {dept.timeSpent.toFixed(1)} hrs
+                              {Number(hours).toFixed(1)} hrs
                             </Badge>
                           </div>
                         ))}

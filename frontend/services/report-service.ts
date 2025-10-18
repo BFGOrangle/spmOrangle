@@ -59,18 +59,33 @@ export class ReportService extends AuthenticatedApiClient {
 
   /**
    * Generate comprehensive report (can return PDF, CSV, or JSON)
+   * This endpoint automatically calls both task-summary and time-analytics endpoints
    * For PDF/CSV, this will trigger a download
+   * For JSON, returns complete report data with taskSummary, timeAnalytics, and optional timeSeriesData
    */
   async generateReport(filters: ReportFilterDto): Promise<ComprehensiveReportDto | Blob> {
     const url = `/api/reports/generate`;
     
+    // Note: Backend expects 'exportFormat' not 'format'
+    const requestBody = {
+      ...filters,
+      exportFormat: filters.format,
+    };
+    
+    // Remove the 'format' field as backend uses 'exportFormat'
+    const { format, ...restFilters } = filters;
+    const finalBody = {
+      ...restFilters,
+      exportFormat: format,
+    };
+    
     // If format is PDF or CSV, we need to handle blob response
     if (filters.format === 'PDF' || filters.format === 'CSV') {
-      return this.postForBlob(url, filters);
+      return this.postForBlob(url, finalBody);
     }
     
-    // Otherwise return JSON
-    return this.post<ComprehensiveReportDto>(url, filters);
+    // Otherwise return JSON - this will include taskSummary, timeAnalytics, and timeSeriesData
+    return this.post<ComprehensiveReportDto>(url, finalBody);
   }
 
   /**
