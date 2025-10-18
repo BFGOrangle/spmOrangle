@@ -3,6 +3,7 @@ package com.spmorangle.crm.reporting.controller;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.reporting.dto.ReportFilterDto;
+import com.spmorangle.crm.reporting.dto.StaffBreakdownDto;
 import com.spmorangle.crm.reporting.dto.TaskSummaryReportDto;
 import com.spmorangle.crm.reporting.dto.TimeAnalyticsReportDto;
 import com.spmorangle.crm.reporting.dto.TimeSeriesDataPoint;
@@ -116,12 +117,14 @@ public class ReportController {
             // Generate all report components
             TaskSummaryReportDto taskSummary = reportService.generateTaskSummaryReport(filters, user.getId());
             TimeAnalyticsReportDto timeAnalytics = reportService.generateTimeAnalyticsReport(filters, user.getId());
+            List<StaffBreakdownDto> staffBreakdown = reportService.generateStaffBreakdown(filters, user.getId());
             List<TimeSeriesDataPoint> timeSeriesData = reportService.generateTimeSeriesData(filters, user.getId());
             
             // Build report data map
             Map<String, Object> reportData = new java.util.HashMap<>();
             reportData.put("taskSummary", taskSummary);
             reportData.put("timeAnalytics", timeAnalytics);
+            reportData.put("staffBreakdown", staffBreakdown);
             reportData.put("filters", filters);
             reportData.put("generatedAt", java.time.OffsetDateTime.now());
             

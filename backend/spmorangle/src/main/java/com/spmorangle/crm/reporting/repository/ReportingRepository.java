@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import com.spmorangle.crm.taskmanagement.model.Task;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -81,5 +82,67 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
         ORDER BY p.name
         """)
     List<Object[]> getProjectsByDepartment(@Param("department") String department);
+    
+    /**
+     * Get all users for staff breakdown by department and optional project filters
+     * Returns all users in the department, optionally filtered by project membership
+     * Note: Pass null for projectIds to get all users (no project filter)
+     */
+    @Query("""
+        SELECT DISTINCT u.id, u.userName, u.department
+        FROM User u
+        WHERE (:department = '' OR u.department = :department)
+        AND (
+            :projectIds IS NULL 
+            OR u.id IN (
+                SELECT pm.userId FROM ProjectMember pm
+                WHERE pm.projectId IN :projectIds
+            )
+        )
+        ORDER BY u.userName
+        """)
+    List<Object[]> getUsersForStaffBreakdown(
+        @Param("department") String department,
+        @Param("projectIds") List<Long> projectIds
+    );
+    
+    /**
+     * Get task counts by status for a specific user
+     * Includes tasks where user is owner OR assignee (without double counting)
+     */
+    @Query("""
+        SELECT t.status, COUNT(DISTINCT t.id)
+        FROM Task t
+        WHERE t.deleteInd = false
+        AND (FUNCTION('DATE', t.createdAt) >= :startDate)
+        AND (FUNCTION('DATE', t.createdAt) <= :endDate)
+        AND (:projectIds IS NULL OR t.projectId IN :projectIds)
+        AND (t.ownerId = :userId OR EXISTS (
+            SELECT 1 FROM TaskAssignee ta WHERE ta.taskId = t.id AND ta.userId = :userId
+        ))
+        GROUP BY t.status
+        """)
+    List<Object[]> getTaskCountsByStatusForUser(
+        @Param("userId") Long userId,
+        @Param("projectIds") List<Long> projectIds,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+    
+    /**
+     * Get total logged hours for a specific user
+     */
+    @Query("""
+        SELECT COALESCE(SUM(ttt.totalHours), 0)
+        FROM TaskTimeTracking ttt
+        WHERE ttt.userId = :userId
+        AND (FUNCTION('DATE', ttt.startedAt) >= :startDate)
+        AND (FUNCTION('DATE', ttt.startedAt) <= :endDate)
+        """)
+    BigDecimal getLoggedHoursForUser(
+        @Param("userId") Long userId,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
 }
 
