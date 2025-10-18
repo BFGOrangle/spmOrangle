@@ -1,0 +1,157 @@
+@startuml rabbitmq-topology
+allowmixing
+
+title Code Diagram - RabbitMQ Message Broker Topology
+
+skinparam class {
+    BackgroundColor<<Config>> LightGray
+}
+
+package "spmorangle.common.config" {
+    class RabbitMQConfig <<Config>> {
+        Infrastructure-as-Code Configuration
+        ==
+        + TopicExchange notificationExchange()
+        + Queue commentQueue()
+        + Queue taskQueue()
+        + Queue userQueue()
+        + Queue projectQueue()
+        + DirectExchange dlqExchange()
+        + Queue dlqQueue()
+        + Binding bindCommentQueue()
+        + Binding bindTaskQueue()
+        + Binding bindUserQueue()
+        + Binding bindProjectQueue()
+        + Binding bindDlqQueue()
+    }
+}
+
+' Topology visualization
+rectangle "notification.exchange\n(Topic Exchange)" as exchange #Orange
+
+rectangle "notification.comment.queue\nRouting: notification.comment.*\n(durable, with DLQ)" as comment_queue #LightBlue
+rectangle "notification.task.queue\nRouting: notification.task.*\n(durable, with DLQ)" as task_queue #LightBlue
+rectangle "notification.user.queue\nRouting: notification.user.*\n(durable, with DLQ)" as user_queue #LightBlue
+rectangle "notification.project.queue\nRouting: notification.project.*\n(durable, with DLQ)" as project_queue #LightBlue
+
+rectangle "notification.dlq.exchange\n(Direct Exchange)" as dlq_exchange #Red
+rectangle "notification.dlq.queue\n(Dead Letter Queue)" as dlq_queue #Red
+
+' Configuration relationships
+RabbitMQConfig --> exchange : creates
+RabbitMQConfig --> comment_queue : creates
+RabbitMQConfig --> task_queue : creates
+RabbitMQConfig --> user_queue : creates
+RabbitMQConfig --> project_queue : creates
+RabbitMQConfig --> dlq_exchange : creates
+RabbitMQConfig --> dlq_queue : creates
+
+' Exchange routing
+exchange --> comment_queue : binds with\nrouting key pattern:\nnotification.comment.*
+exchange --> task_queue : binds with\nrouting key pattern:\nnotification.task.*
+exchange --> user_queue : binds with\nrouting key pattern:\nnotification.user.*
+exchange --> project_queue : binds with\nrouting key pattern:\nnotification.project.*
+
+' DLQ configuration
+comment_queue .[dotted].> dlq_queue : x-dead-letter-routing-key
+task_queue .[dotted].> dlq_queue : x-dead-letter-routing-key
+user_queue .[dotted].> dlq_queue : x-dead-letter-routing-key
+project_queue .[dotted].> dlq_queue : x-dead-letter-routing-key
+
+dlq_exchange --> dlq_queue : direct binding
+
+note right of RabbitMQConfig
+  **Configuration Beans**
+  
+  @Bean
+  public TopicExchange notificationExchange() {
+    return new TopicExchange(
+      "notification.exchange"
+    );
+  }
+  
+  @Bean
+  public Queue commentQueue() {
+    return QueueBuilder
+      .durable("notification.comment.queue")
+      .withArgument(
+        "x-dead-letter-exchange",
+        "notification.dlq.exchange"
+      )
+      .withArgument(
+        "x-dead-letter-routing-key",
+        "dlq"
+      )
+      .build();
+  }
+  
+  @Bean
+  public Binding commentBinding() {
+    return BindingBuilder
+      .bind(commentQueue())
+      .to(notificationExchange())
+      .with("notification.comment.*");
+  }
+end note
+
+note bottom of exchange
+  **Topic Exchange Pattern Routing**
+  
+  * (asterisk) = exactly one word
+  # (hash) = zero or more words
+  
+  Example routing keys:
+  - notification.comment.mention
+    → Matches notification.comment.*
+    → Routes to comment queue
+  
+  - notification.task.assigned
+    → Matches notification.task.*
+    → Routes to task queue
+  
+  Benefits:
+  ✅ Flexible, pattern-based routing
+  ✅ Single publisher, multiple subscribers
+  ✅ Easy to add new event types
+  ✅ Decoupled services
+end note
+
+note bottom of dlq_queue
+  **Dead Letter Queue (DLQ) Strategy**
+  
+  Messages sent to DLQ when:
+  - Consumer throws exception (requeue=false)
+  - Message TTL expires
+  - Queue length limit exceeded
+  
+  All queues configured with:
+  x-dead-letter-exchange: notification.dlq.exchange
+  x-dead-letter-routing-key: dlq
+  
+  Use Cases:
+  ✅ Capture failed messages
+  ✅ Inspect and debug issues
+  ✅ Implement retry logic
+  ✅ Alert on failures
+  ✅ Prevent message loss
+end note
+
+note as properties
+  **Queue Configuration Properties**
+  
+  All application queues are:
+  - DURABLE (persist across restarts)
+  - NON-EXCLUSIVE (accessible by multiple consumers)
+  - NOT AUTO-DELETE
+  
+  Bindings:
+  - Topic Exchange with wildcard patterns
+  - Enables flexible event routing
+  
+  DLQ Configuration:
+  - Automatic on consumer exception
+  - Configurable retry policy
+  - Centralized error handling
+end note
+
+@enduml

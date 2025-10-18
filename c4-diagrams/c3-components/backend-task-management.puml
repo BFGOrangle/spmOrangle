@@ -1,0 +1,106 @@
+@startuml backend-task-management
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - Backend Task Management System
+
+Container_Ext(frontend, "Frontend", "Next.js", "User interface")
+ContainerDb_Ext(database, "PostgreSQL", "Database", "Task data storage")
+Component_Ext(notification_publisher, "NotificationPublisher", "RabbitMQ Producer", "Publishes events")
+
+Container_Boundary(task_management, "Task Management System") {
+    Component(task_controller, "TaskManagementController", "Spring REST Controller", "Task CRUD endpoints:\n- GET /api/tasks\n- POST /api/tasks\n- PUT /api/tasks/{id}\n- DELETE /api/tasks/{id}\n- POST /api/tasks/{id}/collaborators")
+    
+    Component(subtask_controller, "SubtaskController", "Spring REST Controller", "Subtask endpoints:\n- POST /api/tasks/{taskId}/subtasks\n- PUT /api/subtasks/{id}\n- DELETE /api/subtasks/{id}")
+    
+    Component(tag_controller, "TagController", "Spring REST Controller", "Tag endpoints:\n- GET /api/tags\n- POST /api/tags\n- PUT /api/tags/{id}")
+    
+    Component(task_service, "TaskService", "Spring Service", "Core task business logic:\n- Create/update/delete tasks\n- Status transitions\n- Validation\n- Event publishing")
+    
+    Component(subtask_service, "SubtaskService", "Spring Service", "Subtask management:\n- Create/update subtasks\n- Link to parent task\n- Status tracking")
+    
+    Component(tag_service, "TagService", "Spring Service", "Tag management:\n- Create/update tags\n- Associate with tasks")
+    
+    Component(comment_service, "CommentService", "Spring Service", "Comment operations:\n- Add/edit/delete comments\n- Mention detection (@user)\n- Permission checking")
+    
+    Component(assignee_service, "TaskAssigneeService", "Spring Service", "Collaborator management:\n- Add/remove assignees\n- List collaborators\n- Validation")
+    
+    Component(permission_helper, "CommentPermissionHelper", "Utility Component", "Permission logic:\n- Author can edit/delete own comments\n- Role-based access control")
+    
+    Component(task_repository, "TaskRepository", "Spring Data JPA", "Task entity CRUD")
+    
+    Component(subtask_repository, "SubtaskRepository", "Spring Data JPA", "Subtask entity CRUD")
+    
+    Component(tag_repository, "TagRepository", "Spring Data JPA", "Tag entity CRUD")
+    
+    Component(comment_repository, "TaskCommentRepository", "Spring Data JPA", "Comment entity CRUD")
+    
+    Component(assignee_repository, "TaskAssigneeRepository", "Spring Data JPA", "TaskAssignee entity CRUD")
+}
+
+Rel(frontend, task_controller, "Task operations", "HTTPS/REST")
+Rel(frontend, subtask_controller, "Subtask operations", "HTTPS/REST")
+Rel(frontend, tag_controller, "Tag operations", "HTTPS/REST")
+
+Rel(task_controller, task_service, "Uses")
+Rel(subtask_controller, subtask_service, "Uses")
+Rel(tag_controller, tag_service, "Uses")
+
+Rel(task_service, task_repository, "Persists tasks")
+Rel(subtask_service, subtask_repository, "Persists subtasks")
+Rel(tag_service, tag_repository, "Persists tags")
+Rel(comment_service, comment_repository, "Persists comments")
+Rel(assignee_service, assignee_repository, "Persists assignees")
+
+Rel(task_repository, database, "CRUD operations", "JDBC")
+Rel(subtask_repository, database, "CRUD operations", "JDBC")
+Rel(tag_repository, database, "CRUD operations", "JDBC")
+Rel(comment_repository, database, "CRUD operations", "JDBC")
+Rel(assignee_repository, database, "CRUD operations", "JDBC")
+
+Rel(task_service, comment_service, "Manages comments")
+Rel(task_service, assignee_service, "Manages assignees")
+Rel(task_service, subtask_service, "Manages subtasks")
+Rel(comment_service, permission_helper, "Checks permissions")
+
+Rel(task_service, notification_publisher, "Publishes TASK_ASSIGNED event")
+Rel(comment_service, notification_publisher, "Publishes MENTION, COMMENT_REPLY events")
+
+note right of task_service
+  Task Lifecycle:
+  BACKLOG → IN_PROGRESS → 
+  IN_REVIEW → COMPLETED
+  
+  Business Rules:
+  - Status validation
+  - Assignee notifications
+  - Deadline tracking
+end note
+
+note bottom of comment_service
+  Comment Features:
+  - Markdown support
+  - @mention detection
+  - Edit history tracking
+  - Permission checks
+  
+  Triggers:
+  - MENTION event → notification
+  - REPLY event → notification
+end note
+
+note right of assignee_service
+  Collaborator Management:
+  - Add multiple assignees to task
+  - Remove collaborators
+  - List all collaborators
+  - Validation (user exists, no duplicates)
+  
+  Triggers:
+  - Add assignee → TASK_ASSIGNED event
+end note
+
+@enduml
+
+

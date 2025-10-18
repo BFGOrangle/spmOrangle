@@ -1,0 +1,58 @@
+@startuml container-diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Container Diagram for SPM Orangle
+
+Person(user, "User", "HR Staff, Manager, or Staff/Engineer")
+
+System_Boundary(spm_orangle, "SPM Orangle") {
+    Container(frontend, "Frontend Application", "Next.js 15, React 19, TypeScript", "Provides task management UI, real-time notifications, and interactive dashboards\n\nKey Tech: TanStack Query, WebSocket client, AWS Amplify")
+    
+    Container(backend, "Backend API", "Spring Boot 3.5, Java 21", "Handles business logic, authentication, and data persistence\n\nKey Tech: Spring Security, JPA, WebSocket, RabbitMQ")
+    
+    ContainerDb(database, "Database", "PostgreSQL 16", "Stores users, projects, tasks, comments, notifications, and time tracking data")
+    
+    Container(message_broker, "Message Broker", "RabbitMQ 3.13", "Asynchronous event processing for notifications\n\nTopology: Topic Exchange with routing keys, DLQ for failed messages")
+}
+
+System_Ext(cognito, "AWS Cognito", "User Pool for authentication")
+System_Ext(s3, "AWS S3", "File storage bucket")
+System_Ext(email, "Email Service", "SMTP email delivery")
+
+Rel(user, frontend, "Uses", "HTTPS, WSS")
+
+Rel(frontend, backend, "Makes API calls to", "HTTPS/REST, JSON")
+Rel(frontend, backend, "Subscribes to notifications", "WebSocket/STOMP")
+
+Rel(backend, database, "Reads from and writes to", "JDBC/JPA")
+Rel(backend, message_broker, "Publishes events to & consumes from", "AMQP")
+Rel(backend, cognito, "Validates JWT tokens, manages users", "AWS SDK/HTTPS")
+Rel(backend, s3, "Uploads and downloads files", "AWS SDK")
+Rel(backend, email, "Sends notification emails", "SMTP")
+
+note right of message_broker
+  Event Types:
+  - Comment events (mentions, replies)
+  - Task events (assigned, completed)
+  - Project events (invitations)
+  - User events (registration)
+  
+  Queues: comment, task, user, project
+  Dead Letter Queue for error handling
+end note
+
+note right of backend
+  Key Features:
+  - JWT-based authentication
+  - Role-based authorization
+  - RESTful API endpoints
+  - WebSocket real-time push
+  - Report export (Strategy pattern)
+  - Event-driven notifications
+end note
+
+@enduml
+
+
