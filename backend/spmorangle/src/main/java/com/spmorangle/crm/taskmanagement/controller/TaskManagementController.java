@@ -109,7 +109,7 @@ public class TaskManagementController {
 
     @GetMapping("/collaborators")
     public ResponseEntity<List<UserResponseDto>> getCollaborators(){
-        List<UserResponseDto> collaborators = userManagementService.getCollaborators();
+        List<UserResponseDto> collaborators = userManagementService.getAllUsers();
         return ResponseEntity.status(HttpStatus.OK).body(collaborators);
     }
 

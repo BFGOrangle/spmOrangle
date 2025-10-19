@@ -51,6 +51,34 @@ export class UserManagementService {
   }
 
   /**
+   * Admin create user (authenticated endpoint - requires MANAGER or HR role)
+   */
+  async adminCreateUser(userData: CreateUserDto): Promise<void> {
+    return this.authenticatedClient.post<void>("/api/user/admin-create", userData);
+  }
+
+  /**
+   * Deactivate user (authenticated endpoint - requires MANAGER or HR role)
+   */
+  async deactivateUser(userId: number): Promise<void> {
+    return this.authenticatedClient.post<void>(`/api/user/deactivate/${userId}`, {});
+  }
+
+  /**
+   * Reactivate user (authenticated endpoint - requires MANAGER or HR role)
+   */
+  async reactivateUser(userId: number): Promise<void> {
+    return this.authenticatedClient.post<void>(`/api/user/reactivate/${userId}`, {});
+  }
+
+  /**
+   * Get all users (authenticated endpoint)
+   */
+  async getAllUsers(): Promise<UserResponseDto[]> {
+    return this.authenticatedClient.get<UserResponseDto[]>("/api/user/");
+  }
+
+  /**
    * Get user by ID (authenticated)
    */
   async getUserById(userId: number): Promise<UserResponseDto> {

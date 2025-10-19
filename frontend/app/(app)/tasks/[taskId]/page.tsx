@@ -513,10 +513,10 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
                       >
                         <div className="flex items-center gap-3">
                           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
-                            {getInitials(collaborator.fullName || `User ${collaborator.id}`)}
+                            {getInitials(collaborator.username || `User ${collaborator.id}`)}
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium">{collaborator.fullName}</span>
+                            <span className="text-sm font-medium">{collaborator.username}</span>
                             <span className="text-xs text-muted-foreground">{collaborator.email}</span>
                           </div>
                         </div>

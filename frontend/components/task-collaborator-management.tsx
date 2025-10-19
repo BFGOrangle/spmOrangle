@@ -114,8 +114,8 @@ export function TaskCollaboratorManagement({
           collaborator.id !== currentUserId,
       )
       .sort((a, b) => {
-        const nameA = (a.fullName || a.email || `User ${a.id}`).toLowerCase();
-        const nameB = (b.fullName || b.email || `User ${b.id}`).toLowerCase();
+        const nameA = (a.username || a.email || `User ${a.id}`).toLowerCase();
+        const nameB = (b.username || b.email || `User ${b.id}`).toLowerCase();
         return nameA.localeCompare(nameB);
       });
   }, [collaborators, currentCollaboratorIds, currentUserId]);
@@ -155,8 +155,8 @@ export function TaskCollaboratorManagement({
       toast({
         title: "Collaborator added",
         description:
-          collaborator?.fullName
-            ? `${collaborator.fullName} has been added to the task.`
+          collaborator?.username
+            ? `${collaborator.username} has been added to the task.`
             : `User ID ${response.collaboratorId} has been added to the task.`,
       });
 
@@ -195,8 +195,8 @@ export function TaskCollaboratorManagement({
       toast({
         title: "Collaborator removed",
         description:
-          collaborator?.fullName
-            ? `${collaborator.fullName} has been removed from the task.`
+          collaborator?.username
+            ? `${collaborator.username} has been removed from the task.`
             : `User ID ${collaboratorId} has been removed from the task.`,
       });
     } catch (error) {
@@ -246,7 +246,7 @@ export function TaskCollaboratorManagement({
                 {currentCollaboratorIds.map((collaboratorId) => {
                   const collaborator = collaboratorMap.get(collaboratorId);
                   const collaboratorLabel =
-                    collaborator?.fullName ||
+                    collaborator?.username ||
                     collaborator?.email ||
                     `User ID: ${collaboratorId}`;
                   const collaboratorInitials = collaboratorLabel
@@ -268,7 +268,7 @@ export function TaskCollaboratorManagement({
                         </div>
                         <div className="flex flex-col">
                           <span className="text-sm font-medium">{collaboratorLabel}</span>
-                          {collaborator?.email && collaborator?.fullName && (
+                          {collaborator?.email && collaborator?.username && (
                             <span className="text-xs text-muted-foreground">
                               {collaborator.email}
                             </span>
@@ -313,7 +313,7 @@ export function TaskCollaboratorManagement({
                     >
                       <div className="flex flex-col">
                         <span className="text-sm font-medium">
-                          {collaborator.fullName || collaborator.email || `User ${collaborator.id}`}
+                          {collaborator.username || collaborator.email || `User ${collaborator.id}`}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           ID: {collaborator.id}
