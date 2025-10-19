@@ -72,5 +72,19 @@ public interface ReportService {
      * @return List of staff breakdown data
      */
     List<StaffBreakdownDto> generateStaffBreakdown(ReportFilterDto filters, Long userId);
+    
+    /**
+     * Sync time tracking when an assignee is added to a task during IN_PROGRESS
+     * @param taskId Task ID
+     * @param userId User ID of the new assignee
+     */
+    void syncTimeTrackingOnAssigneeAdd(Long taskId, Long userId);
+    
+    /**
+     * Sync time tracking when an assignee is removed from a task during IN_PROGRESS
+     * @param taskId Task ID
+     * @param userId User ID of the removed assignee
+     */
+    void syncTimeTrackingOnAssigneeRemove(Long taskId, Long userId);
 }
 

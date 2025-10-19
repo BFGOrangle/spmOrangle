@@ -14,6 +14,8 @@ import com.spmorangle.crm.reporting.repository.ReportingRepository;
 import com.spmorangle.crm.reporting.repository.TaskTimeTrackingRepository;
 import com.spmorangle.crm.reporting.service.ReportService;
 import com.spmorangle.crm.taskmanagement.enums.Status;
+import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
+import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,8 @@ public class ReportServiceImpl implements ReportService {
     private final ReportingRepository reportingRepository;
     private final TaskTimeTrackingRepository taskTimeTrackingRepository;
     private final UserRepository userRepository;
+    private final TaskAssigneeRepository taskAssigneeRepository;
+    private final TaskRepository taskRepository;
     
     @Override
     public TaskSummaryReportDto generateTaskSummaryReport(ReportFilterDto filters, Long userId) {
@@ -286,25 +290,50 @@ public class ReportServiceImpl implements ReportService {
     public void startTimeTracking(Long taskId, Long userId) {
         log.info("Starting time tracking for task: {} by user: {}", taskId, userId);
         
-        Optional<TaskTimeTracking> existingTracking = taskTimeTrackingRepository.findByTaskIdAndUserId(taskId, userId);
+        // Get task owner
+        com.spmorangle.crm.taskmanagement.model.Task task = taskRepository.findById(taskId)
+            .orElseThrow(() -> new RuntimeException("Task not found: " + taskId));
+        Long ownerId = task.getOwnerId();
         
-        if (existingTracking.isPresent()) {
-            TaskTimeTracking tracking = existingTracking.get();
-            if (tracking.getStartedAt() == null) {
-                tracking.setStartedAt(OffsetDateTime.now());
-                tracking.setCompletedAt(null);
-                tracking.setTotalHours(null);
-                taskTimeTrackingRepository.save(tracking);
-                log.info("Updated existing time tracking record for task: {}", taskId);
+        // Get all assignees
+        List<Long> assigneeIds = taskAssigneeRepository.findAssigneeIdsByTaskId(taskId);
+        
+        // Combine owner + assignees, ensuring no duplicates
+        List<Long> allUserIds = new java.util.ArrayList<>();
+        allUserIds.add(ownerId);
+        for (Long assigneeId : assigneeIds) {
+            if (!assigneeId.equals(ownerId)) {
+                allUserIds.add(assigneeId);
             }
-        } else {
-            TaskTimeTracking tracking = new TaskTimeTracking();
-            tracking.setTaskId(taskId);
-            tracking.setUserId(userId);
-            tracking.setStartedAt(OffsetDateTime.now());
-            taskTimeTrackingRepository.save(tracking);
-            log.info("Created new time tracking record for task: {}", taskId);
         }
+        
+        OffsetDateTime startTime = OffsetDateTime.now();
+        
+        // Create or update tracking records for all users
+        for (Long currentUserId : allUserIds) {
+            Optional<TaskTimeTracking> existingTracking = taskTimeTrackingRepository.findByTaskIdAndUserId(taskId, currentUserId);
+            
+            if (existingTracking.isPresent()) {
+                TaskTimeTracking tracking = existingTracking.get();
+                if (tracking.getStartedAt() == null || tracking.getCompletedAt() != null) {
+                    // Reset tracking for restart scenarios
+                    tracking.setStartedAt(startTime);
+                    tracking.setCompletedAt(null);
+                    tracking.setTotalHours(null);
+                    taskTimeTrackingRepository.save(tracking);
+                    log.info("Updated existing time tracking record for task: {}, user: {}", taskId, currentUserId);
+                }
+            } else {
+                TaskTimeTracking tracking = new TaskTimeTracking();
+                tracking.setTaskId(taskId);
+                tracking.setUserId(currentUserId);
+                tracking.setStartedAt(startTime);
+                taskTimeTrackingRepository.save(tracking);
+                log.info("Created new time tracking record for task: {}, user: {}", taskId, currentUserId);
+            }
+        }
+        
+        log.info("Started time tracking for task: {} with {} users", taskId, allUserIds.size());
     }
     
     @Override
@@ -312,23 +341,122 @@ public class ReportServiceImpl implements ReportService {
     public void endTimeTracking(Long taskId, Long userId) {
         log.info("Ending time tracking for task: {} by user: {}", taskId, userId);
         
+        // Get all tracking records for this task
+        List<TaskTimeTracking> allTrackingRecords = taskTimeTrackingRepository.findByTaskId(taskId);
+        
+        if (allTrackingRecords.isEmpty()) {
+            log.warn("No time tracking records found for task: {}", taskId);
+            return;
+        }
+        
+        // Find the earliest start time among all tracking records
+        OffsetDateTime earliestStartTime = null;
+        for (TaskTimeTracking record : allTrackingRecords) {
+            if (record.getStartedAt() != null && record.getCompletedAt() == null) {
+                if (earliestStartTime == null || record.getStartedAt().isBefore(earliestStartTime)) {
+                    earliestStartTime = record.getStartedAt();
+                }
+            }
+        }
+        
+        if (earliestStartTime == null) {
+            log.warn("No active time tracking records found for task: {}", taskId);
+            return;
+        }
+        
+        // Calculate total hours from earliest start to now
+        OffsetDateTime completedAt = OffsetDateTime.now();
+        Duration duration = Duration.between(earliestStartTime, completedAt);
+        BigDecimal totalHours = BigDecimal.valueOf(duration.toMinutes())
+            .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
+        
+        // Apply the same hours to all tracking records for this task
+        int updatedCount = 0;
+        for (TaskTimeTracking tracking : allTrackingRecords) {
+            if (tracking.getStartedAt() != null && tracking.getCompletedAt() == null) {
+                tracking.setCompletedAt(completedAt);
+                tracking.setTotalHours(totalHours);
+                taskTimeTrackingRepository.save(tracking);
+                updatedCount++;
+            }
+        }
+        
+        log.info("Completed time tracking for task: {} with {} hours distributed to {} users", 
+                 taskId, totalHours, updatedCount);
+    }
+    
+    @Override
+    @Transactional
+    public void syncTimeTrackingOnAssigneeAdd(Long taskId, Long userId) {
+        log.info("Syncing time tracking for new assignee - task: {}, user: {}", taskId, userId);
+        
+        // Check if task is in IN_PROGRESS status
+        com.spmorangle.crm.taskmanagement.model.Task task = taskRepository.findById(taskId)
+            .orElseThrow(() -> new RuntimeException("Task not found: " + taskId));
+        
+        if (task.getStatus() != Status.IN_PROGRESS) {
+            log.info("Task {} is not IN_PROGRESS, skipping time tracking sync", taskId);
+            return;
+        }
+        
+        // Check if user already has a tracking record
+        Optional<TaskTimeTracking> existingTracking = taskTimeTrackingRepository.findByTaskIdAndUserId(taskId, userId);
+        
+        if (existingTracking.isPresent()) {
+            log.info("User {} already has time tracking for task {}", userId, taskId);
+            return;
+        }
+        
+        // Check if task owner is the same as the new assignee (avoid duplicate)
+        if (task.getOwnerId().equals(userId)) {
+            log.info("User {} is the task owner, should already have tracking record", userId);
+            return;
+        }
+        
+        // Create new tracking record with current time as start
+        TaskTimeTracking tracking = new TaskTimeTracking();
+        tracking.setTaskId(taskId);
+        tracking.setUserId(userId);
+        tracking.setStartedAt(OffsetDateTime.now());
+        taskTimeTrackingRepository.save(tracking);
+        
+        log.info("Created time tracking record for new assignee - task: {}, user: {}", taskId, userId);
+    }
+    
+    @Override
+    @Transactional
+    public void syncTimeTrackingOnAssigneeRemove(Long taskId, Long userId) {
+        log.info("Syncing time tracking for removed assignee - task: {}, user: {}", taskId, userId);
+        
+        // Check if task is in IN_PROGRESS status
+        com.spmorangle.crm.taskmanagement.model.Task task = taskRepository.findById(taskId)
+            .orElseThrow(() -> new RuntimeException("Task not found: " + taskId));
+        
+        if (task.getStatus() != Status.IN_PROGRESS) {
+            log.info("Task {} is not IN_PROGRESS, skipping time tracking sync", taskId);
+            return;
+        }
+        
+        // Don't remove tracking for task owner
+        if (task.getOwnerId().equals(userId)) {
+            log.info("User {} is the task owner, keeping tracking record", userId);
+            return;
+        }
+        
+        // Find and delete the tracking record if it exists and is not completed
         Optional<TaskTimeTracking> existingTracking = taskTimeTrackingRepository.findByTaskIdAndUserId(taskId, userId);
         
         if (existingTracking.isPresent()) {
             TaskTimeTracking tracking = existingTracking.get();
-            if (tracking.getStartedAt() != null && tracking.getCompletedAt() == null) {
-                OffsetDateTime completedAt = OffsetDateTime.now();
-                tracking.setCompletedAt(completedAt);
-                
-                // Calculate total hours
-                Duration duration = Duration.between(tracking.getStartedAt(), completedAt);
-                BigDecimal totalHours = BigDecimal.valueOf(duration.toMinutes())
-                    .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-                tracking.setTotalHours(totalHours);
-                
-                taskTimeTrackingRepository.save(tracking);
-                log.info("Completed time tracking for task: {} with {} hours", taskId, totalHours);
+            if (tracking.getCompletedAt() == null) {
+                // Only delete if not yet completed
+                taskTimeTrackingRepository.delete(tracking);
+                log.info("Deleted time tracking record for removed assignee - task: {}, user: {}", taskId, userId);
+            } else {
+                log.info("Tracking record already completed, keeping it - task: {}, user: {}", taskId, userId);
             }
+        } else {
+            log.info("No tracking record found for user {} on task {}", userId, taskId);
         }
     }
     
