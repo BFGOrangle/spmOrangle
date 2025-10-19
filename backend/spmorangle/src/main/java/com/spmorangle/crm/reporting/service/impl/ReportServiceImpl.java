@@ -84,33 +84,18 @@ public class ReportServiceImpl implements ReportService {
         long todoTasks = 0;
         long blockedTasks = 0;
         
-        // Build project breakdown if filtering by projects
+        // Initialize project breakdown map (will be populated later)
         Map<String, TaskSummaryReportDto.TaskStatusCounts> projectBreakdown = new HashMap<>();
         
-        // Process results
+        // Process results for overall totals
         for (Object[] row : statusCounts) {
             Status status;
             Long count;
             
             if (hasProjectFilter) {
                 // For project query: [projectName, status, count]
-                String projectName = (String) row[0];
                 status = (Status) row[1];
                 count = (Long) row[2];
-                
-                // Build project breakdown
-                projectBreakdown.putIfAbsent(projectName, TaskSummaryReportDto.TaskStatusCounts.builder()
-                    .total(0L).completed(0L).inProgress(0L).todo(0L).blocked(0L).build());
-                
-                TaskSummaryReportDto.TaskStatusCounts projectCounts = projectBreakdown.get(projectName);
-                projectCounts.setTotal(projectCounts.getTotal() + count);
-                
-                switch (status) {
-                    case COMPLETED -> projectCounts.setCompleted(projectCounts.getCompleted() + count);
-                    case IN_PROGRESS -> projectCounts.setInProgress(projectCounts.getInProgress() + count);
-                    case TODO -> projectCounts.setTodo(projectCounts.getTodo() + count);
-                    case BLOCKED -> projectCounts.setBlocked(projectCounts.getBlocked() + count);
-                }
             } else {
                 // For general query: [status, count]
                 status = (Status) row[0];
@@ -127,7 +112,7 @@ public class ReportServiceImpl implements ReportService {
             }
         }
         
-        // Get department breakdown
+        // Get department breakdown (always show all departments)
         Map<String, TaskSummaryReportDto.TaskStatusCounts> departmentBreakdown = new HashMap<>();
         List<Object[]> deptCounts = reportingRepository.getTaskCountsByDepartmentAndStatus(startDate, endDate);
         
@@ -150,6 +135,36 @@ public class ReportServiceImpl implements ReportService {
                     case TODO -> deptStatusCounts.setTodo(deptStatusCounts.getTodo() + count);
                     case BLOCKED -> deptStatusCounts.setBlocked(deptStatusCounts.getBlocked() + count);
                 }
+            }
+        }
+        
+        // Get project breakdown (always show - all projects or filtered projects)
+        List<Object[]> projectCounts;
+        if (!hasProjectFilter) {
+            // No filter - get all projects
+            projectCounts = reportingRepository.getAllTaskCountsByProjectAndStatus(dept, startDate, endDate);
+        } else {
+            // Use the already fetched data from statusCounts (which has project breakdown)
+            projectCounts = statusCounts;
+        }
+        
+        // Populate project breakdown
+        for (Object[] row : projectCounts) {
+            String projectName = (String) row[0];
+            Status status = (Status) row[1];
+            Long count = (Long) row[2];
+            
+            projectBreakdown.putIfAbsent(projectName, TaskSummaryReportDto.TaskStatusCounts.builder()
+                .total(0L).completed(0L).inProgress(0L).todo(0L).blocked(0L).build());
+            
+            TaskSummaryReportDto.TaskStatusCounts projStatusCounts = projectBreakdown.get(projectName);
+            projStatusCounts.setTotal(projStatusCounts.getTotal() + count);
+            
+            switch (status) {
+                case COMPLETED -> projStatusCounts.setCompleted(projStatusCounts.getCompleted() + count);
+                case IN_PROGRESS -> projStatusCounts.setInProgress(projStatusCounts.getInProgress() + count);
+                case TODO -> projStatusCounts.setTodo(projStatusCounts.getTodo() + count);
+                case BLOCKED -> projStatusCounts.setBlocked(projStatusCounts.getBlocked() + count);
             }
         }
         
@@ -191,9 +206,15 @@ public class ReportServiceImpl implements ReportService {
         LocalDate startDate = filters.getStartDate();
         LocalDate endDate = filters.getEndDate();
         
-        // Get hours by department
+        // Convert empty list to null for query compatibility
+        List<Long> projectIds = filters.getProjectIds();
+        if (projectIds != null && projectIds.isEmpty()) {
+            projectIds = null;
+        }
+        
+        // Get hours by department (with filters applied)
         List<Object[]> departmentHours = taskTimeTrackingRepository.getHoursByDepartment(
-            startDate, endDate);
+            dept, projectIds, startDate, endDate);
         
         Map<String, BigDecimal> hoursByDepartment = new HashMap<>();
         BigDecimal totalHours = BigDecimal.ZERO;
@@ -202,7 +223,7 @@ public class ReportServiceImpl implements ReportService {
             String department = (String) row[0];
             BigDecimal hours = (BigDecimal) row[1];
             
-            // Apply department filtering based on user role
+            // Apply role-based access control (query already filtered by department and project)
             if (canAccessDepartment(department, currentUser)) {
                 hoursByDepartment.put(department, hours != null ? hours : BigDecimal.ZERO);
                 totalHours = totalHours.add(hours != null ? hours : BigDecimal.ZERO);
@@ -211,7 +232,7 @@ public class ReportServiceImpl implements ReportService {
         
         // Get hours by project
         List<Object[]> projectHours = taskTimeTrackingRepository.getHoursByProject(
-            dept, filters.getProjectIds(), startDate, endDate);
+            dept, projectIds, startDate, endDate);
         
         Map<String, BigDecimal> hoursByProject = new HashMap<>();
         for (Object[] row : projectHours) {
@@ -222,7 +243,7 @@ public class ReportServiceImpl implements ReportService {
         
         // Get project details (name, department, hours, completed tasks, in-progress tasks)
         List<Object[]> projectDetailsData = taskTimeTrackingRepository.getProjectDetails(
-            dept, filters.getProjectIds(), startDate, endDate);
+            dept, projectIds, startDate, endDate);
         
         Map<String, TimeAnalyticsReportDto.ProjectTimeDetails> projectDetails = new HashMap<>();
         for (Object[] row : projectDetailsData) {
@@ -250,8 +271,8 @@ public class ReportServiceImpl implements ReportService {
         
         return TimeAnalyticsReportDto.builder()
             .totalHours(totalHours)
-            .hoursByDepartment(hoursByDepartment)
-            .hoursByProject(hoursByProject)
+            .hoursByDepartment(hoursByDepartment.isEmpty() ? null : hoursByDepartment)
+            .hoursByProject(hoursByProject.isEmpty() ? null : hoursByProject)
             .projectDetails(projectDetails.isEmpty() ? null : projectDetails)
             .build();
     }
@@ -466,6 +487,12 @@ public class ReportServiceImpl implements ReportService {
             return requestedDepartment;
         } else if (UserType.MANAGER.getCode().equals(currentUser.getRoleType())) {
             // Managers can only see their own department
+            if (requestedDepartment != null && !requestedDepartment.equals(currentUser.getDepartment())) {
+                throw new RuntimeException(
+                    "Access denied: Managers can only view reports for their own department (" 
+                    + currentUser.getDepartment() + ")");
+            }
+            // If null or matches their department, return their department
             return currentUser.getDepartment();
         }
         
@@ -720,9 +747,9 @@ public class ReportServiceImpl implements ReportService {
                 }
             }
             
-            // Get logged hours for this user
+            // Get logged hours for this user (with project filter)
             BigDecimal loggedHours = reportingRepository.getLoggedHoursForUser(
-                staffUserId, startDate, endDate);
+                staffUserId, projectIds, startDate, endDate);
             
             // Always include all users, even with zero activity
             staffBreakdowns.add(StaffBreakdownDto.builder()

@@ -43,9 +43,13 @@ public interface TaskTimeTrackingRepository extends JpaRepository<TaskTimeTracki
         WHERE (FUNCTION('DATE', ttt.startedAt) >= :startDate)
         AND (FUNCTION('DATE', ttt.completedAt) <= :endDate OR (ttt.completedAt IS NULL AND FUNCTION('DATE', ttt.startedAt) <= :endDate))
         AND u.department IS NOT NULL
+        AND (:department = '' OR u.department = :department)
+        AND (:projectIds IS NULL OR t.projectId IN :projectIds)
         GROUP BY u.department
         """)
     List<Object[]> getHoursByDepartment(
+        @Param("department") String department,
+        @Param("projectIds") List<Long> projectIds,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
