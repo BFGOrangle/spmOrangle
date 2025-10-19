@@ -65,6 +65,28 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
         @Param("endDate") LocalDate endDate
     );
     
+    /**
+     * Get task counts by project and status for all projects (when no project filter is specified)
+     * Similar to getTaskCountsByDepartmentAndStatus but for projects
+     */
+    @Query("""
+        SELECT p.name, t.status, COUNT(t) 
+        FROM Task t 
+        JOIN Project p ON t.projectId = p.id 
+        JOIN User u ON t.ownerId = u.id 
+        WHERE (:department = '' OR u.department = :department)
+        AND (FUNCTION('DATE', t.createdAt) >= :startDate)
+        AND (FUNCTION('DATE', t.createdAt) <= :endDate)
+        AND t.deleteInd = false
+        AND t.projectId IS NOT NULL
+        GROUP BY p.name, t.status
+        """)
+    List<Object[]> getAllTaskCountsByProjectAndStatus(
+        @Param("department") String department,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+    
     @Query("""
         SELECT DISTINCT u.department 
         FROM User u 
@@ -131,16 +153,20 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
     
     /**
      * Get total logged hours for a specific user
+     * Filters by project if projectIds are provided
      */
     @Query("""
         SELECT COALESCE(SUM(ttt.totalHours), 0)
         FROM TaskTimeTracking ttt
+        JOIN Task t ON ttt.taskId = t.id
         WHERE ttt.userId = :userId
         AND (FUNCTION('DATE', ttt.startedAt) >= :startDate)
         AND (FUNCTION('DATE', ttt.startedAt) <= :endDate)
+        AND (:projectIds IS NULL OR t.projectId IN :projectIds)
         """)
     BigDecimal getLoggedHoursForUser(
         @Param("userId") Long userId,
+        @Param("projectIds") List<Long> projectIds,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
