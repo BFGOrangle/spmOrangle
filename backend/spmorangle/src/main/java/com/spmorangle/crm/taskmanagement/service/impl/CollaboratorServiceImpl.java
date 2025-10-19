@@ -1,6 +1,7 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.reporting.service.ReportService;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
@@ -27,6 +28,7 @@ public class CollaboratorServiceImpl implements CollaboratorService {
     private final TaskAssigneeRepository taskAssigneeRepository;
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
+    private final ReportService reportService;
 
     @Override
     public AddCollaboratorResponseDto addCollaborator(AddCollaboratorRequestDto requestDto, Long assignedById) {
@@ -69,6 +71,15 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         log.info("✅ [COLLABORATOR] Successfully added collaborator - TaskId: {}, CollaboratorId: {}, AssignedAt: {}",
                  savedAssignee.getTaskId(), savedAssignee.getUserId(), savedAssignee.getAssignedAt());
 
+        // Sync time tracking if task is IN_PROGRESS
+        try {
+            reportService.syncTimeTrackingOnAssigneeAdd(taskId, collaboratorId);
+        } catch (Exception e) {
+            log.error("❌ [COLLABORATOR] Failed to sync time tracking for new assignee - TaskId: {}, CollaboratorId: {}", 
+                     taskId, collaboratorId, e);
+            // Don't fail the operation if time tracking sync fails
+        }
+
         return AddCollaboratorResponseDto.builder()
                 .taskId(savedAssignee.getTaskId())
                 .collaboratorId(savedAssignee.getUserId())
@@ -87,6 +98,15 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         }
 
         taskAssigneeRepository.deleteById(new TaskAssigneeCK(taskId, collaboratorId, assignedById));
+        
+        // Sync time tracking if task is IN_PROGRESS
+        try {
+            reportService.syncTimeTrackingOnAssigneeRemove(taskId, collaboratorId);
+        } catch (Exception e) {
+            log.error("[COLLABORATOR] Failed to sync time tracking for removed assignee - TaskId: {}, CollaboratorId: {}", 
+                     taskId, collaboratorId, e);
+            // Don't fail the operation if time tracking sync fails
+        }
     }
 
     @Override

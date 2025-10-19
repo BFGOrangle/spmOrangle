@@ -19,10 +19,10 @@ class PriorityTest {
     }
 
     @Test
-    @DisplayName("Should have exactly 3 priority levels")
+    @DisplayName("Should have exactly 4 priority levels")
     void testTotalPriorityCount() {
         Priority[] priorities = Priority.values();
-        assertEquals(3, priorities.length);
+        assertEquals(4, priorities.length);
     }
 
     @Test
