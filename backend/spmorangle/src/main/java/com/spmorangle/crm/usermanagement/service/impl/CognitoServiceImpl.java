@@ -23,12 +23,12 @@ public class CognitoServiceImpl implements CognitoService {
     private String userPoolId;
 
     public Optional<AdminCreateUserResponse> createUser(String username, String email,
-                                                        String password) {
-        return createUser(username, email, password, null);
+                                                        String password, boolean isSetAsTemporaryPassword) {
+        return createUser(username, email, password, null, isSetAsTemporaryPassword);
     }
 
     public Optional<AdminCreateUserResponse> createUser(String username, String email,
-                                                        String password, Map<String, String> userAttributes) {
+                                                        String password, Map<String, String> userAttributes, boolean isSetAsTemporaryPassword) {
         try {
             // Build attribute list (email is required)
             var attributesBuilder = AttributeType.builder()
@@ -55,18 +55,32 @@ public class CognitoServiceImpl implements CognitoService {
             }
             attributes = allAttributes; // reassign with full list including email_verified
 
-            // Create user without temporary password - this will create user in CONFIRMED state
-            AdminCreateUserRequest request = AdminCreateUserRequest.builder()
-                    .userPoolId(userPoolId)
-                    .username(username)
-                    .userAttributes(attributes)
-                    .forceAliasCreation(true)
-                    .build();
+            AdminCreateUserRequest request;
+            if (isSetAsTemporaryPassword) {
+                request = AdminCreateUserRequest.builder()
+                        .userPoolId(userPoolId)
+                        .username(username)
+                        .userAttributes(attributes)
+                        .temporaryPassword(password) // keep temp so user is FORCE_CHANGE_PASSWORD
+                        .desiredDeliveryMediums(DeliveryMediumType.EMAIL)
+                        .forceAliasCreation(true)
+                        .build();
+            } else {
+                // Create user without temporary password - this will create user in CONFIRMED state
+                request = AdminCreateUserRequest.builder()
+                        .userPoolId(userPoolId)
+                        .username(username)
+                        .userAttributes(attributes)
+                        .forceAliasCreation(true)
+                        .build();
+            }
 
             AdminCreateUserResponse response = cognitoClient.adminCreateUser(request);
 
-            // Set the permanent password immediately after user creation
-            setUserPassword(username, password);
+            if (!isSetAsTemporaryPassword) {
+                // Set the permanent password immediately after user creation
+                setUserPassword(username, password);
+            }
 
             String userStatus = response.user() != null ? response.user().userStatusAsString() : "UNKNOWN";
             log.info("Successfully created Cognito user: {} with status {} and set permanent password", username, userStatus);

@@ -497,7 +497,7 @@ const formatDueDateTime = (localDateTime: string): string | undefined => {
                   variant="secondary"
                   className="flex flex-col gap-0 px-2 py-1 text-xs leading-snug"
                 >
-                  <span className="font-medium">{collaborator.fullName}</span>
+                  <span className="font-medium">{collaborator.username}</span>
                   <span className="text-[10px] text-muted-foreground">{collaborator.email}</span>
                 </Badge>
               ))}

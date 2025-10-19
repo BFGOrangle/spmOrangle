@@ -4,6 +4,16 @@ import { AppSidebar } from "../../components/app-sidebar";
 import { handleSignOut } from "@/lib/cognito-actions";
 import { render } from "../test-utils";
 
+// Mock the user context directly in this test file to ensure proper precedence
+jest.mock("@/contexts/user-context", () => ({
+  useCurrentUser: jest.fn(),
+  UserProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+// Import the mocked function after the mock is defined
+import { useCurrentUser } from "@/contexts/user-context";
+const mockUseCurrentUser = useCurrentUser as jest.MockedFunction<typeof useCurrentUser>;
+
 // Mock the cognito-actions module
 jest.mock("@/lib/cognito-actions", () => ({
   handleSignOut: jest.fn(),
@@ -141,10 +151,34 @@ jest.mock("lucide-react", () => ({
   User: () => <div data-testid="user-icon" />,
   Calendar: () => <div data-testid="calendar-icon" />,
   BarChart3: () => <div data-testid="barchart3-icon" />,
+  Users: () => <div data-testid="users-icon" />,
 }));
 
 // Helper function to render with SidebarProvider
-const renderWithSidebarProvider = (component: React.ReactElement) => {
+const renderWithSidebarProvider = (component: React.ReactElement, options: any = {}) => {
+  // Set up the mock before rendering
+  const defaultUserContext = {
+    currentUser: {
+      id: "test-user-id",
+      firstName: "Test",
+      lastName: "User",
+      role: "STAFF",
+      jobTitle: "Developer",
+      email: "test@example.com",
+      fullName: "Test User",
+      cognitoSub: "cognito-test-sub",
+      backendStaffId: 1,
+      ...options.currentUser,
+    },
+    setCurrentUser: jest.fn(),
+    isLoading: options.isLoading || false,
+    isAdmin: options.isAdmin || false,
+    isStaff: options.isStaff !== undefined ? options.isStaff : true,
+    signOut: jest.fn(),
+  };
+  
+  mockUseCurrentUser.mockReturnValue(defaultUserContext);
+  
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { SidebarProvider } = require("@/components/ui/sidebar");
   return render(<SidebarProvider>{component}</SidebarProvider>);
@@ -156,7 +190,16 @@ describe("AppSidebar", () => {
   });
 
   it("renders navigation links correctly", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     // Check for main navigation elements
     expect(screen.getByText("Application")).toBeInTheDocument();
@@ -190,14 +233,32 @@ describe("AppSidebar", () => {
   });
 
   it("renders sign out button", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     const signOutButton = screen.getByRole("button", { name: /sign out/i });
     expect(signOutButton).toBeInTheDocument();
   });
 
   it("calls handleSignOut when sign out button is clicked", async () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     const signOutButton = screen.getByRole("button", { name: /sign out/i });
     await userEvent.click(signOutButton);
@@ -206,7 +267,16 @@ describe("AppSidebar", () => {
   });
 
   it("renders all required icons", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     // Check for icons using their test IDs
     expect(screen.getByTestId("layout-icon")).toBeInTheDocument();
@@ -217,7 +287,16 @@ describe("AppSidebar", () => {
   });
 
   it("has correct structure for sidebar sections", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     // Check for sidebar structural elements
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
@@ -227,19 +306,46 @@ describe("AppSidebar", () => {
   });
 
   it("includes theme toggle component", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     expect(screen.getByTestId("theme-toggle")).toBeInTheDocument();
   });
 
   it("renders the SyncUp brand name correctly", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     expect(screen.getByText("SyncUp")).toBeInTheDocument();
   });
 
   it("has correct sign out button attributes", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     const signOutButton = screen.getByRole("button", { name: /sign out/i });
     expect(signOutButton).toHaveAttribute("title", "Sign Out");
@@ -247,7 +353,16 @@ describe("AppSidebar", () => {
   });
 
   it("renders navigation links in correct order", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     const links = screen.getAllByRole("link");
     const linkTexts = links.map((link) => link.textContent);
@@ -260,7 +375,16 @@ describe("AppSidebar", () => {
   });
 
   it("renders all required navigation items from items array", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     // Check that each menu item from the items array is rendered
     expect(
@@ -275,7 +399,16 @@ describe("AppSidebar", () => {
   });
 
   it("calls handleSignOut correctly when button is clicked", async () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     const signOutButton = screen.getByRole("button", { name: /sign out/i });
 
@@ -285,11 +418,29 @@ describe("AppSidebar", () => {
   });
 
   it("renders without props (no required props)", () => {
-    expect(() => renderWithSidebarProvider(<AppSidebar />)).not.toThrow();
+    expect(() => renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    })).not.toThrow();
   });
 
   it("has proper semantic structure for accessibility", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     // Check for proper semantic elements
     expect(
@@ -299,7 +450,16 @@ describe("AppSidebar", () => {
   });
 
   it("applies correct CSS classes to sign out button", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     const signOutButton = screen.getByRole("button", { name: /sign out/i });
 
@@ -309,12 +469,145 @@ describe("AppSidebar", () => {
   });
 
   it("renders brand logo with correct styling", () => {
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "STAFF",
+        username: "Staff User",
+        email: "staff@example.com",
+      },
+      isAdmin: false,
+      isStaff: true,
+    });
 
     const refreshIcon = screen.getByTestId("refresh-icon");
     expect(refreshIcon).toBeInTheDocument();
 
     const brandText = screen.getByText("SyncUp");
     expect(brandText).toBeInTheDocument();
+  });
+
+  describe("Admin menu items", () => {
+    it("shows Administration section and User Management link for admin users", () => {
+      renderWithSidebarProvider(<AppSidebar />, {
+        currentUser: {
+          id: "1",
+          role: "MANAGER",
+          username: "Admin User",
+          email: "admin@example.com",
+        },
+        isAdmin: true,
+        isStaff: false,
+      });
+
+      expect(screen.getByText("Administration")).toBeInTheDocument();
+      expect(screen.getByText("User Management")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /user management/i })).toHaveAttribute(
+        "href",
+        "/user-management",
+      );
+    });
+
+    it("shows Administration section for HR users", () => {
+      renderWithSidebarProvider(<AppSidebar />, {
+        currentUser: {
+          id: "1",
+          role: "HR",
+          username: "HR User",
+          email: "hr@example.com",
+        },
+        isAdmin: true,
+        isStaff: false,
+      });
+
+      expect(screen.getByText("Administration")).toBeInTheDocument();
+      expect(screen.getByText("User Management")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /user management/i })).toHaveAttribute(
+        "href",
+        "/user-management",
+      );
+    });
+
+    it("does not show Administration section for staff users", () => {
+      renderWithSidebarProvider(<AppSidebar />, {
+        currentUser: {
+          id: "1",
+          role: "STAFF",
+          username: "Staff User",
+          email: "staff@example.com",
+        },
+        isAdmin: false,
+        isStaff: true,
+      });
+
+      expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+      expect(screen.queryByText("User Management")).not.toBeInTheDocument();
+    });
+
+    it("does not show Administration section for director users", () => {
+      renderWithSidebarProvider(<AppSidebar />, {
+        currentUser: {
+          id: "1",
+          role: "DIRECTOR",
+          username: "Director User",
+          email: "director@example.com",
+        },
+        isAdmin: false,
+        isStaff: false,
+      });
+
+      expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+      expect(screen.queryByText("User Management")).not.toBeInTheDocument();
+    });
+
+    it("renders Users icon for User Management link", () => {
+      renderWithSidebarProvider(<AppSidebar />, {
+        currentUser: {
+          id: "1",
+          role: "MANAGER",
+          username: "Admin User",
+          email: "admin@example.com",
+        },
+        isAdmin: true,
+        isStaff: false,
+      });
+
+      expect(screen.getByTestId("users-icon")).toBeInTheDocument();
+    });
+
+    it("renders both Application and Administration sections for admin", () => {
+      renderWithSidebarProvider(<AppSidebar />, {
+        currentUser: {
+          id: "1",
+          role: "MANAGER",
+          username: "Admin User",
+          email: "admin@example.com",
+        },
+        isAdmin: true,
+        isStaff: false,
+      });
+
+      const sectionLabels = screen.getAllByTestId("sidebar-group-label");
+      expect(sectionLabels).toHaveLength(2);
+      expect(screen.getByText("Application")).toBeInTheDocument();
+      expect(screen.getByText("Administration")).toBeInTheDocument();
+    });
+
+    it("renders only Application section for non-admin", () => {
+      renderWithSidebarProvider(<AppSidebar />, {
+        currentUser: {
+          id: "1",
+          role: "STAFF",
+          username: "Staff User",
+          email: "staff@example.com",
+        },
+        isAdmin: false,
+        isStaff: true,
+      });
+
+      const sectionLabels = screen.getAllByTestId("sidebar-group-label");
+      expect(sectionLabels).toHaveLength(1);
+      expect(screen.getByText("Application")).toBeInTheDocument();
+    });
   });
 });

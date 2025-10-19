@@ -8,6 +8,7 @@ import {
   User,
   Calendar,
   BarChart3,
+  Users,
 } from "lucide-react";
 
 import {
@@ -27,6 +28,7 @@ import { Button } from "./ui/button";
 import { handleSignOut } from "@/lib/cognito-actions";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
+import { useCurrentUser } from "@/contexts/user-context";
 
 // Menu items.
 const items = [
@@ -62,7 +64,18 @@ const items = [
   },
 ];
 
+// Admin-only items
+const adminItems = [
+  {
+    title: "User Management",
+    url: "/user-management",
+    icon: Users,
+  },
+];
+
 export function AppSidebar() {
+  const { isAdmin } = useCurrentUser();
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
@@ -95,6 +108,25 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter>
         <Button

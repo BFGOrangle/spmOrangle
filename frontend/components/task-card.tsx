@@ -214,7 +214,7 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
 
     return collaboratorIds.map((id) => {
       const collaborator = collaboratorLookup.get(id);
-      return collaborator?.fullName || collaborator?.email || `User ${id}`;
+      return collaborator?.username || collaborator?.email || `User ${id}`;
     });
   }, [taskProps.isTaskSummary, taskProps.collaborators, collaboratorIds, collaboratorLookup]);
 
@@ -523,7 +523,7 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
                   {collaboratorIds.map((collaboratorId) => {
                     const collaborator = collaboratorLookup.get(collaboratorId);
                     const collaboratorLabel =
-                      collaborator?.fullName ||
+                      collaborator?.username ||
                       collaborator?.email ||
                       `User ${collaboratorId}`;
                     const initials = collaboratorLabel
@@ -666,7 +666,7 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
 
     return collaboratorIds.map((id) => {
       const collaborator = collaboratorLookup.get(id);
-      return collaborator?.fullName || collaborator?.email || `User ${id}`;
+      return collaborator?.username || collaborator?.email || `User ${id}`;
     });
   }, [taskProps.isTaskSummary, taskProps.collaborators, collaboratorIds, collaboratorLookup]);
 

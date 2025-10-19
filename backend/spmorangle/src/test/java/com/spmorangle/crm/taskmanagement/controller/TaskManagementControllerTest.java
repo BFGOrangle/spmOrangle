@@ -1393,7 +1393,7 @@ public class TaskManagementControllerTest {
                             .build()
             );
 
-            when(userManagementService.getCollaborators()).thenReturn(collaborators);
+            when(userManagementService.getAllUsers()).thenReturn(collaborators);
 
             // When & Then
             mockMvc.perform(get("/api/tasks/collaborators")
@@ -1408,14 +1408,14 @@ public class TaskManagementControllerTest {
                     .andExpect(jsonPath("$[1].id").value(2L))
                     .andExpect(jsonPath("$[1].username").value("user2"));
 
-            verify(userManagementService).getCollaborators();
+            verify(userManagementService).getAllUsers();
         }
 
         @Test
         @DisplayName("Should return empty array when no collaborators")
         void getCollaborators_NoCollaborators_ReturnsEmptyArray() throws Exception {
             // Given
-            when(userManagementService.getCollaborators()).thenReturn(Collections.emptyList());
+            when(userManagementService.getAllUsers()).thenReturn(Collections.emptyList());
 
             // When & Then
             mockMvc.perform(get("/api/tasks/collaborators")
@@ -1426,7 +1426,7 @@ public class TaskManagementControllerTest {
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$.length()").value(0));
 
-            verify(userManagementService).getCollaborators();
+            verify(userManagementService).getAllUsers();
         }
     }
 }

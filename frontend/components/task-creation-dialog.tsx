@@ -645,7 +645,7 @@ export function TaskCreationDialog({
                       <SelectItem key={member.id} value={member.id.toString()}>
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4" />
-                          <span>{member.fullName}</span>
+                          <span>{member.username}</span>
                           <span className="text-xs">{member.email}</span>
                         </div>
                       </SelectItem>
@@ -802,7 +802,7 @@ export function TaskCreationDialog({
             <div className="flex flex-wrap gap-2">
               {selectedCollaborators.map((collaborator) => {
                 const label =
-                  collaborator.fullName ||
+                  collaborator.username ||
                   collaborator.email ||
                   `User ID: ${collaborator.id}`;
 
@@ -962,7 +962,7 @@ export function TaskCreationDialog({
                         onClick={() => toggleDraftCollaborator(collaborator.id)}
                       >
                         <span className="flex flex-col items-start">
-                          <span className="text-sm font-medium">{collaborator.fullName}</span>
+                          <span className="text-sm font-medium">{collaborator.username}</span>
                           <span className="text-xs text-muted-foreground">ID: {collaborator.id} · {collaborator.email}</span>
                         </span>
                       </Button>
