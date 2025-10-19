@@ -28,6 +28,12 @@ class ReportExportServiceTest {
     @Mock
     private JsonReportExporter jsonExporter;
 
+    @Mock
+    private CsvReportExporter csvExporter;
+
+    @Mock
+    private PdfReportExporter pdfExporter;
+
     @InjectMocks
     private ReportExportService reportExportService;
 
@@ -81,25 +87,45 @@ class ReportExportServiceTest {
     }
 
     @Test
-    void testExportReport_CsvFormat_ThrowsUnsupportedOperation() {
+    void testExportReport_CsvFormat_ReturnsFileDownload() {
         // Arrange
         filters.setExportFormat(ReportFilterDto.ExportFormat.CSV);
+        byte[] csvData = "CSV,Data,Here\n1,2,3".getBytes();
 
-        // Act & Assert
-        assertThrows(UnsupportedOperationException.class, () -> {
-            reportExportService.exportReport(reportData, filters);
-        });
+        when(csvExporter.export(any(), any())).thenReturn(csvData);
+        when(csvExporter.getContentType()).thenReturn("text/csv");
+        when(csvExporter.getFileExtension()).thenReturn("csv");
+
+        // Act
+        ResponseEntity<?> response = reportExportService.exportReport(reportData, filters);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertArrayEquals(csvData, (byte[]) response.getBody());
+        assertTrue(response.getHeaders().containsKey(HttpHeaders.CONTENT_DISPOSITION));
+        assertEquals("text/csv", response.getHeaders().getContentType().toString());
+        verify(csvExporter).export(reportData, filters);
     }
 
     @Test
-    void testExportReport_PdfFormat_ThrowsUnsupportedOperation() {
+    void testExportReport_PdfFormat_ReturnsFileDownload() {
         // Arrange
         filters.setExportFormat(ReportFilterDto.ExportFormat.PDF);
+        byte[] pdfData = "%PDF-1.4 mock data".getBytes();
 
-        // Act & Assert
-        assertThrows(UnsupportedOperationException.class, () -> {
-            reportExportService.exportReport(reportData, filters);
-        });
+        when(pdfExporter.export(any(), any())).thenReturn(pdfData);
+        when(pdfExporter.getContentType()).thenReturn("application/pdf");
+        when(pdfExporter.getFileExtension()).thenReturn("pdf");
+
+        // Act
+        ResponseEntity<?> response = reportExportService.exportReport(reportData, filters);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertArrayEquals(pdfData, (byte[]) response.getBody());
+        assertTrue(response.getHeaders().containsKey(HttpHeaders.CONTENT_DISPOSITION));
+        assertEquals("application/pdf", response.getHeaders().getContentType().toString());
+        verify(pdfExporter).export(reportData, filters);
     }
 
     @Test

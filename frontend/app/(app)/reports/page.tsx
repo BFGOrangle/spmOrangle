@@ -21,11 +21,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { 
-  FileText, 
-  Download, 
-  BarChart3, 
-  Clock, 
+import {
+  FileText,
+  Download,
+  BarChart3,
+  Clock,
   CheckCircle2,
   AlertCircle,
   Loader2,
@@ -44,9 +44,14 @@ import {
   ComprehensiveReportDto,
 } from "@/types/report";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrentUser } from "@/contexts/user-context";
+import { useRouter } from "next/navigation";
+import { Route } from "@/enums/Route";
 
 export default function ReportsPage() {
   const { toast } = useToast();
+  const { isStaff, isLoading: isUserLoading } = useCurrentUser();
+  const router = useRouter();
 
   // Filter state - matching backend request body fields
   const [department, setDepartment] = useState<string>("");
@@ -71,6 +76,18 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect STAFF users away from reports page
+  useEffect(() => {
+    if (!isUserLoading && isStaff) {
+      toast({
+        title: "Access Denied",
+        description: "You do not have permission to access reports.",
+        variant: "destructive",
+      });
+      router.push(Route.Dashboard);
+    }
+  }, [isStaff, isUserLoading, router, toast]);
 
   // Load initial filter options
   useEffect(() => {
@@ -184,6 +201,11 @@ export default function ReportsPage() {
   };
 
   const isCustomTimeRange = timeRange === "CUSTOM";
+
+  // Don't render the page if user is loading or is a STAFF user
+  if (isUserLoading || isStaff) {
+    return null;
+  }
 
   return (
     <SidebarInset>

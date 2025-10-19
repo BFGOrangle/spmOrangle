@@ -143,6 +143,24 @@ jest.mock("lucide-react", () => ({
   BarChart3: () => <div data-testid="barchart3-icon" />,
 }));
 
+// Mock useCurrentUser hook
+jest.mock("@/contexts/user-context", () => ({
+  useCurrentUser: jest.fn(() => ({
+    currentUser: {
+      id: "1",
+      firstName: "John",
+      lastName: "Doe",
+      role: "MANAGER",
+      email: "john@example.com",
+      fullName: "John Doe",
+    },
+    isLoading: false,
+    isAdmin: true,
+    isStaff: false,
+    signOut: jest.fn(),
+  })),
+}));
+
 // Helper function to render with SidebarProvider
 const renderWithSidebarProvider = (component: React.ReactElement) => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -316,5 +334,47 @@ describe("AppSidebar", () => {
 
     const brandText = screen.getByText("SyncUp");
     expect(brandText).toBeInTheDocument();
+  });
+
+  it("hides Reports link for STAFF users", () => {
+    // Mock useCurrentUser for STAFF role
+    const { useCurrentUser } = require("@/contexts/user-context");
+    useCurrentUser.mockReturnValueOnce({
+      currentUser: {
+        id: "2",
+        firstName: "Jane",
+        lastName: "Doe",
+        role: "STAFF",
+        email: "jane@example.com",
+        fullName: "Jane Doe",
+      },
+      isLoading: false,
+      isAdmin: false,
+      isStaff: true,
+      signOut: jest.fn(),
+    });
+
+    renderWithSidebarProvider(<AppSidebar />);
+
+    // Reports should not be visible
+    expect(screen.queryByText("Reports")).not.toBeInTheDocument();
+
+    // Other navigation items should still be visible
+    expect(screen.getByText("My Analytics")).toBeInTheDocument();
+    expect(screen.getByText("Projects")).toBeInTheDocument();
+    expect(screen.getByText("Tasks")).toBeInTheDocument();
+    expect(screen.getByText("My Profile")).toBeInTheDocument();
+  });
+
+  it("shows Reports link for MANAGER users", () => {
+    // Default mock is already MANAGER, so just render
+    renderWithSidebarProvider(<AppSidebar />);
+
+    // Reports should be visible
+    expect(screen.getByText("Reports")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /reports/i })).toHaveAttribute(
+      "href",
+      "/reports",
+    );
   });
 });
