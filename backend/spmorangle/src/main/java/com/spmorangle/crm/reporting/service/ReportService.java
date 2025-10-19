@@ -86,5 +86,6 @@ public interface ReportService {
      * @param userId User ID of the removed assignee
      */
     void syncTimeTrackingOnAssigneeRemove(Long taskId, Long userId);
+    
 }
 
