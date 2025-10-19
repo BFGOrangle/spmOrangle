@@ -106,29 +106,18 @@ class ReportServiceTest {
     void testGenerateTaskSummaryReport_ManagerUser_RestrictedToDepartment() {
         // Arrange
         when(userRepository.findById(2L)).thenReturn(Optional.of(managerUser));
-        
-        List<Object[]> mockResults = Arrays.asList(
-            new Object[]{Status.COMPLETED, 5L},
-            new Object[]{Status.IN_PROGRESS, 3L}
-        );
-        
-        when(reportingRepository.getTaskCountsByStatus(eq("Engineering"), any(), any()))
-            .thenReturn(mockResults);
 
         ReportFilterDto filters = ReportFilterDto.builder()
             .department("HR") // Manager tries to access HR department
             .build();
 
-        // Act
-        TaskSummaryReportDto result = reportService.generateTaskSummaryReport(filters, 2L);
+        // Act & Assert - Should throw exception
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            reportService.generateTaskSummaryReport(filters, 2L);
+        });
 
-        // Assert
-        assertNotNull(result);
-        assertEquals(8L, result.getTotalTasks());
-        assertEquals(5L, result.getCompletedTasks());
-        assertEquals(3L, result.getInProgressTasks());
-        assertEquals(0L, result.getTodoTasks());
-        assertEquals(0L, result.getBlockedTasks());
+        assertTrue(exception.getMessage().contains("Access denied: Managers can only view reports for their own department"));
+        assertTrue(exception.getMessage().contains("Engineering"));
     }
 
     @Test
@@ -225,7 +214,7 @@ class ReportServiceTest {
                 .thenReturn(Collections.emptyList());
             
             // Mock logged hours
-            when(reportingRepository.getLoggedHoursForUser(any(), any(), any()))
+            when(reportingRepository.getLoggedHoursForUser(any(), any(), any(), any()))
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
@@ -263,7 +252,7 @@ class ReportServiceTest {
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
             
-            when(reportingRepository.getLoggedHoursForUser(any(), any(), any()))
+            when(reportingRepository.getLoggedHoursForUser(any(), any(), any(), any()))
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
@@ -299,7 +288,7 @@ class ReportServiceTest {
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
             
-            when(reportingRepository.getLoggedHoursForUser(any(), any(), any()))
+            when(reportingRepository.getLoggedHoursForUser(any(), any(), any(), any()))
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
@@ -336,7 +325,7 @@ class ReportServiceTest {
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
             
-            when(reportingRepository.getLoggedHoursForUser(any(), any(), any()))
+            when(reportingRepository.getLoggedHoursForUser(any(), any(), any(), any()))
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
@@ -372,7 +361,7 @@ class ReportServiceTest {
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
             
-            when(reportingRepository.getLoggedHoursForUser(any(), any(), any()))
+            when(reportingRepository.getLoggedHoursForUser(any(), any(), any(), any()))
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
@@ -406,7 +395,7 @@ class ReportServiceTest {
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
             
-            when(reportingRepository.getLoggedHoursForUser(any(), any(), any()))
+            when(reportingRepository.getLoggedHoursForUser(any(), any(), any(), any()))
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
@@ -442,7 +431,7 @@ class ReportServiceTest {
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
             
-            when(reportingRepository.getLoggedHoursForUser(any(), any(), any()))
+            when(reportingRepository.getLoggedHoursForUser(any(), any(), any(), any()))
                 .thenReturn(null); // Simulate null from DB
             
             ReportFilterDto filters = ReportFilterDto.builder()
@@ -489,7 +478,7 @@ class ReportServiceTest {
             when(reportingRepository.getTaskCountsByStatusForUser(eq(11L), isNull(), any(), any()))
                 .thenReturn(taskCounts);
             
-            when(reportingRepository.getLoggedHoursForUser(eq(11L), any(), any()))
+            when(reportingRepository.getLoggedHoursForUser(eq(11L), any(), any(), any()))
                 .thenReturn(new BigDecimal("41.02"));
             
             ReportFilterDto filters = ReportFilterDto.builder()

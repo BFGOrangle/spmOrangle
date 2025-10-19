@@ -487,12 +487,14 @@ public class ReportServiceImpl implements ReportService {
             return requestedDepartment;
         } else if (UserType.MANAGER.getCode().equals(currentUser.getRoleType())) {
             // Managers can only see their own department
-            if (requestedDepartment != null && !requestedDepartment.equals(currentUser.getDepartment())) {
+            // Treat empty string as null (no specific department requested)
+            if (requestedDepartment != null && !requestedDepartment.isEmpty() 
+                && !requestedDepartment.equals(currentUser.getDepartment())) {
                 throw new RuntimeException(
                     "Access denied: Managers can only view reports for their own department (" 
                     + currentUser.getDepartment() + ")");
             }
-            // If null or matches their department, return their department
+            // If null, empty, or matches their department, return their department
             return currentUser.getDepartment();
         }
         
