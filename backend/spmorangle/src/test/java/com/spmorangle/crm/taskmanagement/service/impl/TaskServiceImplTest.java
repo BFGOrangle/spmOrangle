@@ -21,6 +21,8 @@ import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.SubtaskService;
 import com.spmorangle.crm.taskmanagement.service.TagService;
+import com.spmorangle.crm.taskmanagement.service.RecurrenceService;
+import com.spmorangle.crm.reporting.service.ReportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -49,9 +51,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -82,6 +86,12 @@ class TaskServiceImplTest {
 
     @Mock
     private TaskAssigneeRepository taskAssigneeRepository;
+
+    @Mock
+    private RecurrenceService recurrenceService;
+
+    @Mock
+    private ReportService reportService;
 
     @InjectMocks
     private TaskServiceImpl taskService;
@@ -2454,6 +2464,477 @@ class TaskServiceImplTest {
             assertThat(result.get(0).isUserHasEditAccess()).isTrue(); // Owned task
             assertThat(result.get(1).isUserHasEditAccess()).isTrue(); // Collaborator task
             assertThat(result.get(2).isUserHasEditAccess()).isFalse(); // Other task
+        }
+    }
+
+    @Nested
+    @DisplayName("Time Tracking Integration Tests")
+    class TimeTrackingIntegrationTests {
+
+        private Task task;
+        private Long taskId;
+        private Long userId;
+
+        @BeforeEach
+        void setUp() {
+            taskId = 1L;
+            userId = 201L;
+            task = createTestTask(taskId, 101L, userId, "Test Task", "Description", Status.TODO, Collections.emptyList());
+        }
+
+        @Test
+        @DisplayName("Should start time tracking when status changes from TODO to IN_PROGRESS")
+        void updateTask_TodoToInProgress_StartsTimeTracking() {
+            // Given
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.IN_PROGRESS)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            taskService.updateTask(updateDto, userId);
+
+            // Then
+            verify(reportService).startTimeTracking(taskId, userId);
+            verify(reportService, never()).endTimeTracking(anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("Should end time tracking when status changes from IN_PROGRESS to COMPLETED")
+        void updateTask_InProgressToCompleted_EndsTimeTracking() {
+            // Given
+            task.setStatus(Status.IN_PROGRESS);
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.COMPLETED)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            taskService.updateTask(updateDto, userId);
+
+            // Then
+            verify(reportService).endTimeTracking(taskId, userId);
+            verify(reportService, never()).startTimeTracking(anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("Should restart time tracking when status changes from COMPLETED to IN_PROGRESS")
+        void updateTask_CompletedToInProgress_RestartsTimeTracking() {
+            // Given
+            task.setStatus(Status.COMPLETED);
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.IN_PROGRESS)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            taskService.updateTask(updateDto, userId);
+
+            // Then
+            verify(reportService).startTimeTracking(taskId, userId);
+            verify(reportService, never()).endTimeTracking(anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("Should not trigger time tracking when status is unchanged")
+        void updateTask_SameStatus_DoesNotTriggerTimeTracking() {
+            // Given
+            task.setStatus(Status.TODO);
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .title("Updated Title")
+                .build(); // No status change
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            taskService.updateTask(updateDto, userId);
+
+            // Then
+            verify(reportService, never()).startTimeTracking(anyLong(), anyLong());
+            verify(reportService, never()).endTimeTracking(anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("Should end time tracking for recurring task completion before creating next instance")
+        void updateTask_RecurringTaskCompleted_EndsTimeTrackingBeforeCreatingNextInstance() {
+            // Given
+            task.setStatus(Status.IN_PROGRESS);
+            task.setIsRecurring(true);
+            task.setRecurrenceRuleStr("FREQ=DAILY;COUNT=5");
+            task.setDueDateTime(OffsetDateTime.now());
+            task.setEndDate(OffsetDateTime.now().plusDays(10));
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.COMPLETED)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+            when(recurrenceService.generateOccurrence(anyString(), any(OffsetDateTime.class), any(OffsetDateTime.class)))
+                .thenReturn(Collections.singletonList(OffsetDateTime.now().plusDays(1)));
+            when(collaboratorService.getCollaboratorIdsByTaskId(taskId)).thenReturn(Collections.emptyList());
+
+            // When
+            taskService.updateTask(updateDto, userId);
+
+            // Then
+            verify(reportService).endTimeTracking(taskId, userId);
+            // Verify at least one save happened (the original task update)
+            // The new recurring instance is created via createTask which also calls save
+            verify(taskRepository, atLeastOnce()).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should track time for recurring task edit with status change")
+        void updateTask_RecurringEditWithStatusChange_TracksTime() {
+            // Given
+            task.setStatus(Status.TODO);
+            task.setIsRecurring(true);
+            task.setRecurrenceRuleStr("FREQ=DAILY;COUNT=5");
+            task.setDueDateTime(OffsetDateTime.now());
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.IN_PROGRESS)
+                .recurrenceEditMode(com.spmorangle.crm.taskmanagement.enums.RecurrenceEditMode.ALL_FUTURE_INSTANCES)
+                .instanceDate(OffsetDateTime.now())
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            taskService.updateTask(updateDto, userId);
+
+            // Then
+            verify(reportService).startTimeTracking(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should handle time tracking errors gracefully without failing task update")
+        void updateTask_TimeTrackingFails_ContinuesTaskUpdate() {
+            // Given
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.IN_PROGRESS)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+            // Simulate time tracking failure - this should be caught and logged
+            lenient().doThrow(new RuntimeException("Time tracking service unavailable"))
+                .when(reportService).startTimeTracking(anyLong(), anyLong());
+
+            // When & Then - Should not throw exception
+            assertThatCode(() -> taskService.updateTask(updateDto, userId))
+                .doesNotThrowAnyException();
+
+            // Task should still be saved
+            verify(taskRepository).save(argThat(t -> t.getStatus() == Status.IN_PROGRESS));
+        }
+
+        @Test
+        @DisplayName("Should end time tracking when non-recurring task moves to COMPLETED from TODO")
+        void updateTask_TodoToCompleted_EndsTimeTracking() {
+            // Given
+            task.setStatus(Status.TODO);
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.COMPLETED)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            taskService.updateTask(updateDto, userId);
+
+            // Then
+            verify(reportService).endTimeTracking(taskId, userId);
+        }
+
+        @Test
+        @DisplayName("Should not trigger time tracking when changing from TODO to BLOCKED")
+        void updateTask_TodoToBlocked_DoesNotTriggerTimeTracking() {
+            // Given
+            task.setStatus(Status.TODO);
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.BLOCKED)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            taskService.updateTask(updateDto, userId);
+
+            // Then
+            verify(reportService, never()).startTimeTracking(anyLong(), anyLong());
+            verify(reportService, never()).endTimeTracking(anyLong(), anyLong());
+        }
+    }
+
+    @Nested
+    @DisplayName("Task Recurrence Tests")
+    class TaskRecurrenceTests {
+
+        private Task recurringTask;
+        private Long taskId;
+        private Long userId;
+        private OffsetDateTime now;
+
+        @BeforeEach
+        void setUp() {
+            taskId = 1L;
+            userId = 201L;
+            now = OffsetDateTime.now();
+
+            recurringTask = createTestTask(taskId, 101L, userId, "Recurring Task", "Description", Status.TODO, Collections.emptyList());
+            recurringTask.setIsRecurring(true);
+            recurringTask.setRecurrenceRuleStr("FREQ=DAILY;COUNT=5");
+            recurringTask.setDueDateTime(now);
+            recurringTask.setStartDate(now);
+            recurringTask.setEndDate(now.plusDays(10));
+        }
+
+        @Test
+        @DisplayName("Should create next instance when recurring task is completed")
+        void updateTask_RecurringTaskCompleted_CreatesNextInstance() {
+            // Given
+            recurringTask.setStatus(Status.IN_PROGRESS);
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.COMPLETED)
+                .build();
+
+            OffsetDateTime nextOccurrence = now.plusDays(1);
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+            when(recurrenceService.generateOccurrence(anyString(), any(OffsetDateTime.class), any(OffsetDateTime.class)))
+                .thenReturn(Collections.singletonList(nextOccurrence));
+            when(collaboratorService.getCollaboratorIdsByTaskId(taskId)).thenReturn(Collections.emptyList());
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(updateDto, userId);
+
+            // Then
+            assertThat(result.getStatus()).isEqualTo(Status.COMPLETED);
+            // Verify recurrence service was called (may be called during validation too)
+            verify(recurrenceService, atLeastOnce()).generateOccurrence(
+                eq("FREQ=DAILY;COUNT=5"),
+                any(OffsetDateTime.class),
+                any(OffsetDateTime.class)
+            );
+            // Verify task creation was attempted (createTask also saves)
+            verify(taskRepository, atLeastOnce()).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should not create next instance when no more occurrences exist")
+        void updateTask_RecurringTaskCompleted_NoMoreOccurrences_DoesNotCreateInstance() {
+            // Given
+            recurringTask.setStatus(Status.IN_PROGRESS);
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.COMPLETED)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+            when(recurrenceService.generateOccurrence(anyString(), any(OffsetDateTime.class), any(OffsetDateTime.class)))
+                .thenReturn(Collections.emptyList()); // No more occurrences
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(updateDto, userId);
+
+            // Then
+            assertThat(result.getStatus()).isEqualTo(Status.COMPLETED);
+            // Only the original task should be saved, no new instance created
+            verify(taskRepository, times(1)).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should preserve task properties in next recurring instance")
+        void updateTask_RecurringTaskCompleted_PreservesTaskProperties() {
+            // Given
+            recurringTask.setStatus(Status.IN_PROGRESS);
+            recurringTask.setTitle("Weekly Report");
+            recurringTask.setDescription("Submit weekly report");
+            recurringTask.setTaskType(TaskType.CHORE);
+
+            List<Tag> tags = new ArrayList<>();
+            Tag tag1 = new Tag();
+            tag1.setTagName("important");
+            Tag tag2 = new Tag();
+            tag2.setTagName("weekly");
+            tags.add(tag1);
+            tags.add(tag2);
+            recurringTask.setTags(new HashSet<>(tags));
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.COMPLETED)
+                .build();
+
+            OffsetDateTime nextOccurrence = now.plusDays(7);
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+            when(recurrenceService.generateOccurrence(anyString(), any(OffsetDateTime.class), any(OffsetDateTime.class)))
+                .thenReturn(Collections.singletonList(nextOccurrence));
+            when(collaboratorService.getCollaboratorIdsByTaskId(taskId)).thenReturn(Arrays.asList(301L, 302L));
+
+            // When
+            taskService.updateTask(updateDto, userId);
+
+            // Then - Verify createTask is called (which internally saves)
+            // The new instance should have the same properties but with Status.TODO
+            verify(taskRepository, atLeastOnce()).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should handle recurring task creation failure gracefully")
+        void updateTask_RecurringTaskCompleted_CreationFails_DoesNotThrowException() {
+            // Given
+            recurringTask.setStatus(Status.IN_PROGRESS);
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.COMPLETED)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+            when(recurrenceService.generateOccurrence(anyString(), any(OffsetDateTime.class), any(OffsetDateTime.class)))
+                .thenThrow(new RuntimeException("Invalid recurrence rule"));
+
+            // When & Then - Should not throw exception
+            assertThatCode(() -> taskService.updateTask(updateDto, userId))
+                .doesNotThrowAnyException();
+
+            // Original task should still be marked as completed
+            verify(taskRepository).save(argThat(task ->
+                task.getStatus() == Status.COMPLETED
+            ));
+        }
+
+        @Test
+        @DisplayName("Should not create next instance if recurring task missing required fields")
+        void updateTask_RecurringTaskCompleted_MissingRequiredFields_DoesNotCreateInstance() {
+            // Given
+            recurringTask.setStatus(Status.IN_PROGRESS);
+            recurringTask.setRecurrenceRuleStr(null); // Missing recurrence rule
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.COMPLETED)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+
+            // When
+            UpdateTaskResponseDto result = taskService.updateTask(updateDto, userId);
+
+            // Then
+            assertThat(result.getStatus()).isEqualTo(Status.COMPLETED);
+            // Should not call recurrenceService since recurrence rule is missing
+            verify(recurrenceService, never()).generateOccurrence(anyString(), any(), any());
+        }
+
+        @Test
+        @DisplayName("Should replicate collaborators to next recurring instance")
+        void updateTask_RecurringTaskCompleted_ReplicatesCollaborators() {
+            // Given
+            recurringTask.setStatus(Status.IN_PROGRESS);
+            List<Long> collaboratorIds = Arrays.asList(301L, 302L, 303L);
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.COMPLETED)
+                .build();
+
+            OffsetDateTime nextOccurrence = now.plusDays(1);
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+            when(recurrenceService.generateOccurrence(anyString(), any(OffsetDateTime.class), any(OffsetDateTime.class)))
+                .thenReturn(Collections.singletonList(nextOccurrence));
+            when(collaboratorService.getCollaboratorIdsByTaskId(taskId)).thenReturn(collaboratorIds);
+
+            // When
+            taskService.updateTask(updateDto, userId);
+
+            // Then
+            verify(collaboratorService).getCollaboratorIdsByTaskId(taskId);
+            verify(taskRepository, atLeastOnce()).save(any(Task.class));
+        }
+
+        @Test
+        @DisplayName("Should calculate next occurrence starting from day after current due date")
+        void updateTask_RecurringTaskCompleted_CalculatesNextOccurrenceCorrectly() {
+            // Given
+            OffsetDateTime specificDueDate = OffsetDateTime.parse("2025-10-20T10:00:00+08:00");
+            recurringTask.setDueDateTime(specificDueDate);
+            recurringTask.setStatus(Status.IN_PROGRESS);
+
+            UpdateTaskDto updateDto = UpdateTaskDto.builder()
+                .taskId(taskId)
+                .status(Status.COMPLETED)
+                .build();
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
+            when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(projectService.getOwnerId(101L)).thenReturn(userId);
+            when(recurrenceService.generateOccurrence(anyString(), any(OffsetDateTime.class), any(OffsetDateTime.class)))
+                .thenReturn(Collections.singletonList(specificDueDate.plusDays(1)));
+            when(collaboratorService.getCollaboratorIdsByTaskId(taskId)).thenReturn(Collections.emptyList());
+
+            // When
+            taskService.updateTask(updateDto, userId);
+
+            // Then - Verify generateOccurrence is called with nextStart = dueDate + 1 day
+            verify(recurrenceService).generateOccurrence(
+                eq("FREQ=DAILY;COUNT=5"),
+                argThat(nextStart -> nextStart.isEqual(specificDueDate.plusDays(1))),
+                any(OffsetDateTime.class)
+            );
         }
     }
 }

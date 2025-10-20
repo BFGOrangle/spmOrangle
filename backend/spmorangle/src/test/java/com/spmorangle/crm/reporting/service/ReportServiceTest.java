@@ -19,15 +19,23 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import com.spmorangle.crm.reporting.model.TaskTimeTracking;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,6 +49,12 @@ class ReportServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private com.spmorangle.crm.taskmanagement.repository.TaskRepository taskRepository;
+
+    @Mock
+    private com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository taskAssigneeRepository;
 
     @InjectMocks
     private ReportServiceImpl reportService;
@@ -498,6 +512,289 @@ class ReportServiceTest {
             assertEquals(3L, breakdown.getTodoTasks());
             assertEquals(2L, breakdown.getBlockedTasks());
             assertEquals(new BigDecimal("41.02"), breakdown.getLoggedHours());
+        }
+    }
+
+    @Nested
+    class TimeTrackingTests {
+
+        @Test
+        void testStartTimeTracking_CreatesNewTrackingRecord() {
+            // Arrange
+            Long taskId = 100L;
+            Long ownerId = 1L;
+
+            com.spmorangle.crm.taskmanagement.model.Task task = new com.spmorangle.crm.taskmanagement.model.Task();
+            task.setId(taskId);
+            task.setOwnerId(ownerId);
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskAssigneeRepository.findAssigneeIdsByTaskId(taskId)).thenReturn(Collections.emptyList());
+            when(taskTimeTrackingRepository.findByTaskIdAndUserId(taskId, ownerId))
+                .thenReturn(Optional.empty());
+
+            // Act
+            reportService.startTimeTracking(taskId, ownerId);
+
+            // Assert
+            verify(taskTimeTrackingRepository).save(argThat(tracking ->
+                tracking.getTaskId().equals(taskId) &&
+                tracking.getUserId().equals(ownerId) &&
+                tracking.getStartedAt() != null &&
+                tracking.getCompletedAt() == null &&
+                tracking.getTotalHours() == null
+            ));
+        }
+
+        @Test
+        void testStartTimeTracking_CompletedRecordExists_ResetsRecord() {
+            // Arrange
+            Long taskId = 100L;
+            Long ownerId = 1L;
+
+            com.spmorangle.crm.taskmanagement.model.Task task = new com.spmorangle.crm.taskmanagement.model.Task();
+            task.setId(taskId);
+            task.setOwnerId(ownerId);
+
+            TaskTimeTracking completedTracking = new TaskTimeTracking();
+            completedTracking.setTaskId(taskId);
+            completedTracking.setUserId(ownerId);
+            completedTracking.setStartedAt(OffsetDateTime.now().minusHours(2));
+            completedTracking.setCompletedAt(OffsetDateTime.now().minusHours(1));
+            completedTracking.setTotalHours(new BigDecimal("1.00"));
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskAssigneeRepository.findAssigneeIdsByTaskId(taskId)).thenReturn(Collections.emptyList());
+            when(taskTimeTrackingRepository.findByTaskIdAndUserId(taskId, ownerId))
+                .thenReturn(Optional.of(completedTracking));
+
+            // Act
+            reportService.startTimeTracking(taskId, ownerId);
+
+            // Assert - Should reset the existing completed record
+            verify(taskTimeTrackingRepository).save(argThat(tracking ->
+                tracking.getTaskId().equals(taskId) &&
+                tracking.getUserId().equals(ownerId) &&
+                tracking.getStartedAt() != null &&
+                tracking.getCompletedAt() == null &&
+                tracking.getTotalHours() == null
+            ));
+        }
+
+        @Test
+        void testStartTimeTracking_ActiveRecordExists_DoesNotModify() {
+            // Arrange
+            Long taskId = 100L;
+            Long ownerId = 1L;
+
+            com.spmorangle.crm.taskmanagement.model.Task task = new com.spmorangle.crm.taskmanagement.model.Task();
+            task.setId(taskId);
+            task.setOwnerId(ownerId);
+
+            TaskTimeTracking activeTracking = new TaskTimeTracking();
+            activeTracking.setTaskId(taskId);
+            activeTracking.setUserId(ownerId);
+            activeTracking.setStartedAt(OffsetDateTime.now().minusMinutes(30));
+            activeTracking.setCompletedAt(null);
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskAssigneeRepository.findAssigneeIdsByTaskId(taskId)).thenReturn(Collections.emptyList());
+            when(taskTimeTrackingRepository.findByTaskIdAndUserId(taskId, ownerId))
+                .thenReturn(Optional.of(activeTracking));
+
+            // Act
+            reportService.startTimeTracking(taskId, ownerId);
+
+            // Assert - Should not save when record is already active
+            verify(taskTimeTrackingRepository, never()).save(any());
+        }
+
+        @Test
+        void testEndTimeTracking_CalculatesHoursCorrectly() {
+            // Arrange
+            Long taskId = 100L;
+            Long userId = 1L;
+
+            OffsetDateTime startTime = OffsetDateTime.now().minusHours(2).minusMinutes(30);
+
+            TaskTimeTracking activeTracking = new TaskTimeTracking();
+            activeTracking.setId(1L);
+            activeTracking.setTaskId(taskId);
+            activeTracking.setUserId(userId);
+            activeTracking.setStartedAt(startTime);
+            activeTracking.setCompletedAt(null);
+
+            when(taskTimeTrackingRepository.findByTaskId(taskId))
+                .thenReturn(Collections.singletonList(activeTracking));
+
+            // Act
+            reportService.endTimeTracking(taskId, userId);
+
+            // Assert
+            verify(taskTimeTrackingRepository).save(argThat(tracking -> {
+                assertNotNull(tracking.getCompletedAt());
+                assertNotNull(tracking.getTotalHours());
+
+                // Should be approximately 2.5 hours
+                assertTrue(tracking.getTotalHours().compareTo(new BigDecimal("2.4")) > 0);
+                assertTrue(tracking.getTotalHours().compareTo(new BigDecimal("2.6")) < 0);
+
+                return true;
+            }));
+        }
+
+        @Test
+        void testEndTimeTracking_MultipleCollaborators_CalculatesFromEarliestStart() {
+            // Arrange
+            Long taskId = 100L;
+            Long userId = 1L;
+
+            OffsetDateTime earliestStart = OffsetDateTime.now().minusHours(3);
+            OffsetDateTime laterStart = OffsetDateTime.now().minusHours(2);
+
+            TaskTimeTracking tracking1 = new TaskTimeTracking();
+            tracking1.setId(1L);
+            tracking1.setTaskId(taskId);
+            tracking1.setUserId(userId);
+            tracking1.setStartedAt(earliestStart);
+            tracking1.setCompletedAt(null);
+
+            TaskTimeTracking tracking2 = new TaskTimeTracking();
+            tracking2.setId(2L);
+            tracking2.setTaskId(taskId);
+            tracking2.setUserId(2L); // Different user
+            tracking2.setStartedAt(laterStart);
+            tracking2.setCompletedAt(null);
+
+            when(taskTimeTrackingRepository.findByTaskId(taskId))
+                .thenReturn(Arrays.asList(tracking1, tracking2));
+
+            // Act
+            reportService.endTimeTracking(taskId, userId);
+
+            // Assert - Should use earliest start time for all collaborators
+            verify(taskTimeTrackingRepository, times(2)).save(argThat(tracking -> {
+                assertNotNull(tracking.getCompletedAt());
+                assertNotNull(tracking.getTotalHours());
+
+                // Both should have the same total hours (from earliest start)
+                assertTrue(tracking.getTotalHours().compareTo(new BigDecimal("2.9")) > 0);
+
+                return true;
+            }));
+        }
+
+        @Test
+        void testEndTimeTracking_NoActiveRecords_LogsWarningAndReturns() {
+            // Arrange
+            Long taskId = 100L;
+            Long userId = 1L;
+
+            when(taskTimeTrackingRepository.findByTaskId(taskId))
+                .thenReturn(Collections.emptyList());
+
+            // Act
+            reportService.endTimeTracking(taskId, userId);
+
+            // Assert - Should not attempt to save
+            verify(taskTimeTrackingRepository, never()).save(any());
+        }
+
+        @Test
+        void testEndTimeTracking_AllRecordsAlreadyCompleted_LogsWarningAndReturns() {
+            // Arrange
+            Long taskId = 100L;
+            Long userId = 1L;
+
+            TaskTimeTracking completedTracking = new TaskTimeTracking();
+            completedTracking.setId(1L);
+            completedTracking.setTaskId(taskId);
+            completedTracking.setUserId(userId);
+            completedTracking.setStartedAt(OffsetDateTime.now().minusHours(2));
+            completedTracking.setCompletedAt(OffsetDateTime.now().minusHours(1));
+            completedTracking.setTotalHours(new BigDecimal("1.00"));
+
+            when(taskTimeTrackingRepository.findByTaskId(taskId))
+                .thenReturn(Collections.singletonList(completedTracking));
+
+            // Act
+            reportService.endTimeTracking(taskId, userId);
+
+            // Assert - Should not save anything
+            verify(taskTimeTrackingRepository, never()).save(any());
+        }
+
+        @Test
+        void testEndTimeTracking_OnlyUpdatesActiveRecords() {
+            // Arrange
+            Long taskId = 100L;
+            Long userId = 1L;
+
+            TaskTimeTracking activeTracking = new TaskTimeTracking();
+            activeTracking.setId(1L);
+            activeTracking.setTaskId(taskId);
+            activeTracking.setUserId(userId);
+            activeTracking.setStartedAt(OffsetDateTime.now().minusHours(2));
+            activeTracking.setCompletedAt(null);
+
+            TaskTimeTracking completedTracking = new TaskTimeTracking();
+            completedTracking.setId(2L);
+            completedTracking.setTaskId(taskId);
+            completedTracking.setUserId(userId);
+            completedTracking.setStartedAt(OffsetDateTime.now().minusHours(5));
+            completedTracking.setCompletedAt(OffsetDateTime.now().minusHours(3));
+            completedTracking.setTotalHours(new BigDecimal("2.00"));
+
+            when(taskTimeTrackingRepository.findByTaskId(taskId))
+                .thenReturn(Arrays.asList(activeTracking, completedTracking));
+
+            // Act
+            reportService.endTimeTracking(taskId, userId);
+
+            // Assert - Should only save the active record
+            verify(taskTimeTrackingRepository, times(1)).save(argThat(tracking ->
+                tracking.getId().equals(1L) &&
+                tracking.getCompletedAt() != null &&
+                tracking.getTotalHours() != null
+            ));
+        }
+
+        @Test
+        void testEndTimeTracking_RoundingToTwoDecimalPlaces() {
+            // Arrange
+            Long taskId = 100L;
+            Long userId = 1L;
+
+            // Create a time that will result in a precise calculation
+            OffsetDateTime startTime = OffsetDateTime.now().minusMinutes(90); // 1.5 hours
+
+            TaskTimeTracking activeTracking = new TaskTimeTracking();
+            activeTracking.setId(1L);
+            activeTracking.setTaskId(taskId);
+            activeTracking.setUserId(userId);
+            activeTracking.setStartedAt(startTime);
+            activeTracking.setCompletedAt(null);
+
+            when(taskTimeTrackingRepository.findByTaskId(taskId))
+                .thenReturn(Collections.singletonList(activeTracking));
+
+            // Act
+            reportService.endTimeTracking(taskId, userId);
+
+            // Assert
+            verify(taskTimeTrackingRepository).save(argThat(tracking -> {
+                BigDecimal totalHours = tracking.getTotalHours();
+                assertNotNull(totalHours);
+
+                // Check that it's rounded to 2 decimal places
+                assertTrue(totalHours.scale() <= 2);
+
+                // Should be approximately 1.5 hours
+                assertTrue(totalHours.compareTo(new BigDecimal("1.4")) > 0);
+                assertTrue(totalHours.compareTo(new BigDecimal("1.6")) < 0);
+
+                return true;
+            }));
         }
     }
 }

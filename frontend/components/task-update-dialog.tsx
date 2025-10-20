@@ -29,6 +29,7 @@ import { TaskCollaboratorManagement } from "@/components/task-collaborator-manag
 import { userManagementService } from "@/services/user-management-service";
 import type { UserResponseDto } from "@/types/user";
 import { useUpdateTask } from "@/hooks/use-task-mutations";
+import { RecurrenceSelector, RecurrenceData } from "./recurrence-selector";
 
 interface TaskUpdateDialogProps {
   task: TaskResponse;
@@ -85,6 +86,14 @@ export function TaskUpdateDialog({
     return '';
   });
 
+  // Task recurrence data - managed by RecurrenceSelector
+  const [recurrenceData, setRecurrenceData] = useState<RecurrenceData>({
+    isRecurring: task.isRecurring ?? false,
+    recurrenceRuleStr: task.recurrenceRuleStr ?? null,
+    startDate: task.startDate ?? null,
+    endDate: task.endDate ?? null,
+  })
+
   // Reset form fields when task changes
   useEffect(() => {
     setTitle(task.title);
@@ -106,6 +115,13 @@ export function TaskUpdateDialog({
     } else {
       setDueDate('');
     }
+
+    setRecurrenceData({
+      isRecurring: task.isRecurring ?? false,
+      recurrenceRuleStr: task.recurrenceRuleStr ?? null,
+      startDate: task.startDate ?? null,
+      endDate: task.endDate ?? null
+    })
   }, [task]);
 
   const [collaboratorIds, setCollaboratorIds] = useState<number[]>(
@@ -386,6 +402,20 @@ const formatDueDateTime = (localDateTime: string): string | undefined => {
       }
     }
 
+      // Check if recurrence data has changed
+      const recurrenceChanged =
+        recurrenceData.isRecurring !== (task.isRecurring ?? false) ||
+        recurrenceData.recurrenceRuleStr !== (task.recurrenceRuleStr ?? null) ||
+        recurrenceData.startDate !== (task.startDate ?? null) ||
+        recurrenceData.endDate !== (task.endDate ?? null);
+
+      if (recurrenceChanged) {
+        updateRequest.isRecurring = recurrenceData.isRecurring;
+        updateRequest.recurrenceRuleStr = recurrenceData.recurrenceRuleStr ?? undefined;
+        updateRequest.startDate = recurrenceData.startDate ?? undefined;
+        updateRequest.endDate = recurrenceData.endDate ?? undefined;
+      }
+
       // Use the mutation hook for task update with automatic cache invalidation
       const updatedTask = await updateTaskMutation.mutateAsync(updateRequest);
       onTaskUpdated(updatedTask);
@@ -622,6 +652,19 @@ const formatDueDateTime = (localDateTime: string): string | undefined => {
             <p className="text-xs text-muted-foreground">
               Set a deadline for this task (optional)
             </p>
+          </div>
+
+          {/* Task Recurrence Settings */}
+          <div className="space-y-2">
+            <RecurrenceSelector
+              onChange={setRecurrenceData}
+              initialValue={{
+                isRecurring: task.isRecurring ?? false,
+                recurrenceRuleStr: task.recurrenceRuleStr ?? null,
+                startDate: task.startDate ?? null,
+                endDate: task.endDate ?? null,
+              }}
+            />
           </div>
 
           {error && (
