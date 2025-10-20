@@ -204,7 +204,7 @@ const mockProjectsData = [
 const mockRelatedTasksData: TaskResponse[] = [
   {
     id: 101,
-    projectId: 2,
+    projectId: 5, // Changed from 2 to a project not in mockProjectsData
     ownerId: 20,
     taskType: "FEATURE" as const,
     title: "Related Task 1",
@@ -222,7 +222,7 @@ const mockRelatedTasksData: TaskResponse[] = [
   },
   {
     id: 102,
-    projectId: 3,
+    projectId: 6, // Changed from 3 to a project not in mockProjectsData
     ownerId: 30,
     taskType: "CHORE" as const,
     title: "Related Task 2",
@@ -252,15 +252,45 @@ describe("ProjectsPage", () => {
     // Default mock implementation that returns test project data
     mockProjectService.getUserProjects.mockResolvedValue(mockProjectsData);
     mockProjectService.getRelatedProjectTasks.mockResolvedValue(mockRelatedTasksData);
-    mockProjectService.getProjectsByIds.mockResolvedValue([]);
+    // Mock fetching metadata for projects 5 and 6 (which user is not a member of)
+    mockProjectService.getProjectsByIds.mockResolvedValue([
+      {
+        id: 5,
+        name: "Test Project 5",
+        description: "Test description 5",
+        ownerId: 5,
+        taskCount: 20,
+        completedTaskCount: 10,
+        createdAt: "2025-01-15T00:00:00.000Z",
+        updatedAt: "2025-01-20T00:00:00.000Z",
+      },
+      {
+        id: 6,
+        name: "Test Project 6",
+        description: "Test description 6",
+        ownerId: 6,
+        taskCount: 15,
+        completedTaskCount: 5,
+        createdAt: "2025-02-01T00:00:00.000Z",
+        updatedAt: "2025-02-10T00:00:00.000Z",
+      },
+    ]);
   });
 
-  const setup = async () => {
+  const setup = async (userRole: string = "STAFF") => {
     const user = userEvent.setup();
     
     let component: any;
     await act(async () => {
-      component = render(<ProjectsPage />);
+      component = render(<ProjectsPage />, {
+        currentUser: {
+          id: "test-user-id",
+          role: userRole,
+          backendStaffId: 1,
+        },
+        isStaff: userRole === "STAFF",
+        isAdmin: userRole === "HR",
+      });
     });
     
     // Wait for data to load by checking for heading specifically
@@ -356,7 +386,7 @@ describe("ProjectsPage", () => {
 
   describe("Related Projects", () => {
     it("renders related projects section with matching cards", async () => {
-      await setup();
+      await setup("MANAGER"); // Use MANAGER role to see related projects
 
       await waitFor(() => {
         expect(
@@ -377,14 +407,14 @@ describe("ProjectsPage", () => {
       const relatedCards = within(relatedSection).getAllByTestId("card");
       expect(relatedCards).toHaveLength(2);
       expect(within(relatedSection).getAllByText("View only")).toHaveLength(2);
-      expect(within(relatedSection).getByText("Test Project 2")).toBeInTheDocument();
-      expect(within(relatedSection).getByText("Test Project 3")).toBeInTheDocument();
+      expect(within(relatedSection).getByText("Test Project 5")).toBeInTheDocument();
+      expect(within(relatedSection).getByText("Test Project 6")).toBeInTheDocument();
     });
 
     it("shows an empty state message when no related projects", async () => {
       mockProjectService.getRelatedProjectTasks.mockResolvedValueOnce([]);
 
-      await setup();
+      await setup("MANAGER"); // Use MANAGER role to see related projects
 
       await waitFor(() => {
         expect(
@@ -418,6 +448,26 @@ describe("ProjectsPage", () => {
 
       mockProjectService.getProjectsByIds.mockResolvedValueOnce([
         {
+          id: 5,
+          name: "Test Project 5",
+          description: "Test description 5",
+          ownerId: 5,
+          taskCount: 20,
+          completedTaskCount: 10,
+          createdAt: "2025-01-15T00:00:00.000Z",
+          updatedAt: "2025-01-20T00:00:00.000Z",
+        },
+        {
+          id: 6,
+          name: "Test Project 6",
+          description: "Test description 6",
+          ownerId: 6,
+          taskCount: 15,
+          completedTaskCount: 5,
+          createdAt: "2025-02-01T00:00:00.000Z",
+          updatedAt: "2025-02-10T00:00:00.000Z",
+        },
+        {
           id: 99,
           name: "External Project",
           description: "View only project",
@@ -429,10 +479,10 @@ describe("ProjectsPage", () => {
         },
       ] as any);
 
-      await setup();
+      await setup("MANAGER"); // Use MANAGER role to see related projects
 
       await waitFor(() => {
-        expect(mockProjectService.getProjectsByIds).toHaveBeenCalledWith([99]);
+        expect(mockProjectService.getProjectsByIds).toHaveBeenCalledWith([5, 6, 99]);
       });
 
       const relatedSection = screen.getByRole("heading", {

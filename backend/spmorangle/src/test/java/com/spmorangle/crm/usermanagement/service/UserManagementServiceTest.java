@@ -325,8 +325,8 @@ class UserManagementServiceTest {
         when(userRepository.findAll()).thenReturn(users);
 
         try (MockedStatic<UserConverter> mockedConverter = mockStatic(UserConverter.class)) {
-            UserResponseDto dto1 = new UserResponseDto(1L, "John Doe", "john@example.com", "STAFF", true, user1.getCognitoSub());
-            UserResponseDto dto2 = new UserResponseDto(2L, "Jane Smith", "jane@example.com", "MANAGER", true, user2.getCognitoSub());
+            UserResponseDto dto1 = new UserResponseDto(1L, "John Doe", "john@example.com", "STAFF", true, "Engineering", user1.getCognitoSub());
+            UserResponseDto dto2 = new UserResponseDto(2L, "Jane Smith", "jane@example.com", "MANAGER", true, "Management", user2.getCognitoSub());
             
             mockedConverter.when(() -> UserConverter.convert(user1)).thenReturn(dto1);
             mockedConverter.when(() -> UserConverter.convert(user2)).thenReturn(dto2);

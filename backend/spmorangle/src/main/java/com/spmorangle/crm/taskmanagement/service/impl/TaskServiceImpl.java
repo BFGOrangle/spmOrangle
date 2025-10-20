@@ -245,6 +245,13 @@ public class TaskServiceImpl implements TaskService {
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        // Only MANAGER role should see related tasks
+        String userRole = currentUser.getRoleType();
+        if (!"MANAGER".equalsIgnoreCase(userRole)) {
+            log.info("User {} with role {} is not a MANAGER; skipping related tasks lookup", userId, userRole);
+            return Collections.emptyList();
+        }
+
         String department = currentUser.getDepartment();
         if (department == null || department.isBlank()) {
             log.warn("User {} does not have a department assigned; skipping related tasks lookup", userId);

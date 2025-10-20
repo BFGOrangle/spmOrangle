@@ -448,9 +448,18 @@ class ProjectServiceImplTest {
             Long projectId = 1L;
             Long userId = 123L;
 
+            // Create user for getUserProjects (needs role and department)
+            User testUserForGetProjects = new User();
+            testUserForGetProjects.setId(userId);
+            testUserForGetProjects.setUserName("testuser");
+            testUserForGetProjects.setEmail("test@example.com");
+            testUserForGetProjects.setRoleType("STAFF");
+            testUserForGetProjects.setDepartment("Engineering");
+
             when(userRepository.findUsersInProject(eq(projectId))).thenReturn(Collections.singletonList(testUser1));
+            when(userRepository.findById(eq(userId))).thenReturn(Optional.of(testUserForGetProjects));
             when(projectRepository.findUserProjects(eq(userId))).thenReturn(Collections.singletonList(testProject));
-            when(taskRepository.findByProjectIdAndNotDeleted(eq(projectId))).thenReturn(Collections.emptyList());
+            when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
 
             try (MockedStatic<UserConverter> mockedUserConverter = mockStatic(UserConverter.class)) {
                 mockedUserConverter.when(() -> UserConverter.convert(testUser1)).thenReturn(userResponseDto1);
@@ -532,6 +541,368 @@ class ProjectServiceImplTest {
 
                 verify(userRepository).findUsersInProject(eq(projectId));
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("Get User Projects with Permissions Tests")
+    class GetUserProjectsWithPermissionsTests {
+
+        private User staffUser;
+        private User managerUser;
+        private User hrUser;
+        private Project ownedProject;
+        private Project memberProject;
+        private Project crossDeptProject;
+        private Project unrelatedProject;
+
+        @BeforeEach
+        void setUpPermissionTests() {
+            // Setup STAFF user
+            staffUser = new User();
+            staffUser.setId(100L);
+            staffUser.setUserName("staff_user");
+            staffUser.setEmail("staff@example.com");
+            staffUser.setRoleType("STAFF");
+            staffUser.setDepartment("Engineering");
+            staffUser.setIsActive(true);
+
+            // Setup MANAGER user
+            managerUser = new User();
+            managerUser.setId(200L);
+            managerUser.setUserName("manager_user");
+            managerUser.setEmail("manager@example.com");
+            managerUser.setRoleType("MANAGER");
+            managerUser.setDepartment("Engineering");
+            managerUser.setIsActive(true);
+
+            // Setup HR user
+            hrUser = new User();
+            hrUser.setId(300L);
+            hrUser.setUserName("hr_user");
+            hrUser.setEmail("hr@example.com");
+            hrUser.setRoleType("HR");
+            hrUser.setDepartment("HR");
+            hrUser.setIsActive(true);
+
+            // Setup project owned by manager
+            ownedProject = new Project();
+            ownedProject.setId(1L);
+            ownedProject.setName("Owned Project");
+            ownedProject.setDescription("Project owned by manager");
+            ownedProject.setOwnerId(200L); // Manager owns this
+            ownedProject.setCreatedBy(200L);
+            ownedProject.setDeleteInd(false);
+
+            // Setup project where user is member
+            memberProject = new Project();
+            memberProject.setId(2L);
+            memberProject.setName("Member Project");
+            memberProject.setDescription("Project where user is member");
+            memberProject.setOwnerId(999L); // Someone else owns this
+            memberProject.setCreatedBy(999L);
+            memberProject.setDeleteInd(false);
+
+            // Setup cross-department project (Engineering staff is member, but it's owned by Marketing)
+            crossDeptProject = new Project();
+            crossDeptProject.setId(3L);
+            crossDeptProject.setName("Cross Dept Project");
+            crossDeptProject.setDescription("Marketing project with Engineering staff");
+            crossDeptProject.setOwnerId(888L); // Marketing manager owns this
+            crossDeptProject.setCreatedBy(888L);
+            crossDeptProject.setDeleteInd(false);
+
+            // Setup unrelated project (no connection to user or department)
+            unrelatedProject = new Project();
+            unrelatedProject.setId(4L);
+            unrelatedProject.setName("Unrelated Project");
+            unrelatedProject.setDescription("Sales project");
+            unrelatedProject.setOwnerId(777L);
+            unrelatedProject.setCreatedBy(777L);
+            unrelatedProject.setDeleteInd(false);
+        }
+
+        @Test
+        @DisplayName("STAFF should return only projects where they are members")
+        void getUserProjects_Staff_ReturnsOnlyMemberProjects() {
+            // Given
+            Long staffUserId = 100L;
+            List<Project> expectedProjects = Arrays.asList(memberProject, ownedProject);
+
+            when(userRepository.findById(staffUserId)).thenReturn(Optional.of(staffUser));
+            when(projectRepository.findUserProjects(staffUserId)).thenReturn(expectedProjects);
+            when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+
+            // When
+            List<ProjectResponseDto> result = projectService.getUserProjects(staffUserId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).hasSize(2);
+            assertThat(result.stream().map(ProjectResponseDto::getId))
+                    .containsExactlyInAnyOrder(1L, 2L);
+
+            verify(projectRepository).findUserProjects(staffUserId);
+        }
+
+        @Test
+        @DisplayName("STAFF should NOT see cross-department projects where they're not members")
+        void getUserProjects_Staff_ExcludesNonMemberProjects() {
+            // Given
+            Long staffUserId = 100L;
+            List<Project> onlyMemberProjects = Collections.singletonList(memberProject);
+
+            when(userRepository.findById(staffUserId)).thenReturn(Optional.of(staffUser));
+            when(projectRepository.findUserProjects(staffUserId)).thenReturn(onlyMemberProjects);
+            when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+
+            // When
+            List<ProjectResponseDto> result = projectService.getUserProjects(staffUserId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getId()).isEqualTo(2L);
+
+            // Verify crossDeptProject and unrelatedProject are NOT in results
+            assertThat(result.stream().map(ProjectResponseDto::getId))
+                    .doesNotContain(3L, 4L);
+        }
+
+        @Test
+        @DisplayName("MANAGER should return projects where they are members")
+        void getUserProjects_Manager_ReturnsMemberProjects() {
+            // Given
+            Long managerId = 200L;
+            List<Project> memberProjects = Arrays.asList(ownedProject, memberProject);
+
+            when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
+            when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
+            when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+
+            // When
+            List<ProjectResponseDto> result = projectService.getUserProjects(managerId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).hasSizeGreaterThanOrEqualTo(2);
+            assertThat(result.stream().map(ProjectResponseDto::getId))
+                    .contains(1L, 2L);
+        }
+
+        @Test
+        @DisplayName("MANAGER should return related cross-department projects")
+        void getUserProjects_Manager_ReturnsRelatedCrossDeptProjects() {
+            // Given
+            Long managerId = 200L;
+            List<Project> memberProjects = Collections.singletonList(ownedProject);
+            List<Project> relatedProjects = Collections.singletonList(crossDeptProject);
+
+            when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
+            when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
+            when(projectRepository.findProjectsWithDepartmentStaff(managerId, "Engineering"))
+                    .thenReturn(relatedProjects);
+            when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+
+            // When
+            List<ProjectResponseDto> result = projectService.getUserProjects(managerId);
+
+            // Then
+            assertThat(result).isNotNull();
+            // Should contain both member projects and related cross-dept projects
+            assertThat(result.stream().map(ProjectResponseDto::getId))
+                    .contains(1L, 3L);
+        }
+
+        @Test
+        @DisplayName("MANAGER should NOT see unrelated cross-department projects")
+        void getUserProjects_Manager_ExcludesUnrelatedCrossDeptProjects() {
+            // Given
+            Long managerId = 200L;
+            List<Project> memberProjects = Collections.singletonList(ownedProject);
+            List<Project> relatedProjects = Collections.emptyList(); // No staff from Engineering in other projects
+
+            when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
+            when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
+            when(projectRepository.findProjectsWithDepartmentStaff(managerId, "Engineering"))
+                    .thenReturn(relatedProjects);
+            when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+
+            // When
+            List<ProjectResponseDto> result = projectService.getUserProjects(managerId);
+
+            // Then
+            assertThat(result).isNotNull();
+            // Should NOT contain unrelated project (Sales project)
+            assertThat(result.stream().map(ProjectResponseDto::getId))
+                    .doesNotContain(4L);
+        }
+
+        @Test
+        @DisplayName("HR should return only member projects, not all projects")
+        void getUserProjects_HR_ReturnsMemberProjectsOnly() {
+            // Given
+            Long hrUserId = 300L;
+            List<Project> hrMemberProjects = Collections.singletonList(memberProject);
+
+            when(userRepository.findById(hrUserId)).thenReturn(Optional.of(hrUser));
+            when(projectRepository.findUserProjects(hrUserId)).thenReturn(hrMemberProjects);
+            when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+
+            // When
+            List<ProjectResponseDto> result = projectService.getUserProjects(hrUserId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getId()).isEqualTo(2L);
+
+            // HR should NOT see all projects through this endpoint
+            assertThat(result.stream().map(ProjectResponseDto::getId))
+                    .doesNotContain(1L, 3L, 4L);
+        }
+
+        @Test
+        @DisplayName("Should correctly set isOwner flag when user owns project")
+        void getUserProjects_VerifyIsOwnerFlag() {
+            // Given
+            Long managerId = 200L;
+            List<Project> projects = Arrays.asList(ownedProject, memberProject);
+
+            when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
+            when(projectRepository.findUserProjects(managerId)).thenReturn(projects);
+            when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+
+            // When
+            List<ProjectResponseDto> result = projectService.getUserProjects(managerId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).hasSize(2);
+
+            // Find owned project in results
+            ProjectResponseDto ownedResult = result.stream()
+                    .filter(p -> p.getId().equals(1L))
+                    .findFirst()
+                    .orElseThrow();
+
+            // Find member project in results
+            ProjectResponseDto memberResult = result.stream()
+                    .filter(p -> p.getId().equals(2L))
+                    .findFirst()
+                    .orElseThrow();
+
+            // Owned project should have isOwner = true
+            assertThat(ownedResult.getIsOwner()).isTrue();
+
+            // Member project should have isOwner = false
+            assertThat(memberResult.getIsOwner()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Should correctly set isRelated flag for cross-department projects")
+        void getUserProjects_VerifyIsRelatedFlag() {
+            // Given
+            Long managerId = 200L;
+            List<Project> memberProjects = Collections.singletonList(ownedProject);
+            List<Project> relatedProjects = Collections.singletonList(crossDeptProject);
+
+            when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
+            when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
+            when(projectRepository.findProjectsWithDepartmentStaff(managerId, "Engineering"))
+                    .thenReturn(relatedProjects);
+            when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+
+            // When
+            List<ProjectResponseDto> result = projectService.getUserProjects(managerId);
+
+            // Then
+            assertThat(result).isNotNull();
+
+            // Find member project (should have isRelated = false)
+            ProjectResponseDto memberResult = result.stream()
+                    .filter(p -> p.getId().equals(1L))
+                    .findFirst()
+                    .orElseThrow();
+
+            // Find cross-dept project (should have isRelated = true)
+            ProjectResponseDto relatedResult = result.stream()
+                    .filter(p -> p.getId().equals(3L))
+                    .findFirst()
+                    .orElseThrow();
+
+            assertThat(memberResult.getIsRelated()).isFalse();
+            assertThat(relatedResult.getIsRelated()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Should include department name in project response")
+        void getUserProjects_VerifyDepartmentNameIncluded() {
+            // Given
+            Long managerId = 200L;
+            List<Project> projects = Collections.singletonList(ownedProject);
+
+            // Mock owner user with department
+            User ownerUser = new User();
+            ownerUser.setId(200L);
+            ownerUser.setDepartment("Engineering");
+
+            when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
+            when(userRepository.findById(200L)).thenReturn(Optional.of(ownerUser));
+            when(projectRepository.findUserProjects(managerId)).thenReturn(projects);
+            when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+
+            // When
+            List<ProjectResponseDto> result = projectService.getUserProjects(managerId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getDepartmentName()).isEqualTo("Engineering");
+        }
+
+        @Test
+        @DisplayName("Should handle user with no department gracefully")
+        void getUserProjects_UserWithNoDepartment() {
+            // Given
+            User noDeptUser = new User();
+            noDeptUser.setId(400L);
+            noDeptUser.setUserName("no_dept_user");
+            noDeptUser.setRoleType("STAFF");
+            noDeptUser.setDepartment(null); // No department
+            noDeptUser.setIsActive(true);
+
+            List<Project> projects = Collections.singletonList(memberProject);
+
+            when(userRepository.findById(400L)).thenReturn(Optional.of(noDeptUser));
+            when(projectRepository.findUserProjects(400L)).thenReturn(projects);
+            when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+
+            // When
+            List<ProjectResponseDto> result = projectService.getUserProjects(400L);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).hasSize(1);
+            // Should handle null department gracefully
+        }
+
+        @Test
+        @DisplayName("Should return empty list when user has no projects")
+        void getUserProjects_EmptyResults() {
+            // Given
+            Long staffUserId = 100L;
+            List<Project> emptyProjects = Collections.emptyList();
+
+            when(userRepository.findById(staffUserId)).thenReturn(Optional.of(staffUser));
+            when(projectRepository.findUserProjects(staffUserId)).thenReturn(emptyProjects);
+
+            // When
+            List<ProjectResponseDto> result = projectService.getUserProjects(staffUserId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result).isEmpty();
         }
     }
 }

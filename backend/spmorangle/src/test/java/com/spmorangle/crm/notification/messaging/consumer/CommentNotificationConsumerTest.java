@@ -112,9 +112,9 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(notification1, notification2));
 
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "ENGINEER", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "ENGINEER", true, "Engineering", UUID.randomUUID()));
         when(userManagementService.getUserById(300L))
-                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", "ENGINEER", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", "ENGINEER", true, "Engineering", UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(commentCreatedMessage);
@@ -146,11 +146,11 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(mention1, mention2, assignee));
 
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "ENGINEER", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "ENGINEER", true, "Engineering", UUID.randomUUID()));
         when(userManagementService.getUserById(300L))
-                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", "ENGINEER", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", "ENGINEER", true, "Engineering", UUID.randomUUID()));
         when(userManagementService.getUserById(400L))
-                .thenReturn(new UserResponseDto(400L, "User3", "user3@test.com", "ENGINEER", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(400L, "User3", "user3@test.com", "ENGINEER", true, "Engineering", UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(commentWithMentionsMessage);
@@ -180,7 +180,7 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(notification));
 
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "ENGINEER", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "ENGINEER", true, "Engineering", UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(mentionEventMessage);
@@ -242,7 +242,7 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(notification));
 
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User", "user@test.com", "ENGINEER", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User", "user@test.com", "ENGINEER", true, "Engineering", UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(commentCreatedMessage);
@@ -267,7 +267,7 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(notification));
 
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User", "", "ENGINEER", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User", "", "ENGINEER", true, "Engineering", UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(commentCreatedMessage);
@@ -336,7 +336,7 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(notification));
 
         when(userManagementService.getUserById(500L))
-                .thenReturn(new UserResponseDto(500L, "ParentUser", "parent@test.com", "ENGINEER", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(500L, "ParentUser", "parent@test.com", "ENGINEER", true, "Engineering", UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(replyMessage);

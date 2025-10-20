@@ -44,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(UserController.class)
 @Import({SecurityConfig.class})
 @DisplayName("UserController Tests")
-@WithMockUser(username = "test@example.com", authorities = {"ROLE_MANAGER"})
+@WithMockUser(username = "test@example.com", authorities = {"ROLE_HR"})
 public class UserControllerTest {
 
     @Autowired
@@ -89,7 +89,7 @@ public class UserControllerTest {
                 "MANAGER"
         );
 
-        userResponseDto = new UserResponseDto(1L, "John Doe", "john.doe@example.com", "STAFF", true, testCognitoSub);
+        userResponseDto = new UserResponseDto(1L, "John Doe", "john.doe@example.com", "STAFF", true, "Engineering", testCognitoSub);
     }
 
     @Nested
@@ -297,9 +297,10 @@ public class UserControllerTest {
         }
 
         @Test
-        @DisplayName("Should allow MANAGER role to update user roles")
-        void updateUserRole_ManagerRole_AllowsAccess() throws Exception {
-            // Given - MANAGER role should have access to update user roles
+        @WithMockUser(username = "manager@example.com", authorities = {"ROLE_MANAGER"})
+        @DisplayName("Should deny MANAGER role access to update user roles (HR-only)")
+        void updateUserRole_ManagerRole_DeniesAccess() throws Exception {
+            // Given - MANAGER role should NOT have access to update user roles (HR-only)
             doNothing().when(userManagementService).updateUserRole(any(UpdateUserRoleDto.class));
 
             // When & Then
@@ -307,9 +308,9 @@ public class UserControllerTest {
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateUserRoleDto)))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isForbidden());
 
-            verify(userManagementService).updateUserRole(any(UpdateUserRoleDto.class));
+            verify(userManagementService, never()).updateUserRole(any(UpdateUserRoleDto.class));
         }
     }
 
@@ -412,8 +413,8 @@ public class UserControllerTest {
 
         @Test
         @WithMockUser(username = "test@example.com", authorities = {"ROLE_DIRECTOR"})
-        @DisplayName("Should allow DIRECTOR role to access all endpoints")
-        void allEndpoints_DirectorRole_AllowsAccess() throws Exception {
+        @DisplayName("Should allow DIRECTOR role to access non-HR endpoints only")
+        void allEndpoints_DirectorRole_AllowsAccessToNonHREndpoints() throws Exception {
             // Given
             when(userManagementService.getUserById(eq(1L))).thenReturn(userResponseDto);
             when(userManagementService.getUserTypes()).thenReturn(Arrays.asList("DIRECTOR", "MANAGER"));
@@ -422,18 +423,19 @@ public class UserControllerTest {
             doNothing().when(userManagementService).updateUserRole(any(UpdateUserRoleDto.class));
             doNothing().when(userManagementService).deleteUser(eq(123L));
 
-            // Test all protected endpoints
+            // Test non-HR protected endpoints - should work
             mockMvc.perform(get("/api/user/user-id/1").with(csrf()))
                     .andExpect(status().isOk());
 
             mockMvc.perform(get("/api/user/user-types").with(csrf()))
                     .andExpect(status().isOk());
 
+            // Test HR-only endpoints - should be forbidden
             mockMvc.perform(put("/api/user/role")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateUserRoleDto)))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isForbidden());
 
             mockMvc.perform(delete("/api/user/123").with(csrf()))
                     .andExpect(status().isNoContent());
@@ -467,7 +469,7 @@ public class UserControllerTest {
             String usernameWithSpecialChars = "User with \"quotes\" and \\backslashes\\";
             String emailWithSpecialChars = "user+test@example.com";
 
-            UserResponseDto userWithSpecialContent = new UserResponseDto(1L, usernameWithSpecialChars, emailWithSpecialChars, "STAFF", true, testCognitoSub);
+            UserResponseDto userWithSpecialContent = new UserResponseDto(1L, usernameWithSpecialChars, emailWithSpecialChars, "STAFF", true, "Engineering", testCognitoSub);
 
             when(userManagementService.getUserById(eq(1L))).thenReturn(userWithSpecialContent);
 
@@ -488,7 +490,7 @@ public class UserControllerTest {
 
         @Test
         @DisplayName("Should successfully create user with admin permissions and return 200")
-        @WithMockUser(username = "admin@example.com", authorities = {"ROLE_MANAGER"})
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
         void adminCreateUser_ValidRequest_ReturnsOk() throws Exception {
             // Given
             doNothing().when(userManagementService).createUser(any(CreateUserDto.class), eq(true));
@@ -524,7 +526,7 @@ public class UserControllerTest {
 
         @Test
         @DisplayName("Should successfully deactivate user and return 200")
-        @WithMockUser(username = "admin@example.com", authorities = {"ROLE_MANAGER"})
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
         void deactivateUser_ValidRequest_ReturnsOk() throws Exception {
             // Given
             Long userId = 1L;
@@ -579,7 +581,7 @@ public class UserControllerTest {
 
         @Test
         @DisplayName("Should successfully reactivate user and return 200")
-        @WithMockUser(username = "admin@example.com", authorities = {"ROLE_MANAGER"})
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
         void reactivateUser_ValidRequest_ReturnsOk() throws Exception {
             // Given
             Long userId = 1L;
@@ -634,12 +636,12 @@ public class UserControllerTest {
 
         @Test
         @DisplayName("Should successfully return all users")
-        @WithMockUser(username = "admin@example.com", authorities = {"ROLE_MANAGER"})
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
         void getAllUsers_ValidRequest_ReturnsUserList() throws Exception {
             // Given
             List<UserResponseDto> users = Arrays.asList(
-                    new UserResponseDto(1L, "John Doe", "john@example.com", "STAFF", true, UUID.randomUUID()),
-                    new UserResponseDto(2L, "Jane Smith", "jane@example.com", "MANAGER", true, UUID.randomUUID())
+                    new UserResponseDto(1L, "John Doe", "john@example.com", "STAFF", true, "Engineering", UUID.randomUUID()),
+                    new UserResponseDto(2L, "Jane Smith", "jane@example.com", "MANAGER", true, "Management", UUID.randomUUID())
             );
             when(userManagementService.getAllUsers()).thenReturn(users);
 
@@ -678,7 +680,7 @@ public class UserControllerTest {
         void getAllUsers_HrRole_AllowsAccess() throws Exception {
             // Given
             List<UserResponseDto> users = Arrays.asList(
-                    new UserResponseDto(1L, "John Doe", "john@example.com", "STAFF", true, UUID.randomUUID())
+                    new UserResponseDto(1L, "John Doe", "john@example.com", "STAFF", true, "Engineering", UUID.randomUUID())
             );
             when(userManagementService.getAllUsers()).thenReturn(users);
 
@@ -693,7 +695,7 @@ public class UserControllerTest {
 
         @Test
         @DisplayName("Should return empty list when no users exist")
-        @WithMockUser(username = "admin@example.com", authorities = {"ROLE_MANAGER"})
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
         void getAllUsers_NoUsers_ReturnsEmptyList() throws Exception {
             // Given
             when(userManagementService.getAllUsers()).thenReturn(Arrays.asList());

@@ -159,7 +159,7 @@ describe("UserProvider", () => {
     expect(screen.getByTestId("user-role")).toHaveTextContent("MANAGER");
     expect(screen.getByTestId("user-email")).toHaveTextContent("test@example.com");
     expect(screen.getByTestId("full-name")).toHaveTextContent("John Doe");
-    expect(screen.getByTestId("is-admin")).toHaveTextContent("true");
+    expect(screen.getByTestId("is-admin")).toHaveTextContent("false");
     expect(screen.getByTestId("is-staff")).toHaveTextContent("false");
   });
 
@@ -237,7 +237,7 @@ describe("UserProvider", () => {
     expect(screen.getByTestId("is-staff")).toHaveTextContent("false");
   });
 
-  it("sets isAdmin to true for manager role", async () => {
+  it("sets isAdmin to false for manager role", async () => {
     const managerTokens = {
       idToken: {
         toString: () => {
@@ -270,7 +270,7 @@ describe("UserProvider", () => {
     });
 
     expect(screen.getByTestId("user-role")).toHaveTextContent("MANAGER");
-    expect(screen.getByTestId("is-admin")).toHaveTextContent("true");
+    expect(screen.getByTestId("is-admin")).toHaveTextContent("false");
     expect(screen.getByTestId("is-staff")).toHaveTextContent("false");
   });
 

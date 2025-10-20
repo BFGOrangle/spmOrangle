@@ -1,5 +1,7 @@
 package com.spmorangle.crm.projectmanagement.dto;
 
+import java.util.List;
+
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,9 +11,11 @@ import lombok.Getter;
 @Builder
 @AllArgsConstructor
 public class CreateProjectDto {
-    
+
     @NotNull(message = "Project name is required")
     private final String name;
-    
+
     private final String description;
+
+    private final List<Long> additionalMemberIds;
 }
