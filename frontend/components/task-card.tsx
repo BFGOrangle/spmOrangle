@@ -28,8 +28,10 @@ import {
   Clock4,
   Paperclip,
   ExternalLink,
+  Repeat,
 } from "lucide-react";
 import { TaskSummary, TaskPriority, TaskStatus } from "@/lib/mvp-data";
+import { formatRecurrenceRule } from "@/lib/recurrence-utils";
 import { TaskResponse, SubtaskResponse, projectService } from "@/services/project-service";
 import { SubtaskList } from "./subtask-list";
 import { CommentSection } from "./comment-section";
@@ -412,7 +414,7 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
           </div>
         )}
 
-        {/* Footer with attachments */}
+        {/* Footer with attachments and recurrence */}
         <div className="flex items-center justify-between text-[0.6rem] text-muted-foreground">
           <div className="flex items-center gap-2">
             {!isLoadingFiles && files.length > 0 && (
@@ -428,6 +430,12 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
               <div className="flex items-center gap-1">
                 <Paperclip className="h-3 w-3" />
                 <span>{taskProps.attachments} attachment{taskProps.attachments > 1 ? 's' : ''}</span>
+              </div>
+            )}
+            {!taskProps.isTaskSummary && (task as TaskResponse).isRecurring && (task as TaskResponse).recurrenceRuleStr && (
+              <div className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
+                <Repeat className="h-3 w-3" />
+                <span>{formatRecurrenceRule((task as TaskResponse).recurrenceRuleStr)}</span>
               </div>
             )}
           </div>
@@ -505,6 +513,15 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
                         : "No due date set"}
                     </span>
                   </div>
+                  {!taskProps.isTaskSummary && (task as TaskResponse).isRecurring && (task as TaskResponse).recurrenceRuleStr && (
+                    <div className="col-span-2">
+                      <span className="font-medium">Recurrence:</span>
+                      <div className="ml-2 inline-flex items-center gap-1.5 text-purple-600 dark:text-purple-400">
+                        <Repeat className="h-3.5 w-3.5" />
+                        <span>{formatRecurrenceRule((task as TaskResponse).recurrenceRuleStr)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-t pt-4">
@@ -845,6 +862,14 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
           <span className="flex items-center gap-1">
             <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
             {taskProps.attachments} attachment{taskProps.attachments > 1 ? "s" : ""}
+          </span>
+        )}
+
+        {/* Show recurrence information */}
+        {!taskProps.isTaskSummary && (task as TaskResponse).isRecurring && (task as TaskResponse).recurrenceRuleStr && (
+          <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
+            <Repeat className="h-3.5 w-3.5" aria-hidden="true" />
+            {formatRecurrenceRule((task as TaskResponse).recurrenceRuleStr)}
           </span>
         )}
       </div>

@@ -30,6 +30,7 @@ import { UserResponseDto } from "@/types/user";
 import { User, Crown, Loader2, X, Calendar } from "lucide-react";
 import { tagService } from "@/services/tag-service";
 import { useCreateTask } from "@/hooks/use-task-mutations";
+import { RecurrenceData, RecurrenceSelector } from "./recurrence-selector";
 
 // Helper for file upload
 async function uploadFiles({ files, taskId, projectId }: { files: FileList | File[], taskId: number, projectId: number }) {
@@ -157,6 +158,13 @@ export function TaskCreationDialog({
       .filter((tag) => !selectedTags.has(normalizeTag(tag)))
       .slice(0, 10);
   }, [availableTags, formData.tags]);
+
+  const [recurrenceData, setRecurrenceData] = useState<RecurrenceData>({
+    isRecurring: false,
+    recurrenceRuleStr: null,
+    startDate: null,
+    endDate: null
+  })
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -420,6 +428,10 @@ export function TaskCreationDialog({
         taskType: formData.taskType!,
         projectId: isPersonalTask ? 0 : selectedProjectId!,
         dueDateTime: formatDueDateTime(dueDate),
+        isRecurring: recurrenceData.isRecurring,
+        recurrenceRuleStr: recurrenceData.recurrenceRuleStr ?? undefined,
+        startDate: recurrenceData.startDate ?? undefined,
+        endDate: recurrenceData.endDate ?? undefined
       };
 
       await ensureManagedTagsExist(taskData.tags ?? []);
@@ -794,6 +806,19 @@ export function TaskCreationDialog({
           <p className="text-xs text-muted-foreground">
             Set a deadline for this task (optional)
           </p>
+        </div>
+
+        {/* Task Recurrence input */}
+        <div className="space-y-2">
+          <RecurrenceSelector
+            onChange={setRecurrenceData}
+            initialValue={{
+              isRecurring: false,
+              recurrenceRuleStr: null,
+              startDate: null,
+              endDate: null,
+            }}
+          />
         </div>
 
         <div className="space-y-2">

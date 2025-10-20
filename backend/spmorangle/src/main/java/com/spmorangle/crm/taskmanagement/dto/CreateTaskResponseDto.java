@@ -27,4 +27,8 @@ public class CreateTaskResponseDto {
     private final OffsetDateTime createdAt;
     private final List<Long> assignedUserIds;
     private final OffsetDateTime dueDateTime;
+    private final Boolean isRecurring;
+    private final String recurrenceRuleStr;
+    private final OffsetDateTime startDate;
+    private final OffsetDateTime endDate;
 }

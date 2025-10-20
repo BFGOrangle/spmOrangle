@@ -54,6 +54,10 @@ export interface TaskResponse {
   updatedBy?: number;
   subtasks?: SubtaskResponse[];
   dueDateTime?: string;
+  isRecurring?: boolean;
+  recurrenceRuleStr?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface CreateTaskRequest {
@@ -66,6 +70,11 @@ export interface CreateTaskRequest {
   tags?: string[];
   assignedUserIds?: number[];
   dueDateTime?: string;
+  // Recurrence fields
+  isRecurring?: boolean;
+  recurrenceRuleStr?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface CreateSubtaskRequest {
@@ -92,6 +101,13 @@ export interface UpdateTaskRequest {
   taskType?: 'BUG' | 'FEATURE' | 'CHORE' | 'RESEARCH';
   tags?: string[];
   dueDateTime?: string;
+  // Recurrence fields
+  isRecurring?: boolean;
+  recurrenceRuleStr?: string;
+  startDate?: string;
+  endDate?: string;
+  recurrenceEditMode?: 'THIS_INSTANCE' | 'THIS_AND_FUTURE_INSTANCES' | 'ALL_FUTURE_INSTANCES';
+  instanceDate?: string;
 }
 
 export interface CreateFileUpload{

@@ -26,4 +26,8 @@ public class UpdateTaskResponseDto {
     private final OffsetDateTime updatedAt;
     private final Long updatedBy;
     private final OffsetDateTime dueDateTime;
+    private final Boolean isRecurring;
+    private final String recurrenceRuleStr;
+    private final OffsetDateTime startDate;
+    private final OffsetDateTime endDate;
 }
