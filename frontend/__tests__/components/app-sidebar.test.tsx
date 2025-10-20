@@ -211,12 +211,12 @@ describe("AppSidebar", () => {
     renderWithSidebarProvider(<AppSidebar />, {
       currentUser: {
         id: "1",
-        role: "STAFF",
-        username: "Staff User",
-        email: "staff@example.com",
+        role: "MANAGER",
+        username: "Manager User",
+        email: "manager@example.com",
       },
       isAdmin: false,
-      isStaff: true,
+      isStaff: false,
     });
 
     // Check for main navigation elements
@@ -374,12 +374,12 @@ describe("AppSidebar", () => {
     renderWithSidebarProvider(<AppSidebar />, {
       currentUser: {
         id: "1",
-        role: "STAFF",
-        username: "Staff User",
-        email: "staff@example.com",
+        role: "MANAGER",
+        username: "Manager User",
+        email: "manager@example.com",
       },
       isAdmin: false,
-      isStaff: true,
+      isStaff: false,
     });
 
     const links = screen.getAllByRole("link");
@@ -396,12 +396,12 @@ describe("AppSidebar", () => {
     renderWithSidebarProvider(<AppSidebar />, {
       currentUser: {
         id: "1",
-        role: "STAFF",
-        username: "Staff User",
-        email: "staff@example.com",
+        role: "MANAGER",
+        username: "Manager User",
+        email: "manager@example.com",
       },
       isAdmin: false,
-      isStaff: true,
+      isStaff: false,
     });
 
     // Check that each menu item from the items array is rendered
@@ -452,12 +452,12 @@ describe("AppSidebar", () => {
     renderWithSidebarProvider(<AppSidebar />, {
       currentUser: {
         id: "1",
-        role: "STAFF",
-        username: "Staff User",
-        email: "staff@example.com",
+        role: "MANAGER",
+        username: "Manager User",
+        email: "manager@example.com",
       },
       isAdmin: false,
-      isStaff: true,
+      isStaff: false,
     });
 
     // Check for proper semantic elements
@@ -536,8 +536,16 @@ describe("AppSidebar", () => {
   });
 
   it("shows Reports link for MANAGER users", () => {
-    // Default mock is already MANAGER, so just render
-    renderWithSidebarProvider(<AppSidebar />);
+    renderWithSidebarProvider(<AppSidebar />, {
+      currentUser: {
+        id: "1",
+        role: "MANAGER",
+        username: "Manager User",
+        email: "manager@example.com",
+      },
+      isAdmin: false,
+      isStaff: false,
+    });
 
     // Reports should be visible
     expect(screen.getByText("Reports")).toBeInTheDocument();
