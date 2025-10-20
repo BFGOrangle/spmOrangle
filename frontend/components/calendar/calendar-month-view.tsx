@@ -6,9 +6,10 @@
 import React from 'react';
 import { format, isToday, isSameMonth, startOfMonth, endOfMonth } from 'date-fns';
 import { CalendarViewProps, CalendarEvent } from '../../types/calendar';
-import { getCalendarWeeks, filterEventsForMonthView, groupEventsByDateForMonthView } from '../../lib/calendar-utils';
+import { getCalendarWeeks, filterEventsForMonthView, groupEventsByDateForMonthView, isTaskOverdue } from '../../lib/calendar-utils';
 import { highlightSearchTerm, getSearchHighlightClasses } from '../../lib/search-utils';
 import { Card } from '../ui/card';
+import { cn } from '@/lib/utils';
 
 // Constants for event display
 const MAX_EVENTS_PER_DAY = 2;
@@ -98,28 +99,46 @@ export const CalendarMonthView: React.FC<MonthViewProps> = ({
 
                     {/* Events */}
                     <div className="space-y-1">
-                      {dayEvents.slice(0, MAX_EVENTS_PER_DAY).map((event: CalendarEvent) => (
-                        <div
-                          key={event.id}
-                          className={`text-xs p-1 rounded cursor-pointer hover:opacity-80 ${event.color} text-white truncate ${
-                            getSearchHighlightClasses(event.isHighlighted || false, !!searchKeyword)
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEventClick(event);
-                          }}
-                          title={`${event.title} - ${event.projectName || 'No Project'}`}
-                        >
-                          <div className="font-medium truncate">
-                            {searchKeyword ? highlightSearchTerm(event.title, searchKeyword) : event.title}
-                          </div>
-                          {event.dueDate && (
-                            <div className="text-xs opacity-90">
-                              <strong>Due:</strong> {format(event.dueDate, 'HH:mm')}
+                      {dayEvents.slice(0, MAX_EVENTS_PER_DAY).map((event: CalendarEvent) => {
+                        // Check if event is overdue
+                        const eventIsOverdue = event.dueDate 
+                          ? isTaskOverdue({ 
+                              dueDateTime: event.dueDate.toISOString(), 
+                              status: event.status 
+                            })
+                          : false;
+                        
+                        return (
+                          <div
+                            key={event.id}
+                            className={cn(
+                              "text-xs p-1 rounded cursor-pointer hover:opacity-80 text-white truncate",
+                              eventIsOverdue 
+                                ? "bg-red-600 ring-2 ring-red-600 ring-offset-1" 
+                                : event.color,
+                              getSearchHighlightClasses(event.isHighlighted || false, !!searchKeyword)
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEventClick(event);
+                            }}
+                            title={`${event.title} - ${event.projectName || 'No Project'}${eventIsOverdue ? ' (OVERDUE)' : ''}`}
+                          >
+                            <div className="font-medium truncate">
+                              {eventIsOverdue && <span className="font-bold">⚠️ </span>}
+                              {searchKeyword ? highlightSearchTerm(event.title, searchKeyword) : event.title}
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            {event.dueDate && (
+                              <div className={cn(
+                                "text-xs opacity-90",
+                                eventIsOverdue && "font-bold"
+                              )}>
+                                <strong>Due:</strong> {format(event.dueDate, 'HH:mm')}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* Overflow indicator */}

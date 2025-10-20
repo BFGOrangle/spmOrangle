@@ -6,9 +6,10 @@
 import React from 'react';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { CalendarViewProps, CalendarEvent } from '../../types/calendar';
-import { filterEventsByDateRange } from '../../lib/calendar-utils';
+import { filterEventsByDateRange, isTaskOverdue } from '../../lib/calendar-utils';
 import { highlightSearchTerm, getSearchHighlightClasses } from '../../lib/search-utils';
 import { Card } from '../ui/card';
+import { cn } from '@/lib/utils';
 
 interface DayViewProps extends CalendarViewProps {}
 
@@ -82,32 +83,48 @@ export const CalendarDayView: React.FC<DayViewProps> = ({
         >
           {eventsByHour[hour] && (
             <div className="flex flex-wrap gap-1">
-              {eventsByHour[hour].map((event) => (
-                <Card
-                  key={event.id}
-                  className={`p-1 sm:p-2 cursor-pointer hover:shadow-md transition-shadow ${event.color} text-white text-xs flex-1 min-w-0 ${
-                    getSearchHighlightClasses(event.isHighlighted || false, !!searchKeyword)
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEventClick(event);
-                  }}
-                >
-                  <div className="font-medium truncate">
-                    {searchKeyword ? highlightSearchTerm(event.title, searchKeyword) : event.title}
-                  </div>
-                  <div className="text-xs opacity-90 hidden sm:block">
-                    {event.projectName && (
-                      <span className="mr-2">
-                        {searchKeyword ? highlightSearchTerm(event.projectName, searchKeyword) : event.projectName}
-                      </span>
+              {eventsByHour[hour].map((event) => {
+                // Check if event is overdue
+                const eventIsOverdue = event.dueDate 
+                  ? isTaskOverdue({ 
+                      dueDateTime: event.dueDate.toISOString(), 
+                      status: event.status 
+                    })
+                  : false;
+                
+                return (
+                  <Card
+                    key={event.id}
+                    className={cn(
+                      "p-1 sm:p-2 cursor-pointer hover:shadow-md transition-shadow text-white text-xs flex-1 min-w-0",
+                      eventIsOverdue 
+                        ? "bg-red-600 ring-2 ring-red-600 ring-offset-1" 
+                        : event.color,
+                      getSearchHighlightClasses(event.isHighlighted || false, !!searchKeyword)
                     )}
-                    <span className="bg-white/20 px-1 rounded">
-                      {event.taskType}
-                    </span>
-                  </div>
-                </Card>
-              ))}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEventClick(event);
+                    }}
+                    title={eventIsOverdue ? `${event.title} (OVERDUE)` : event.title}
+                  >
+                    <div className="font-medium truncate">
+                      {eventIsOverdue && <span className="font-bold">⚠️ </span>}
+                      {searchKeyword ? highlightSearchTerm(event.title, searchKeyword) : event.title}
+                    </div>
+                    <div className="text-xs opacity-90 hidden sm:block">
+                      {event.projectName && (
+                        <span className="mr-2">
+                          {searchKeyword ? highlightSearchTerm(event.projectName, searchKeyword) : event.projectName}
+                        </span>
+                      )}
+                      <span className="bg-white/20 px-1 rounded">
+                        {event.taskType}
+                      </span>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
@@ -123,34 +140,50 @@ export const CalendarDayView: React.FC<DayViewProps> = ({
           <div className="grid gap-2">
             {dayEvents
               .filter(event => !event.dueDate || event.dueDate.getHours() === 0)
-              .map((event) => (
-                <Card
-                  key={event.id}
-                  className={`p-3 cursor-pointer hover:shadow-md transition-shadow ${event.color} text-white ${
-                    getSearchHighlightClasses(event.isHighlighted || false, !!searchKeyword)
-                  }`}
-                  onClick={() => onEventClick(event)}
-                >
-                  <div className="font-medium">
-                    {searchKeyword ? highlightSearchTerm(event.title, searchKeyword) : event.title}
-                  </div>
-                  <div className="text-sm opacity-90 mt-1">
-                    {event.projectName && (
-                      <span className="mr-2">
-                        {searchKeyword ? highlightSearchTerm(event.projectName, searchKeyword) : event.projectName}
-                      </span>
+              .map((event) => {
+                // Check if event is overdue
+                const eventIsOverdue = event.dueDate 
+                  ? isTaskOverdue({ 
+                      dueDateTime: event.dueDate.toISOString(), 
+                      status: event.status 
+                    })
+                  : false;
+                
+                return (
+                  <Card
+                    key={event.id}
+                    className={cn(
+                      "p-3 cursor-pointer hover:shadow-md transition-shadow text-white",
+                      eventIsOverdue 
+                        ? "bg-red-600 ring-2 ring-red-600 ring-offset-1" 
+                        : event.color,
+                      getSearchHighlightClasses(event.isHighlighted || false, !!searchKeyword)
                     )}
-                    <span className="bg-white/20 px-2 py-1 rounded text-xs">
-                      {event.taskType} • {event.status}
-                    </span>
-                  </div>
-                  {event.description && (
-                    <div className="text-sm opacity-80 mt-1 line-clamp-2">
-                      {searchKeyword ? highlightSearchTerm(event.description, searchKeyword) : event.description}
+                    onClick={() => onEventClick(event)}
+                    title={eventIsOverdue ? `${event.title} (OVERDUE)` : event.title}
+                  >
+                    <div className="font-medium">
+                      {eventIsOverdue && <span className="font-bold">⚠️ </span>}
+                      {searchKeyword ? highlightSearchTerm(event.title, searchKeyword) : event.title}
                     </div>
-                  )}
-                </Card>
-              ))}
+                    <div className="text-sm opacity-90 mt-1">
+                      {event.projectName && (
+                        <span className="mr-2">
+                          {searchKeyword ? highlightSearchTerm(event.projectName, searchKeyword) : event.projectName}
+                        </span>
+                      )}
+                      <span className="bg-white/20 px-2 py-1 rounded text-xs">
+                        {event.taskType} • {event.status}
+                      </span>
+                    </div>
+                    {event.description && (
+                      <div className="text-sm opacity-80 mt-1 line-clamp-2">
+                        {searchKeyword ? highlightSearchTerm(event.description, searchKeyword) : event.description}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
           </div>
         </div>
       )}

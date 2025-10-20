@@ -7,10 +7,30 @@ import { CalendarEvent, TaskToEventConverter, EventColorGenerator } from '../typ
 import { TaskResponseDto } from '../types/project';
 import { ProjectResponse } from '../services/project-service';
 
+/**
+ * Check if a task is overdue
+ * A task is overdue if it has a due date/time that has passed and the task is not completed
+ */
+export const isTaskOverdue = (task: { dueDateTime?: string; status: string }): boolean => {
+  if (!task.dueDateTime) {
+    return false; // No due date means not overdue
+  }
+  
+  if (task.status === 'COMPLETED') {
+    return false; // Completed tasks are never overdue
+  }
+  
+  const dueDate = new Date(task.dueDateTime);
+  const now = new Date();
+  
+  return dueDate < now;
+};
+
 // Convert task to calendar event
 export const taskToEvent: TaskToEventConverter = (task, project) => {
   const startDate = new Date(task.createdAt);
   const endDate = task.dueDateTime ? new Date(task.dueDateTime) : new Date(task.createdAt);
+  const taskIsOverdue = isTaskOverdue(task);
   
   return {
     id: task.id,
@@ -26,12 +46,17 @@ export const taskToEvent: TaskToEventConverter = (task, project) => {
     tags: task.tags,
     assignedUserIds: task.assignedUserIds,
     ownerId: task.ownerId,
-    color: generateEventColor(task.taskType, task.status),
+    color: generateEventColor(task.taskType, task.status, taskIsOverdue),
   };
 };
 
 // Generate color for events based on task type and status
-export const generateEventColor: EventColorGenerator = (taskType, status) => {
+export const generateEventColor: EventColorGenerator = (taskType, status, isOverdue?: boolean) => {
+  // Overdue tasks always get bright red, regardless of type
+  if (isOverdue) {
+    return 'bg-red-600 opacity-100';
+  }
+  
   const taskTypeColors = {
     BUG: 'bg-red-500',
     FEATURE: 'bg-blue-500',
