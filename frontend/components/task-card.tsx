@@ -13,7 +13,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UsersIcon } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +29,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { TaskSummary, TaskPriority, TaskStatus } from "@/lib/mvp-data";
-import { TaskResponse, SubtaskResponse, projectService } from "@/services/project-service";
+import { TaskResponse, SubtaskResponse } from "@/services/project-service";
 import { SubtaskList } from "./subtask-list";
 import { CommentSection } from "./comment-section";
 import { fileService, FileResponse } from "@/services/file-service";
@@ -218,28 +217,6 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
     });
   }, [taskProps.isTaskSummary, taskProps.collaborators, collaboratorIds, collaboratorLookup]);
 
-  const collaboratorAvatars = useMemo(() => {
-    return collaboratorDisplayNames.slice(0, 2).map((name, index) => {
-      const fallbackId = taskProps.isTaskSummary
-        ? `${taskProps.id}-collaborator-${index}`
-        : collaboratorIds[index] ?? `${taskProps.id}-collaborator-${index}`;
-
-      const initials = name
-        .split(" ")
-        .map((part) => part.trim()[0])
-        .filter(Boolean)
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
-
-      return {
-        key: fallbackId,
-        label: name,
-        initials: initials || name.charAt(0).toUpperCase(),
-      };
-    });
-  }, [collaboratorDisplayNames, collaboratorIds, taskProps.id, taskProps.isTaskSummary]);
-
   const handleSubtaskCreated = (newSubtask: SubtaskResponse) => {
     const updatedSubtasks = [...subtasks, newSubtask];
     setSubtasks(updatedSubtasks);
@@ -310,7 +287,6 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
   }
 
   const { total, done, progress } = getSubtaskSummary();
-  const collaboratorOverflow = Math.max(collaboratorDisplayNames.length - 2, 0);
 
   return (
     <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={handleOpenPage}>
@@ -344,54 +320,31 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
         {/* Assignee Section */}
         <div className="flex items-center gap-1.5 text-[0.65rem] text-muted-foreground">
           <span className="font-medium">ASSIGNEE:</span>
-          <div className="flex items-center gap-1">
-            <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary/10 text-[0.55rem] font-semibold text-primary">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
+            <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.55rem] font-semibold text-primary">
               {getInitials(taskProps.owner)}
             </div>
-            <span className="font-medium">{taskProps.owner}</span>
+            <span className="font-medium truncate">{taskProps.owner}</span>
             {collaboratorDisplayNames.length > 0 && (
-              <>
-                <span>, </span>
-                <span>{collaboratorDisplayNames.slice(0, 2).join(', ')}</span>
+              <div className="flex items-center gap-0.5 ml-1 shrink-0">
+                {collaboratorDisplayNames.slice(0, 2).map((name, idx) => (
+                  <div
+                    key={`${taskProps.id}-collab-${idx}`}
+                    className="flex h-4 w-4 items-center justify-center rounded-full bg-secondary text-[0.5rem] font-semibold text-secondary-foreground border border-background"
+                    title={name}
+                  >
+                    {getInitials(name)}
+                  </div>
+                ))}
                 {collaboratorDisplayNames.length > 2 && (
-                  <span className="text-muted-foreground/70">
-                    , +{collaboratorDisplayNames.length - 2} more
+                  <span className="text-[0.55rem] text-muted-foreground/70 ml-0.5">
+                    +{collaboratorDisplayNames.length - 2}
                   </span>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>
-
-        <h3 className="text-sm font-semibold leading-tight mb-2">{taskProps.title}</h3>
-
-        <div className="flex items-center gap-2 mb-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-            {getInitials(taskProps.owner)}
-          </div>
-          <span className="text-xs font-medium truncate">{taskProps.owner}</span>
-        </div>
-
-        {collaboratorDisplayNames.length > 0 && (
-          <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-            <UsersIcon className="h-3 w-3" aria-hidden="true" />
-            <div className="flex items-center -space-x-1">
-              {collaboratorAvatars.map(({ key, initials }) => (
-                <span
-                  key={key}
-                  className="flex h-5 w-5 items-center justify-center rounded-full border border-background bg-secondary text-[0.6rem] font-semibold text-secondary-foreground shadow-sm"
-                >
-                  {initials}
-                </span>
-              ))}
-              {collaboratorOverflow > 0 && (
-                <span className="text-muted-foreground/70">
-                  +{collaboratorOverflow} more
-                </span>
-              )}
-            </div>
-          </div>
-        )}
       </CardHeader>
 
       <CardContent className="pt-0 pb-2 px-3">
@@ -518,15 +471,10 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
                     />
                   </div>
 
-                  {collaboratorIds.length > 0 ? (
+                  {collaboratorDisplayNames.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
-                  {collaboratorIds.map((collaboratorId) => {
-                    const collaborator = collaboratorLookup.get(collaboratorId);
-                    const collaboratorLabel =
-                      collaborator?.username ||
-                      collaborator?.email ||
-                      `User ${collaboratorId}`;
-                    const initials = collaboratorLabel
+                  {collaboratorDisplayNames.map((name, index) => {
+                    const initials = name
                       .split(" ")
                       .map((part) => part.trim()[0])
                       .filter(Boolean)
@@ -535,11 +483,11 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
                       .toUpperCase();
 
                     return (
-                      <div key={collaboratorId} className="flex items-center gap-2 px-3 py-1 bg-secondary rounded-full">
+                      <div key={taskProps.isTaskSummary ? `${name}-${index}` : collaboratorIds[index]} className="flex items-center gap-2 px-3 py-1 bg-secondary rounded-full">
                         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                          {initials || collaboratorId}
+                          {initials}
                         </div>
-                        <span className="text-sm">{collaboratorLabel}</span>
+                        <span className="text-sm">{name}</span>
                       </div>
                     );
                   })}

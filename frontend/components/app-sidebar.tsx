@@ -74,6 +74,15 @@ const adminItems = [
 ];
 
 export function AppSidebar() {
+  const { isStaff } = useCurrentUser();
+
+  // Filter out Reports for STAFF users
+  const visibleItems = items.filter((item) => {
+    if (item.url === "/reports" && isStaff) {
+      return false;
+    }
+    return true;
+  });
   const { isAdmin } = useCurrentUser();
 
   return (
@@ -95,7 +104,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Application</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {visibleItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <Link href={item.url}>

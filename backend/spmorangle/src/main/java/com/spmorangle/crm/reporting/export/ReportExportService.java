@@ -20,11 +20,10 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class ReportExportService {
-    
+
     private final JsonReportExporter jsonExporter;
-    // Future exporters will be injected here:
-    // private final CsvReportExporter csvExporter;
-    // private final PdfReportExporter pdfExporter;
+    private final CsvReportExporter csvExporter;
+    private final PdfReportExporter pdfExporter;
     
     /**
      * Export report data in the requested format
@@ -68,20 +67,9 @@ public class ReportExportService {
     private ReportExporter selectExporter(ReportFilterDto.ExportFormat format) {
         return switch (format) {
             case JSON -> jsonExporter;
-            case CSV -> throw new UnsupportedOperationException(
-                    "CSV export is not yet implemented. Please implement CsvReportExporter.");
-            case PDF -> throw new UnsupportedOperationException(
-                    "PDF export is not yet implemented. Please implement PdfReportExporter.");
-        };
-        
-        // When CSV and PDF are implemented, replace above with:
-        /*
-        return switch (format) {
-            case JSON -> jsonExporter;
             case CSV -> csvExporter;
             case PDF -> pdfExporter;
         };
-        */
     }
     
     /**
