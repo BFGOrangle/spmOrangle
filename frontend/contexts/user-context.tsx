@@ -20,6 +20,7 @@ export interface CurrentUser {
   fullName: string;
   cognitoSub?: string; // Added for reference if needed
   backendStaffId?: number; // Added as explicit numeric ID
+  department?: string
 }
 
 interface UserContextType {
