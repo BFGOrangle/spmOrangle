@@ -15,6 +15,7 @@ export interface ProjectResponse {
 export interface CreateProjectRequest {
   name: string;
   description?: string;
+  additionalMemberIds?: number[];
 }
 
 export interface SubtaskResponse {

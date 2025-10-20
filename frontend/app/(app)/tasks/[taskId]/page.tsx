@@ -119,10 +119,12 @@ const mapTaskTypeToPriority = (taskType: string): TaskPriority => {
 
 export default function TaskDetailPage({ params }: { params: Promise<{ taskId: string }> }) {
   const resolvedParams = use(params);
-  const taskId = parseInt(resolvedParams.taskId);
+  const taskId = parseInt(resolvedParams.taskId, 10);
   const router = useRouter();
   const { currentUser } = useCurrentUser();
   const { toast } = useToast();
+
+  // All hooks must be called before any conditional returns
   const [task, setTask] = useState<TaskResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +137,25 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
   const [availableCollaborators, setAvailableCollaborators] = useState<UserResponseDto[]>([]);
   const [loadingCollaborators, setLoadingCollaborators] = useState(false);
   const [collaboratorsError, setCollaboratorsError] = useState<string | null>(null);
+
+  // Validate task ID (after all hooks)
+  const isValidTaskId = !Number.isNaN(taskId) && taskId > 0;
+
+  if (!isValidTaskId) {
+    return (
+      <SidebarInset>
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-center space-y-4">
+            <div className="text-lg font-semibold text-destructive">Invalid task ID</div>
+            <Button onClick={() => router.push('/tasks')}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Tasks
+            </Button>
+          </div>
+        </div>
+      </SidebarInset>
+    );
+  }
 
   const derivedCurrentUserId =
     currentUser?.backendStaffId ??

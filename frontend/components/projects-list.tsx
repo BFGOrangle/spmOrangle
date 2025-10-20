@@ -10,12 +10,13 @@ import { projectService } from "@/services/project-service";
 import FullPageSpinnerLoader from "@/components/full-page-spinner-loader";
 import { ErrorMessageCallout } from "@/components/error-message-callout";
 import { useCurrentUser } from "@/contexts/user-context";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import { CreateProjectModal } from "@/components/create-project-modal";
 
 interface ProjectsListProps {
   onProjectSelect: (projectId: number) => void;
@@ -116,6 +117,7 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
   const [isRelatedLoading, setIsRelatedLoading] = useState(true);
   const [relatedError, setRelatedError] = useState<string | null>(null);
   const [relatedProjectDetails, setRelatedProjectDetails] = useState<ProjectResponse[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { currentUser } = useCurrentUser();
 
   useEffect(() => {
@@ -181,6 +183,11 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
     setIsRelatedLoading(false);
   };
 
+  const handleProjectCreated = (project: ProjectResponse) => {
+    // Add the new project to the list and refresh
+    loadProjects();
+  };
+
   // Filter projects based on ownership
   const filteredProjects = useMemo(() => {
     if (filterOwner === "all") {
@@ -200,6 +207,10 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
       return [] as ProjectResponse[];
     }
 
+    // Get all project IDs that the user is a full member of (to exclude from related)
+    const userProjectIds = new Set(projects.map(p => p.id));
+
+    // Get project IDs from related tasks
     const relatedProjectIds = new Set<number>();
     for (const task of relatedTasks) {
       if (typeof task.projectId === "number") {
@@ -207,17 +218,19 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
       }
     }
 
-    const inUserProjects = projects.filter((project) => relatedProjectIds.has(project.id));
-    if (inUserProjects.length === relatedProjectIds.size) {
-      return inUserProjects;
-    }
+    // Filter out projects where user is already a full member
+    // Only show projects where user has view-only access (tasks assigned but not a member)
+    const viewOnlyProjectIds = new Set<number>();
+    relatedProjectIds.forEach(id => {
+      if (!userProjectIds.has(id)) {
+        viewOnlyProjectIds.add(id);
+      }
+    });
 
-    const remainingIds = new Set([...relatedProjectIds]);
-    inUserProjects.forEach(project => remainingIds.delete(project.id));
+    // Get the view-only projects from relatedProjectDetails
+    const viewOnlyProjects = relatedProjectDetails.filter(project => viewOnlyProjectIds.has(project.id));
 
-    const supplementalProjects = relatedProjectDetails.filter(project => remainingIds.has(project.id));
-
-    return [...inUserProjects, ...supplementalProjects];
+    return viewOnlyProjects;
   }, [projects, relatedTasks, relatedProjectDetails]);
 
   if (isLoading) {
@@ -268,7 +281,7 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => {/* TODO: Add create project functionality */}}>
+          <Button onClick={() => setIsCreateModalOpen(true)} className="cursor-pointer">
             <Plus className="h-4 w-4 mr-2" />
             New Project
           </Button>
@@ -287,7 +300,7 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
               : "Create your first project to get started with task management"
             }
           </p>
-          <Button onClick={() => {/* TODO: Add create project functionality */}}>
+          <Button onClick={() => setIsCreateModalOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Create Project
           </Button>
@@ -353,6 +366,13 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
           )}
         </div>
       </section>
+
+      {/* Create Project Modal */}
+      <CreateProjectModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        onProjectCreated={handleProjectCreated}
+      />
     </div>
   );
 }

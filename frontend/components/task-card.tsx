@@ -109,9 +109,9 @@ const mapBackendStatus = (status: string): TaskStatus => {
 // Helper function to get task properties safely for both TaskSummary and TaskResponse
 const getTaskProperties = (task: TaskSummary | TaskResponse) => {
   const isTaskSummary = 'key' in task && 'collaborators' in task;
-  
+
   return {
-    id: task.id,
+    id: typeof task.id === 'string' ? parseInt(task.id, 10) : task.id,
     title: task.title,
     description: task.description || '',
     userHasEditAccess: task.userHasEditAccess,
@@ -246,7 +246,18 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
 
   const handleOpenPage = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/tasks/${taskProps.id}`);
+    // Ensure ID is a valid number
+    const numericId = typeof taskProps.id === 'string' ? parseInt(taskProps.id, 10) : taskProps.id;
+    if (!Number.isNaN(numericId) && numericId > 0) {
+      router.push(`/tasks/${numericId}`);
+    } else {
+      console.error('Invalid task ID:', taskProps.id);
+      toast({
+        title: "Navigation Error",
+        description: "Invalid task ID. Cannot navigate to task details.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleTaskUpdate = (updatedTask: TaskResponse) => {
@@ -651,7 +662,18 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
 
   const handleOpenPage = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/tasks/${taskProps.id}`);
+    // Ensure ID is a valid number
+    const numericId = typeof taskProps.id === 'string' ? parseInt(taskProps.id, 10) : taskProps.id;
+    if (!Number.isNaN(numericId) && numericId > 0) {
+      router.push(`/tasks/${numericId}`);
+    } else {
+      console.error('Invalid task ID:', taskProps.id);
+      toast({
+        title: "Navigation Error",
+        description: "Invalid task ID. Cannot navigate to task details.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleTaskUpdate = (updatedTask: TaskResponse) => {
