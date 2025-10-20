@@ -116,25 +116,23 @@ describe('Task Status Updates with Time Tracking', () => {
     id: 1,
     projectId: 101,
     ownerId: 201,
-    ownerUsername: 'john.doe',
+    ownerName: 'john.doe',
     title: 'Test Task',
     description: 'Test Description',
-    status: 'TODO',
+    status: 'TODO' as const,
     taskType: 'FEATURE',
     tags: ['testing'],
     dueDateTime: '2025-10-25T10:00:00Z',
     createdAt: '2025-10-20T08:00:00Z',
     createdBy: 201,
-    createdByUsername: 'john.doe',
-    updatedAt: null,
-    updatedBy: null,
-    updatedByUsername: null,
+    updatedAt: undefined,
+    updatedBy: undefined,
     userHasEditAccess: true,
     userHasDeleteAccess: true,
     isRecurring: false,
-    recurrenceRuleStr: null,
-    startDate: null,
-    endDate: null,
+    recurrenceRuleStr: undefined,
+    startDate: undefined,
+    endDate: undefined,
   };
 
   const mockOnTaskUpdated = jest.fn();
@@ -180,7 +178,7 @@ describe('Task Status Updates with Time Tracking', () => {
     });
 
     it('should update task from IN_PROGRESS to COMPLETED', async () => {
-      const inProgressTask = { ...mockTask, status: 'IN_PROGRESS' };
+      const inProgressTask = { ...mockTask, status: 'IN_PROGRESS' as const };
 
       render(
         <TaskUpdateDialog
@@ -209,7 +207,7 @@ describe('Task Status Updates with Time Tracking', () => {
     });
 
     it('should update task from COMPLETED back to IN_PROGRESS', async () => {
-      const completedTask = { ...mockTask, status: 'COMPLETED' };
+      const completedTask = { ...mockTask, status: 'COMPLETED' as const };
 
       render(
         <TaskUpdateDialog
