@@ -42,12 +42,42 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     public List<ProjectResponseDto> getUserProjects(Long userId) {
         log.info("Getting projects for user: {}", userId);
-        
-        List<Project> projects = projectRepository.findUserProjects(userId);
-        
-        return projects.stream()
-                .map(this::mapToProjectResponseDto)
-                .collect(Collectors.toList());
+
+        // Get the user to determine their role and department
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String userRole = user.getRoleType();
+        String userDepartment = user.getDepartment();
+
+        log.info("User role: {}, department: {}", userRole, userDepartment);
+
+        // Get projects where user is a member (owner or collaborator)
+        List<Project> memberProjects = projectRepository.findUserProjects(userId);
+        log.info("Found {} member projects for user {}", memberProjects.size(), userId);
+
+        // Initialize result list with member projects
+        List<ProjectResponseDto> result = new ArrayList<>();
+
+        // Add member projects (isRelated = false)
+        for (Project project : memberProjects) {
+            result.add(mapToProjectResponseDto(project, userId, false));
+        }
+
+        // For MANAGER role: Also fetch related cross-department projects
+        if ("MANAGER".equalsIgnoreCase(userRole) && userDepartment != null && !userDepartment.isEmpty()) {
+            log.info("Manager role detected - fetching related cross-department projects for department: {}", userDepartment);
+            List<Project> relatedProjects = projectRepository.findProjectsWithDepartmentStaff(userId, userDepartment);
+            log.info("Found {} related cross-department projects", relatedProjects.size());
+
+            // Add related projects (isRelated = true)
+            for (Project project : relatedProjects) {
+                result.add(mapToProjectResponseDto(project, userId, true));
+            }
+        }
+
+        log.info("Returning total of {} projects for user {}", result.size(), userId);
+        return result;
     }
 
     @Override
@@ -142,13 +172,35 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
 
-    private ProjectResponseDto mapToProjectResponseDto(Project project) {
+    /**
+     * Map Project entity to ProjectResponseDto with metadata
+     *
+     * @param project The project to map
+     * @param userId The current user's ID (to calculate isOwner)
+     * @param isRelated Whether this is a related cross-department project
+     * @return ProjectResponseDto with all metadata fields populated
+     */
+    private ProjectResponseDto mapToProjectResponseDto(Project project, Long userId, boolean isRelated) {
         // Get task counts for the project
         var tasks = taskRepository.findByProjectIdAndNotDeleted(project.getId());
         int taskCount = tasks.size();
         int completedTaskCount = (int) tasks.stream()
                 .filter(task -> task.getStatus() == Status.COMPLETED)
                 .count();
+
+        // Calculate isOwner flag
+        boolean isOwner = project.getOwnerId().equals(userId);
+
+        // Get department name from project owner
+        String departmentName = null;
+        try {
+            User owner = userRepository.findById(project.getOwnerId()).orElse(null);
+            if (owner != null) {
+                departmentName = owner.getDepartment();
+            }
+        } catch (Exception e) {
+            log.warn("Could not fetch owner department for project {}: {}", project.getId(), e.getMessage());
+        }
 
         return ProjectResponseDto.builder()
                 .id(project.getId())
@@ -159,7 +211,18 @@ public class ProjectServiceImpl implements ProjectService {
                 .updatedAt(project.getUpdatedAt())
                 .taskCount(taskCount)
                 .completedTaskCount(completedTaskCount)
+                .isOwner(isOwner)
+                .isRelated(isRelated)
+                .departmentName(departmentName)
                 .build();
+    }
+
+    /**
+     * Legacy mapping method for backward compatibility
+     * Used by createProject which doesn't need permission metadata
+     */
+    private ProjectResponseDto mapToProjectResponseDto(Project project) {
+        return mapToProjectResponseDto(project, project.getOwnerId(), false);
     }
 
     @Override

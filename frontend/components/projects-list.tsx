@@ -9,7 +9,7 @@ import { ProjectResponse, TaskResponse } from "@/services/project-service";
 import { projectService } from "@/services/project-service";
 import FullPageSpinnerLoader from "@/components/full-page-spinner-loader";
 import { ErrorMessageCallout } from "@/components/error-message-callout";
-import { useCurrentUser } from "@/contexts/user-context";
+import { CurrentUser, useCurrentUser } from "@/contexts/user-context";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -123,6 +123,10 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
   useEffect(() => {
     loadProjects();
   }, []);
+
+  const isNotStaff = (user: CurrentUser | null) => {
+    return user?.role != 'STAFF'
+  }
 
   const loadProjects = async () => {
     setIsLoading(true);
@@ -320,7 +324,7 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
         </div>
       )}
 
-      <section className="mt-10">
+      {isNotStaff(currentUser) && <section className="mt-10">
         <div className="flex flex-col gap-1">
           <h2 className="text-2xl font-semibold">Related Projects</h2>
           <p className="text-sm text-muted-foreground">
@@ -366,7 +370,7 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
           )}
         </div>
       </section>
-
+}
       {/* Create Project Modal */}
       <CreateProjectModal
         open={isCreateModalOpen}

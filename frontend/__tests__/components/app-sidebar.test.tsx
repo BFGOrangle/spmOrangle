@@ -555,13 +555,13 @@ describe("AppSidebar", () => {
     );
   });
   describe("Admin menu items", () => {
-    it("shows Administration section and User Management link for admin users", () => {
+    it("shows Administration section and User Management link for HR users", () => {
       renderWithSidebarProvider(<AppSidebar />, {
         currentUser: {
           id: "1",
-          role: "MANAGER",
-          username: "Admin User",
-          email: "admin@example.com",
+          role: "HR",
+          username: "HR User",
+          email: "hr@example.com",
         },
         isAdmin: true,
         isStaff: false,
@@ -611,6 +611,22 @@ describe("AppSidebar", () => {
       expect(screen.queryByText("User Management")).not.toBeInTheDocument();
     });
 
+    it("does not show Administration section for manager users", () => {
+      renderWithSidebarProvider(<AppSidebar />, {
+        currentUser: {
+          id: "1",
+          role: "MANAGER",
+          username: "Manager User",
+          email: "manager@example.com",
+        },
+        isAdmin: false,
+        isStaff: false,
+      });
+
+      expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+      expect(screen.queryByText("User Management")).not.toBeInTheDocument();
+    });
+
     it("does not show Administration section for director users", () => {
       renderWithSidebarProvider(<AppSidebar />, {
         currentUser: {
@@ -631,9 +647,9 @@ describe("AppSidebar", () => {
       renderWithSidebarProvider(<AppSidebar />, {
         currentUser: {
           id: "1",
-          role: "MANAGER",
-          username: "Admin User",
-          email: "admin@example.com",
+          role: "HR",
+          username: "HR User",
+          email: "hr@example.com",
         },
         isAdmin: true,
         isStaff: false,
@@ -642,13 +658,13 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("users-icon")).toBeInTheDocument();
     });
 
-    it("renders both Application and Administration sections for admin", () => {
+    it("renders both Application and Administration sections for HR", () => {
       renderWithSidebarProvider(<AppSidebar />, {
         currentUser: {
           id: "1",
-          role: "MANAGER",
-          username: "Admin User",
-          email: "admin@example.com",
+          role: "HR",
+          username: "HR User",
+          email: "hr@example.com",
         },
         isAdmin: true,
         isStaff: false,

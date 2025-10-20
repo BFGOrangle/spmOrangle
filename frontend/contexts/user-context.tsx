@@ -159,7 +159,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const isManager = currentUser?.role === "MANAGER";
   const isStaff = currentUser?.role === "STAFF";
   const isHR = currentUser?.role === "HR";
-  const isAdminOrHR = isManager || isHR;
+  // Only HR should have admin access to User Management
   // add others where needed for other roles
 
   return (
@@ -168,7 +168,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         currentUser,
         setCurrentUser: handleSetCurrentUser,
         isLoading,
-        isAdmin: isAdminOrHR,
+        isAdmin: isHR,
         isStaff,
         signOut: handleSignOut,
       }}
