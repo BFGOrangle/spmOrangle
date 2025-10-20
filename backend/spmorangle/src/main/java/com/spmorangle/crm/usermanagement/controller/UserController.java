@@ -30,7 +30,31 @@ public class UserController {
     @PostMapping("/create")
     public ResponseEntity<Void> createUser(@Valid @RequestBody CreateUserDto createUserDto) {
         log.info("Creating user with email: {}", createUserDto.email());
-        userManagementService.createUser(createUserDto);
+        userManagementService.createUser(createUserDto, "STAFF", false);
+        return ResponseEntity.ok().build();
+    }
+
+    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'DIRECTOR')")
+    @PostMapping("admin-create")
+    public ResponseEntity<Void> adminCreateUser(@Valid @RequestBody CreateUserDto createUserDto) {
+        log.info("Admin creating user with email: {}", createUserDto.email());
+        userManagementService.createUser(createUserDto, true);
+        return ResponseEntity.ok().build();
+    }
+
+    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'DIRECTOR')")
+    @PostMapping("deactivate/{userId}")
+    public ResponseEntity<Void> deactivateUser(@PathVariable Long userId) {
+        log.info("Deactivating user with ID: {}", userId);
+        userManagementService.toggleUserStatus(userId, false);
+        return ResponseEntity.ok().build();
+    }
+
+    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'DIRECTOR')")
+    @PostMapping("reactivate/{userId}")
+    public ResponseEntity<Void> reactivateUser(@PathVariable Long userId) {
+        log.info("Reactivating user with ID: {}", userId);
+        userManagementService.toggleUserStatus(userId, true);
         return ResponseEntity.ok().build();
     }
 
@@ -82,6 +106,13 @@ public class UserController {
     public ResponseEntity<List<UserResponseDto>> getUsersByIds(@RequestBody List<Long> userIds) {
         log.info("Getting users by IDs: {}", userIds);
         List<UserResponseDto> users = userManagementService.getUsersByIds(userIds);
+        return ResponseEntity.ok(users);
+    }
+
+    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'DIRECTOR')")
+    @GetMapping("/")
+    public ResponseEntity<List<UserResponseDto>> getAllUsers() {
+        List<UserResponseDto> users = userManagementService.getAllUsers();
         return ResponseEntity.ok(users);
     }
 }

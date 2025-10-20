@@ -15,6 +15,8 @@ import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.*;
 import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
 import com.spmorangle.crm.notification.messaging.dto.TaskNotificationMessageDto;
+import com.spmorangle.crm.reporting.service.ReportService;
+import com.spmorangle.crm.taskmanagement.enums.Status;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,6 +44,7 @@ public class TaskServiceImpl implements TaskService {
     private final NotificationMessagePublisher notificationPublisher;
     private final UserRepository userRepository;
     private final TaskAssigneeRepository taskAssigneeRepository;
+    private final ReportService reportService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -362,13 +365,26 @@ public class TaskServiceImpl implements TaskService {
             throw new RuntimeException("Only task owner or collaborators can update the task");
         }
 
+        // Handle time tracking for status transitions (before any updates)
+        if (updateTaskDto.getStatus() != null) {
+            Status oldStatus = task.getStatus();
+            Status newStatus = updateTaskDto.getStatus();
+            handleTimeTracking(task.getId(), currentUserId, oldStatus, newStatus);
+        }
+
         // Handle recurring task edits method
         if(updateTaskDto.getRecurrenceEditMode() != null) {
+            // Update status for recurring task edits if needed
+            if (updateTaskDto.getStatus() != null) {
+                task.setStatus(updateTaskDto.getStatus());
+            }
             handleRecurringTaskEdit(task, updateTaskDto, currentUserId);
         }
 
         // Generate next instance of task if marked completed
         else if (updateTaskDto.getStatus() == Status.COMPLETED && Boolean.TRUE.equals(task.getIsRecurring())) {
+            // Set status to COMPLETED before creating next instance
+            task.setStatus(Status.COMPLETED);
             // Check if task has recurrence rule and required dates configured
             if (task.getRecurrenceRuleStr() != null && task.getDueDateTime() != null && task.getEndDate() != null) {
                 try {
@@ -423,6 +439,7 @@ public class TaskServiceImpl implements TaskService {
         }
 
         else {
+            
 
             // Regular task update
 
@@ -666,6 +683,32 @@ public class TaskServiceImpl implements TaskService {
                 .endDate(task.getEndDate())
                 .build();
     }
+    
+    /**
+     * Handle time tracking when task status changes
+     */
+    private void handleTimeTracking(Long taskId, Long userId, Status oldStatus, Status newStatus) {
+        try {
+            // Start time tracking when moving from TODO to IN_PROGRESS
+            if (oldStatus == Status.TODO && newStatus == Status.IN_PROGRESS) {
+                log.info("Starting time tracking for task: {} by user: {}", taskId, userId);
+                reportService.startTimeTracking(taskId, userId);
+            }
+            // End time tracking when moving to COMPLETED
+            else if (newStatus == Status.COMPLETED && oldStatus != Status.COMPLETED) {
+                log.info("Ending time tracking for task: {} by user: {}", taskId, userId);
+                reportService.endTimeTracking(taskId, userId);
+            }
+            // Restart time tracking if moving back to IN_PROGRESS from COMPLETED
+            else if (oldStatus == Status.COMPLETED && newStatus == Status.IN_PROGRESS) {
+                log.info("Restarting time tracking for task: {} by user: {}", taskId, userId);
+                reportService.startTimeTracking(taskId, userId);
+            }
+        } catch (Exception e) {
+            log.error("Error handling time tracking for task: {} by user: {}", taskId, userId, e);
+            // Don't fail the task update if time tracking fails
+        }
+    }
 
     private void handleRecurringTaskEdit(Task task, UpdateTaskDto updateTaskDto, Long currentUserId) {
             // Update this instance only
@@ -765,8 +808,11 @@ public class TaskServiceImpl implements TaskService {
                 if(updateTaskDto.getDescription() != null) {
                     task.setDescription(updateTaskDto.getDescription());
                 }
-                if(updateTaskDto.getStatus() != null) {
+                if(updateTaskDto.getTaskType() != null) {
                     task.setTaskType(updateTaskDto.getTaskType());
+                }
+                if(updateTaskDto.getStatus() != null) {
+                    task.setStatus(updateTaskDto.getStatus());
                 }
                 if(updateTaskDto.getTags() != null) {
                     task.getTags().clear();

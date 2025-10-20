@@ -1144,12 +1144,12 @@ export default function TasksPage() {
           </div>
 
           {/* Status + Additional Filters */}
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold">{groupHeading}</h3>
-              <p className="text-muted-foreground text-sm">{groupDescription}</p>
-            </div>
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold">{groupHeading}</h3>
+                <p className="text-muted-foreground text-sm">{groupDescription}</p>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 {STATUS_FILTERS.map((status) => (
                   <Button
@@ -1162,10 +1162,13 @@ export default function TasksPage() {
                   </Button>
                 ))}
               </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Project</Label>
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Project</Label>
                 <Select value={selectedProject} onValueChange={setSelectedProject}>
-                  <SelectTrigger className="h-8 w-[180px]">
+                  <SelectTrigger className="h-8 w-[160px]">
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1178,8 +1181,9 @@ export default function TasksPage() {
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Tags</Label>
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Tags</Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="h-8">
@@ -1214,39 +1218,43 @@ export default function TasksPage() {
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-2 text-xs"
-                  onClick={clearTagFilters}
-                  disabled={selectedTags.length === 0}
-                >
-                  Clear
-                </Button>
+                {selectedTags.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 px-2 text-xs"
+                    onClick={clearTagFilters}
+                  >
+                    Clear
+                  </Button>
+                )}
               </div>
+
               <div className="flex items-center gap-2">
-                <Label htmlFor="from" className="text-xs text-muted-foreground">Due from</Label>
-                <Input id="from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-8 w-[150px]" />
-                <Label htmlFor="to" className="text-xs text-muted-foreground">to</Label>
-                <Input id="to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-8 w-[150px]" />
+                <Label htmlFor="from" className="text-xs text-muted-foreground whitespace-nowrap">Due from</Label>
+                <Input id="from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-8 w-[130px]" />
+                <Label htmlFor="to" className="text-xs text-muted-foreground whitespace-nowrap">to</Label>
+                <Input id="to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-8 w-[130px]" />
               </div>
+
               <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Sort</Label>
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Sort</Label>
                 <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
-                  <SelectTrigger className="h-8 w-[170px]">
+                  <SelectTrigger className="h-8 w-[150px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="due">Due date (default)</SelectItem>
+                    <SelectItem value="due">Due date</SelectItem>
                     <SelectItem value="status">Status</SelectItem>
                     <SelectItem value="updated">Last updated</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Group by</Label>
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Group by</Label>
                 <Select value={groupBy} onValueChange={(value) => setGroupBy(value as GroupByOption)}>
-                  <SelectTrigger className="h-8 w-[210px]" aria-label="Group tasks by">
+                  <SelectTrigger className="h-8 w-[180px]" aria-label="Group tasks by">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1259,6 +1267,7 @@ export default function TasksPage() {
                 </Select>
               </div>
             </div>
+
             {selectedTags.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 {selectedTags.map((tag) => (

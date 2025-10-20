@@ -1,0 +1,121 @@
+@startuml rabbitmq-event-flow
+allowmixing
+
+title Code Diagram - RabbitMQ Event-Driven Flow (Comment Event Example)
+
+skinparam class {
+    BackgroundColor<<Event>> LightGreen
+    BackgroundColor<<Publisher>> LightYellow
+    BackgroundColor<<Consumer>> LightBlue
+}
+
+' Event Definition
+package "spmorangle.common.events" {
+    abstract class BaseNotificationEvent <<Event>> {
+        - Long targetUserId
+        - NotificationType notificationType
+        - String subject
+        - String message
+        - Priority priority
+    }
+    
+    class CommentNotificationEvent <<Event>> {
+        - Long commentId
+        - Long taskId
+        - Long authorId
+        - String commentText
+        - List<Long> mentionedUserIds
+    }
+    
+    CommentNotificationEvent --|> BaseNotificationEvent
+}
+
+' Publisher
+package "spmorangle.crm.notification.messaging" {
+    class NotificationPublisher <<Publisher>> {
+        - RabbitTemplate rabbitTemplate
+        --
+        + void publishCommentEvent(event)
+    }
+    
+    class CommentNotificationConsumer <<Consumer>> {
+        - NotificationService notificationService
+        --
+        @RabbitListener(queues = COMMENT_QUEUE)
+        + void handleCommentEvent(event)
+    }
+}
+
+' Service
+package "spmorangle.crm.notification.service" {
+    class NotificationService {
+        - NotificationRepository repository
+        - WebSocketHandler websocketHandler
+        --
+        + Notification createNotification(dto)
+        + void sendToWebSocket(notification)
+    }
+}
+
+' Flow
+CommentNotificationEvent ..> NotificationPublisher : created by\nCommentService
+NotificationPublisher --> CommentNotificationEvent : serializes to JSON
+
+CommentNotificationConsumer --> NotificationService : calls\nwith deserialized event
+NotificationService --> CommentNotificationConsumer : returns\nNotification entity
+
+' Rabbitmq visualization
+rectangle "RabbitMQ Exchange\nnotification.exchange\n(Topic)" as exchange #Orange
+rectangle "RabbitMQ Queue\nnotification.comment.queue\n(routing: notification.comment.*)" as queue #Orange
+
+NotificationPublisher --> exchange : convertAndSend()\nrouting key:\nnotification.comment.mention
+exchange --> queue : routes by\npattern match
+queue --> CommentNotificationConsumer : @RabbitListener\nreceives message
+
+note right of NotificationPublisher
+  **Publishing**
+  
+  @Component
+  public class NotificationPublisher {
+    public void publishCommentEvent(
+        CommentNotificationEvent event) {
+      
+      rabbitTemplate.convertAndSend(
+        NOTIFICATION_EXCHANGE,
+        "notification.comment.mention",
+        event
+      );
+    }
+  }
+end note
+
+note left of CommentNotificationConsumer
+  **Consuming**
+  
+  @Component
+  public class CommentNotificationConsumer {
+    @RabbitListener(
+      queues = COMMENT_QUEUE
+    )
+    public void handleCommentEvent(
+        CommentNotificationEvent event) {
+      
+      notificationService
+        .createNotification(event);
+    }
+  }
+end note
+
+note bottom of exchange
+  **Topic Exchange Routing**
+  Routes based on routing key patterns:
+  - notification.comment.* → comment queue
+  - notification.task.* → task queue
+  - notification.user.* → user queue
+  - notification.project.* → project queue
+  
+  Same pattern used for all event types
+end note
+
+@enduml
+

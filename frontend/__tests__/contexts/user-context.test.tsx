@@ -200,6 +200,117 @@ describe("UserProvider", () => {
     expect(screen.getByTestId("is-staff")).toHaveTextContent("true");
   });
 
+  it("loads user with HR role and sets isAdmin to true", async () => {
+    const hrTokens = {
+      idToken: {
+        toString: () => {
+          const header = btoa(JSON.stringify({ typ: "JWT", alg: "HS256" }));
+          const payload = btoa(
+            JSON.stringify({
+              sub: "test-cognito-sub",
+              "cognito:groups": ["HR"],
+            })
+          );
+          const signature = "mock-signature";
+          return `${header}.${payload}.${signature}`;
+        },
+      },
+      accessToken: "mock-access-token",
+    };
+
+    mockFetchAuthSession.mockResolvedValue({ tokens: hrTokens });
+    mockGetCurrentUser.mockResolvedValue(mockUser);
+    mockFetchUserAttributes.mockResolvedValue(mockAttributes);
+
+    render(
+      <UserProvider>
+        <TestComponent />
+      </UserProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading")).toHaveTextContent("false");
+    });
+
+    expect(screen.getByTestId("user-role")).toHaveTextContent("HR");
+    expect(screen.getByTestId("is-admin")).toHaveTextContent("true");
+    expect(screen.getByTestId("is-staff")).toHaveTextContent("false");
+  });
+
+  it("sets isAdmin to true for manager role", async () => {
+    const managerTokens = {
+      idToken: {
+        toString: () => {
+          const header = btoa(JSON.stringify({ typ: "JWT", alg: "HS256" }));
+          const payload = btoa(
+            JSON.stringify({
+              sub: "test-cognito-sub",
+              "cognito:groups": ["MANAGER"],
+            })
+          );
+          const signature = "mock-signature";
+          return `${header}.${payload}.${signature}`;
+        },
+      },
+      accessToken: "mock-access-token",
+    };
+
+    mockFetchAuthSession.mockResolvedValue({ tokens: managerTokens });
+    mockGetCurrentUser.mockResolvedValue(mockUser);
+    mockFetchUserAttributes.mockResolvedValue(mockAttributes);
+
+    render(
+      <UserProvider>
+        <TestComponent />
+      </UserProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading")).toHaveTextContent("false");
+    });
+
+    expect(screen.getByTestId("user-role")).toHaveTextContent("MANAGER");
+    expect(screen.getByTestId("is-admin")).toHaveTextContent("true");
+    expect(screen.getByTestId("is-staff")).toHaveTextContent("false");
+  });
+
+  it("sets isAdmin to false for director role", async () => {
+    const directorTokens = {
+      idToken: {
+        toString: () => {
+          const header = btoa(JSON.stringify({ typ: "JWT", alg: "HS256" }));
+          const payload = btoa(
+            JSON.stringify({
+              sub: "test-cognito-sub",
+              "cognito:groups": ["DIRECTOR"],
+            })
+          );
+          const signature = "mock-signature";
+          return `${header}.${payload}.${signature}`;
+        },
+      },
+      accessToken: "mock-access-token",
+    };
+
+    mockFetchAuthSession.mockResolvedValue({ tokens: directorTokens });
+    mockGetCurrentUser.mockResolvedValue(mockUser);
+    mockFetchUserAttributes.mockResolvedValue(mockAttributes);
+
+    render(
+      <UserProvider>
+        <TestComponent />
+      </UserProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading")).toHaveTextContent("false");
+    });
+
+    expect(screen.getByTestId("user-role")).toHaveTextContent("DIRECTOR");
+    expect(screen.getByTestId("is-admin")).toHaveTextContent("false");
+    expect(screen.getByTestId("is-staff")).toHaveTextContent("false");
+  });
+
   it("handles no session tokens", async () => {
     mockFetchAuthSession.mockResolvedValue({ tokens: null });
 

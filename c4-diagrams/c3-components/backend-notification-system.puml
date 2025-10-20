@@ -1,0 +1,90 @@
+@startuml backend-notification-system
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - Backend Notification System
+
+Container_Ext(frontend, "Frontend", "Next.js", "User interface")
+Container_Ext(rabbitmq, "RabbitMQ", "Message Broker", "Event queue")
+ContainerDb_Ext(database, "PostgreSQL", "Database", "Notification storage")
+System_Ext(email_service, "Email Service", "SMTP server")
+
+Container_Boundary(notification_system, "Notification System") {
+    Component(notification_controller, "NotificationController", "Spring REST Controller", "REST API endpoints:\n- GET /api/notifications\n- GET /api/notifications/unread-count\n- PATCH /api/notifications/{id}/read\n- PATCH /api/notifications/mark-all-read")
+    
+    Component(notification_service, "NotificationService", "Spring Service", "Business logic for:\n- Creating notifications\n- Fetching notifications\n- Marking as read\n- Filtering by user/status")
+    
+    Component(notification_repository, "NotificationRepository", "Spring Data JPA", "Database operations for Notification entity")
+    
+    Component(websocket_handler, "WebSocketHandler", "STOMP Message Broker", "Pushes real-time notifications to connected clients\n\nTopic: /topic/notifications/{userId}")
+    
+    Component(email_service_component, "EmailService", "Spring Service", "Sends email notifications using templates")
+    
+    Component(notification_publisher, "NotificationPublisher", "RabbitMQ Producer", "Publishes notification events to exchange\n\nRouting keys:\n- notification.comment.*\n- notification.task.*\n- notification.user.*\n- notification.project.*")
+    
+    Component(comment_consumer, "CommentNotificationConsumer", "RabbitMQ Consumer", "Listens to comment queue\nHandles MENTION, COMMENT_REPLY events")
+    
+    Component(task_consumer, "TaskNotificationConsumer", "RabbitMQ Consumer", "Listens to task queue\nHandles TASK_ASSIGNED, TASK_COMPLETED events")
+    
+    Component(user_consumer, "UserNotificationConsumer", "RabbitMQ Consumer", "Listens to user queue\nHandles USER_REGISTERED events")
+    
+    Component(project_consumer, "ProjectNotificationConsumer", "RabbitMQ Consumer", "Listens to project queue\nHandles PROJECT_INVITE events")
+}
+
+Container_Boundary(other_services, "Other Services") {
+    Component(task_service, "TaskService", "Business logic", "Publishes task events")
+    Component(comment_service, "CommentService", "Business logic", "Publishes comment events")
+}
+
+Rel(frontend, notification_controller, "Fetches notifications", "HTTPS/REST")
+Rel(frontend, websocket_handler, "Subscribes to", "WebSocket/STOMP")
+
+Rel(notification_controller, notification_service, "Uses")
+Rel(notification_service, notification_repository, "Persists notifications")
+Rel(notification_repository, database, "Reads/Writes", "JDBC")
+
+Rel(task_service, notification_publisher, "Publishes task events")
+Rel(comment_service, notification_publisher, "Publishes comment events")
+
+Rel(notification_publisher, rabbitmq, "Sends events to", "AMQP")
+
+Rel(rabbitmq, comment_consumer, "Routes comment events")
+Rel(rabbitmq, task_consumer, "Routes task events")
+Rel(rabbitmq, user_consumer, "Routes user events")
+Rel(rabbitmq, project_consumer, "Routes project events")
+
+Rel(comment_consumer, notification_service, "Creates notification")
+Rel(task_consumer, notification_service, "Creates notification")
+Rel(user_consumer, notification_service, "Creates notification")
+Rel(project_consumer, notification_service, "Creates notification")
+
+Rel(notification_service, websocket_handler, "Pushes notification")
+Rel(notification_service, email_service_component, "Sends email")
+Rel(email_service_component, email_service, "Delivers email", "SMTP")
+
+Rel(websocket_handler, frontend, "Real-time push", "WebSocket")
+
+note right of notification_publisher
+  Event-Driven Architecture:
+  Decouples event producers from
+  notification system.
+  
+  Benefits:
+  - Async processing
+  - Scalability
+  - Reliability (DLQ)
+end note
+
+note bottom of websocket_handler
+  Real-time Delivery:
+  Notifications pushed immediately
+  to connected users via WebSocket
+  
+  Fallback: Users can poll REST API
+end note
+
+@enduml
+
+
+

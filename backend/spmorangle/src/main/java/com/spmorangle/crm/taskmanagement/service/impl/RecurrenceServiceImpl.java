@@ -30,6 +30,7 @@ public class RecurrenceServiceImpl implements RecurrenceService {
             DateList dateList = recur.getDates(startDate, endDate, Value.DATE_TIME);
             return dateList.stream()
                     .map(date -> OffsetDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault()))
+                    .filter(occurrence -> !occurrence.isBefore(start)) // Ensure all occurrences are on or after start date
                     .collect(Collectors.toList());
         } catch (Exception e) {
             throw new RuntimeException("Error generating Occurrence: " + e.getMessage(), e);

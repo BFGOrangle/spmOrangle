@@ -1,0 +1,39 @@
+meta {
+  name: Report
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:8080/api/reports/generate
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "department": "",
+    "projectIds": [1],
+    "startDate": "2025-01-02",
+    "endDate": "2025-12-31",
+    "timeRange": "QUARTERLY",
+    "exportFormat":"JSON"
+  }
+  
+  // Response
+  // ├── taskSummary (overall summary for entire period)
+  // ├── timeAnalytics (overall analytics for entire period)
+  // ├── staffBreakdown (overall staff breakdown)
+  // ├── timeSeriesData (breakdown - WEEKLY, MONTHLY, QUARTERLY, YEARLY, CUSTOM)
+  // │   ├── Q1 2025 (Jan-Mar)
+  // │   ├── Q2 2025 (Apr-Jun)
+  // │   ├── Q3 2025 (Jul-Sep)
+  // │   └── Q4 2025 (Oct-Dec) ← Only this quarter has data
+  // ├── filters (request parameters echoed back)
+  // └── generatedAt (timestamp)
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
