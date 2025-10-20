@@ -8,6 +8,7 @@ import {
   User,
   Calendar,
   BarChart3,
+  Users,
 } from "lucide-react";
 
 import {
@@ -63,6 +64,15 @@ const items = [
   },
 ];
 
+// Admin-only items
+const adminItems = [
+  {
+    title: "User Management",
+    url: "/user-management",
+    icon: Users,
+  },
+];
+
 export function AppSidebar() {
   const { isStaff } = useCurrentUser();
 
@@ -73,6 +83,7 @@ export function AppSidebar() {
     }
     return true;
   });
+  const { isAdmin } = useCurrentUser();
 
   return (
     <Sidebar>
@@ -106,6 +117,25 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter>
         <Button

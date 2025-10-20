@@ -25,7 +25,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final CognitoServiceImpl cognitoService;
 
     @Override
-    public void createUser(CreateUserDto createStaffDto) {
+    public void createUser(CreateUserDto createStaffDto, String roleType, boolean isSetAsTemporaryPassword) {
         String cognitoUsername = (createStaffDto.userName().toLowerCase())
                 .replaceAll("\\s+", "_")
                 .replaceAll("[^\\p{L}\\p{M}\\p{S}\\p{N}\\p{P}]", "");
@@ -34,7 +34,8 @@ public class UserManagementServiceImpl implements UserManagementService {
         var cognitoResponse = cognitoService.createUser(
                 cognitoUsername,
                 createStaffDto.email(),
-                createStaffDto.password()
+                createStaffDto.password(),
+                isSetAsTemporaryPassword
         );
 
         if (cognitoResponse.isEmpty()) {
@@ -50,11 +51,10 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         UUID cognitoSub = UUID.fromString(cognitoSubString);
 
-        String groupName = createStaffDto.roleType();
-        log.info("Adding user to Cognito group: {}", groupName);
-        boolean groupAdded = cognitoService.addUserToGroup(cognitoUsername, groupName);
+        log.info("Adding user to Cognito group: {}", roleType);
+        boolean groupAdded = cognitoService.addUserToGroup(cognitoUsername, roleType);
         if (!groupAdded) {
-            log.warn("Failed to add user to Cognito group: {}", groupName);
+            log.warn("Failed to add user to Cognito group: {}", roleType);
         }
 
         // Create user record in database
@@ -65,6 +65,11 @@ public class UserManagementServiceImpl implements UserManagementService {
         user.setRoleType(createStaffDto.roleType());
 
         userRepository.save(user);
+    }
+
+    @Override
+    public void createUser(CreateUserDto createStaffDto, boolean isSetAsTemporaryPassword) {
+        createUser(createStaffDto, createStaffDto.roleType(), isSetAsTemporaryPassword);
     }
 
     @Override
@@ -117,6 +122,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         userRepository.delete(user);
     }
 
+    @Transactional
     @Override
     public void toggleUserStatus(Long userId, boolean isActive) {
         User user = userRepository.findById(userId)
@@ -137,6 +143,11 @@ public class UserManagementServiceImpl implements UserManagementService {
             throw new RuntimeException("Failed to toggle staff status in Cognito");
         }
 
+        if (!isActive) {
+            userRepository.updateUserIsActiveById(userId, false);
+        } else {
+            userRepository.updateUserIsActiveById(userId, true);
+        }
         log.info("Successfully toggled staff status for ID: {}", userId);
     }
 
@@ -172,7 +183,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     @Override
-    public List<UserResponseDto> getCollaborators(){
+    public List<UserResponseDto> getAllUsers(){
         log.info("Getting users to display collaborators");
         List<User> users = userRepository.findAll();
         return users.stream()

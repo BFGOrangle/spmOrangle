@@ -213,7 +213,7 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
 
     return collaboratorIds.map((id) => {
       const collaborator = collaboratorLookup.get(id);
-      return collaborator?.fullName || collaborator?.email || `User ${id}`;
+      return collaborator?.username || collaborator?.email || `User ${id}`;
     });
   }, [taskProps.isTaskSummary, taskProps.collaborators, collaboratorIds, collaboratorLookup]);
 
@@ -614,7 +614,7 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
 
     return collaboratorIds.map((id) => {
       const collaborator = collaboratorLookup.get(id);
-      return collaborator?.fullName || collaborator?.email || `User ${id}`;
+      return collaborator?.username || collaborator?.email || `User ${id}`;
     });
   }, [taskProps.isTaskSummary, taskProps.collaborators, collaboratorIds, collaboratorLookup]);
 

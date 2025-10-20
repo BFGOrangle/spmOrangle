@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -111,9 +112,9 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(notification1, notification2));
 
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", null, null));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "ENGINEER", true, UUID.randomUUID()));
         when(userManagementService.getUserById(300L))
-                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", null, null));
+                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", "ENGINEER", true, UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(commentCreatedMessage);
@@ -145,11 +146,11 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(mention1, mention2, assignee));
 
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", null, null));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "ENGINEER", true, UUID.randomUUID()));
         when(userManagementService.getUserById(300L))
-                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", null, null));
+                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", "ENGINEER", true, UUID.randomUUID()));
         when(userManagementService.getUserById(400L))
-                .thenReturn(new UserResponseDto(400L, "User3", "user3@test.com", null, null));
+                .thenReturn(new UserResponseDto(400L, "User3", "user3@test.com", "ENGINEER", true, UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(commentWithMentionsMessage);
@@ -179,7 +180,7 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(notification));
 
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", null, null));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "ENGINEER", true, UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(mentionEventMessage);
@@ -241,7 +242,7 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(notification));
 
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User", "user@test.com", null, null));
+                .thenReturn(new UserResponseDto(200L, "User", "user@test.com", "ENGINEER", true, UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(commentCreatedMessage);
@@ -266,7 +267,7 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(notification));
 
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User", "", null, null));
+                .thenReturn(new UserResponseDto(200L, "User", "", "ENGINEER", true, UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(commentCreatedMessage);
@@ -335,7 +336,7 @@ class CommentNotificationConsumerTest {
                 .thenReturn(List.of(notification));
 
         when(userManagementService.getUserById(500L))
-                .thenReturn(new UserResponseDto(500L, "ParentUser", "parent@test.com", null, null));
+                .thenReturn(new UserResponseDto(500L, "ParentUser", "parent@test.com", "ENGINEER", true, UUID.randomUUID()));
 
         // Act
         commentNotificationConsumer.handleCommentNotification(replyMessage);

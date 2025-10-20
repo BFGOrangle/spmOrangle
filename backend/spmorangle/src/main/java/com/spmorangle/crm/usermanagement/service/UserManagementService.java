@@ -8,7 +8,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface UserManagementService {
-    void createUser(CreateUserDto createStaffDto);
+    void createUser(CreateUserDto createStaffDto, boolean isSetAsTemporaryPassword);
+    void createUser(CreateUserDto createStaffDto, String roleType, boolean isSetAsTemporaryPassword);
     UserResponseDto getUserById(Long staffId);
     UserResponseDto getUserByCognitoSub(UUID cognitoSub);
     void updateUserRole(UpdateUserRoleDto updateStaffDto);
@@ -18,5 +19,5 @@ public interface UserManagementService {
     List<String> getUserTypes();
     List<UserResponseDto> getProjectMembers(Long projectId);
     List<UserResponseDto> getUsersByIds(List<Long> userIds);
-    List<UserResponseDto> getCollaborators();
+    List<UserResponseDto> getAllUsers();
 }

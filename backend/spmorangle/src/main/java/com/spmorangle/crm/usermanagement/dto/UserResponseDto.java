@@ -10,6 +10,7 @@ public record UserResponseDto(
         String username,
         String email,
         String roleType,
+        Boolean isActive,
         UUID cognitoSub
 ) {
 }

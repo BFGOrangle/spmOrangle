@@ -18,6 +18,7 @@ describe("Route Enum", () => {
       "Profile",
       "Projects",
       "Reports",
+      "UserManagement",
       "Unauthorized",
       "ConfirmSignUp",
       "NewPassword",
@@ -33,7 +34,7 @@ describe("Route Enum", () => {
 
   test("should have correct number of routes", () => {
     const routeKeys = Object.keys(Route);
-    expect(routeKeys).toHaveLength(11);
+    expect(routeKeys).toHaveLength(12);
   });
 
   test("should contain auth-related routes", () => {
@@ -72,10 +73,14 @@ describe("Route Enum", () => {
         case Route.ConfirmSignUp:
         case Route.NewPassword:
         case Route.ConfirmSMSCode:
+        case Route.ForgotPassword:
+        case Route.ResetPassword:
           return "auth";
         case Route.Dashboard:
         case Route.Profile:
         case Route.Projects:
+        case Route.Reports:
+        case Route.UserManagement:
           return "app";
         case Route.Unauthorized:
           return "error";
@@ -86,6 +91,7 @@ describe("Route Enum", () => {
 
     expect(getRouteType(Route.SignIn)).toBe("auth");
     expect(getRouteType(Route.Dashboard)).toBe("app");
+    expect(getRouteType(Route.UserManagement)).toBe("app");
     expect(getRouteType(Route.Unauthorized)).toBe("error");
   });
 

@@ -22,10 +22,11 @@ export interface UpdateUserRoleDto {
 
 export interface UserResponseDto {
   id: number;
-  fullName: string;
+  username: string;
   email: string;
   roleType: string;
   cognitoSub: string;
+  isActive?: boolean; // Indicates if user account is active or deactivated
 }
 
 export interface SignUpRequest {
