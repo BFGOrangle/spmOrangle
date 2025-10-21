@@ -135,6 +135,7 @@ const mockTask: TaskResponse = {
   taskType: "FEATURE",
   projectId: 1,
   ownerId: 100,
+  createdBy: 100,
   assignedUserIds: [200, 300],
   subtasks: [],
   createdAt: "2024-01-01T00:00:00Z",
