@@ -18,4 +18,9 @@ public class ProjectResponseDto {
     private final OffsetDateTime updatedAt;
     private final Integer taskCount;
     private final Integer completedTaskCount;
+
+    // Permission metadata fields
+    private final Boolean isOwner;
+    private final Boolean isRelated;
+    private final String departmentName;
 }

@@ -147,9 +147,9 @@ class TaskNotificationConsumerTest {
                 .thenReturn(List.of(notification1, notification2));
 
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
         when(userManagementService.getUserById(300L))
-                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
 
         // Act
         taskNotificationConsumer.handleTaskNotification(taskCreatedMessage);
@@ -195,7 +195,7 @@ class TaskNotificationConsumerTest {
         NotificationDto notification = createMockNotificationDto(1L, 200L, "Task assigned");
         when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
 
         // Act
         taskNotificationConsumer.handleTaskNotification(taskAssignedMessage);
@@ -280,7 +280,7 @@ class TaskNotificationConsumerTest {
 
         when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User", "user@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User", "user@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
 
         // Act
         taskNotificationConsumer.handleTaskNotification(taskCreatedMessage);
@@ -300,7 +300,7 @@ class TaskNotificationConsumerTest {
 
         when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User", "", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User", "", "STAFF", true, "Engineering", UUID.randomUUID()));
 
         // Act
         taskNotificationConsumer.handleTaskNotification(taskCreatedMessage);

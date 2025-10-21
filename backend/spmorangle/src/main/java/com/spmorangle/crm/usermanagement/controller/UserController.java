@@ -34,7 +34,7 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'DIRECTOR')")
+    @PreAuthorize("hasRole('HR')")
     @PostMapping("admin-create")
     public ResponseEntity<Void> adminCreateUser(@Valid @RequestBody CreateUserDto createUserDto) {
         log.info("Admin creating user with email: {}", createUserDto.email());
@@ -42,7 +42,7 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'DIRECTOR')")
+    @PreAuthorize("hasRole('HR')")
     @PostMapping("deactivate/{userId}")
     public ResponseEntity<Void> deactivateUser(@PathVariable Long userId) {
         log.info("Deactivating user with ID: {}", userId);
@@ -50,7 +50,7 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'DIRECTOR')")
+    @PreAuthorize("hasRole('HR')")
     @PostMapping("reactivate/{userId}")
     public ResponseEntity<Void> reactivateUser(@PathVariable Long userId) {
         log.info("Reactivating user with ID: {}", userId);
@@ -70,7 +70,7 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'DIRECTOR')")
+    @PreAuthorize("hasRole('HR')")
     @PutMapping("/role")
     public ResponseEntity<Void> updateUserRole(@Valid @RequestBody UpdateUserRoleDto updateUserDto) {
         log.info("Updating user with ID: {}", updateUserDto.userId());
@@ -109,7 +109,7 @@ public class UserController {
         return ResponseEntity.ok(users);
     }
 
-    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'DIRECTOR')")
+    @PreAuthorize("hasRole('HR')")
     @GetMapping("/")
     public ResponseEntity<List<UserResponseDto>> getAllUsers() {
         List<UserResponseDto> users = userManagementService.getAllUsers();

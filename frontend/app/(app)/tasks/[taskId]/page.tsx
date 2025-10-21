@@ -119,11 +119,13 @@ const mapTaskTypeToPriority = (taskType: string): TaskPriority => {
 
 export default function TaskDetailPage({ params }: { params: Promise<{ taskId: string }> }) {
   const resolvedParams = use(params);
-  const taskId = parseInt(resolvedParams.taskId);
+  const taskId = parseInt(resolvedParams.taskId, 10);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { currentUser } = useCurrentUser();
   const { toast } = useToast();
+
+  // All hooks must be called before any conditional returns
   const [task, setTask] = useState<TaskResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

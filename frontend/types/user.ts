@@ -25,6 +25,7 @@ export interface UserResponseDto {
   username: string;
   email: string;
   roleType: string;
+  department?: string;
   cognitoSub: string;
   isActive?: boolean; // Indicates if user account is active or deactivated
 }

@@ -11,6 +11,7 @@ public record UserResponseDto(
         String email,
         String roleType,
         Boolean isActive,
+        String department,
         UUID cognitoSub
 ) {
 }
