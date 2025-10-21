@@ -2580,6 +2580,7 @@ class TaskServiceImplTest {
             task.setIsRecurring(true);
             task.setRecurrenceRuleStr("FREQ=DAILY;COUNT=5");
             task.setDueDateTime(OffsetDateTime.now());
+            task.setStartDate(OffsetDateTime.now());
             task.setEndDate(OffsetDateTime.now().plusDays(10));
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
@@ -2902,7 +2903,7 @@ class TaskServiceImplTest {
             taskService.updateTask(updateDto, userId);
 
             // Then
-            verify(collaboratorService).getCollaboratorIdsByTaskId(taskId);
+            verify(collaboratorService, atLeastOnce()).getCollaboratorIdsByTaskId(taskId);
             verify(taskRepository, atLeastOnce()).save(any(Task.class));
         }
 

@@ -370,6 +370,11 @@ public class TaskServiceImpl implements TaskService {
             Status oldStatus = task.getStatus();
             Status newStatus = updateTaskDto.getStatus();
             handleTimeTracking(task.getId(), currentUserId, oldStatus, newStatus);
+
+            // If there is a status change
+            if(oldStatus != newStatus) {
+                publishStatusChangeNotification(task, oldStatus, newStatus, currentUserId);
+            }
         }
 
         // Handle recurring task edits method
@@ -383,10 +388,11 @@ public class TaskServiceImpl implements TaskService {
 
         // Generate next instance of task if marked completed
         else if (updateTaskDto.getStatus() == Status.COMPLETED && Boolean.TRUE.equals(task.getIsRecurring())) {
-            // Set status to COMPLETED before creating next instance
-            task.setStatus(Status.COMPLETED);
+            // Apply all field updates to current task before creating next instance
+            applyFieldUpdates(task, updateTaskDto, currentUserId);
+
             // Check if task has recurrence rule and required dates configured
-            if (task.getRecurrenceRuleStr() != null && task.getDueDateTime() != null && task.getEndDate() != null) {
+            if (task.getRecurrenceRuleStr() != null && task.getDueDateTime() != null && task.getStartDate() != null && task.getEndDate() != null) {
                 try {
                     // Calculate next occurrence starting from day after current due date
                     OffsetDateTime nextStart = task.getDueDateTime().plusDays(1);
@@ -439,66 +445,8 @@ public class TaskServiceImpl implements TaskService {
         }
 
         else {
-            
-
-            // Regular task update
-
-            // Update only fields that are present in the DTO
-            if (updateTaskDto.getTitle() != null) {
-                task.setTitle(updateTaskDto.getTitle());
-            }
-
-            if (updateTaskDto.getDescription() != null) {
-                task.setDescription(updateTaskDto.getDescription());
-            }
-
-            if (updateTaskDto.getStatus() != null) {
-                task.setStatus(updateTaskDto.getStatus());
-            }
-
-            if (updateTaskDto.getTaskType() != null) {
-                task.setTaskType(updateTaskDto.getTaskType());
-            }
-
-            if (updateTaskDto.getTags() != null) {
-                task.getTags().clear();
-                task.getTags().addAll(tagService.findOrCreateTags(updateTaskDto.getTags()));
-            }
-
-            task.setDueDateTime(updateTaskDto.getDueDateTime());
-
-            // Update recurrence fields
-            if (updateTaskDto.getIsRecurring() != null) {
-                task.setIsRecurring(updateTaskDto.getIsRecurring());
-
-                // If disabling recurrence, clear all recurrence-related fields
-                if (!updateTaskDto.getIsRecurring()) {
-                    task.setRecurrenceRuleStr(null);
-                    task.setStartDate(null);
-                    task.setEndDate(null);
-                }
-            }
-            if (updateTaskDto.getRecurrenceRuleStr() != null) {
-                task.setRecurrenceRuleStr(updateTaskDto.getRecurrenceRuleStr());
-            }
-            if (updateTaskDto.getStartDate() != null) {
-                task.setStartDate(updateTaskDto.getStartDate());
-            }
-            if (updateTaskDto.getEndDate() != null) {
-                task.setEndDate(updateTaskDto.getEndDate());
-            }
-
-            // Validate recurrence configuration after updates
-            validateRecurrence(
-                task.getIsRecurring(),
-                task.getRecurrenceRuleStr(),
-                task.getStartDate(),
-                task.getEndDate()
-            );
-
-            task.setUpdatedBy(currentUserId);
-            task.setUpdatedAt(OffsetDateTime.now());
-
+            // Regular task update - apply all field updates
+            applyFieldUpdates(task, updateTaskDto, currentUserId);
         }
 
         Task updatedTask = taskRepository.save(task);
@@ -710,6 +658,79 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    /**
+     * Apply field updates from UpdateTaskDto to Task entity
+     * Used across all update branches to ensure consistency
+     */
+    private void applyFieldUpdates(Task task, UpdateTaskDto updateTaskDto, Long currentUserId) {
+        // Update only fields that are present in the DTO
+        if (updateTaskDto.getTitle() != null) {
+            task.setTitle(updateTaskDto.getTitle());
+        }
+
+        if (updateTaskDto.getDescription() != null) {
+            task.setDescription(updateTaskDto.getDescription());
+        }
+
+        if (updateTaskDto.getStatus() != null) {
+            task.setStatus(updateTaskDto.getStatus());
+        }
+
+        if (updateTaskDto.getTaskType() != null) {
+            task.setTaskType(updateTaskDto.getTaskType());
+        }
+
+        if (updateTaskDto.getTags() != null) {
+            task.getTags().clear();
+            task.getTags().addAll(tagService.findOrCreateTags(updateTaskDto.getTags()));
+        }
+
+        if (updateTaskDto.getDueDateTime() != null) {
+            task.setDueDateTime(updateTaskDto.getDueDateTime());
+        }
+
+        // Track if any recurrence fields are being updated
+        boolean recurrenceFieldsUpdated = false;
+
+        // Update recurrence fields
+        if (updateTaskDto.getIsRecurring() != null) {
+            task.setIsRecurring(updateTaskDto.getIsRecurring());
+            recurrenceFieldsUpdated = true;
+
+            // If disabling recurrence, clear all recurrence-related fields
+            if (!updateTaskDto.getIsRecurring()) {
+                task.setRecurrenceRuleStr(null);
+                task.setStartDate(null);
+                task.setEndDate(null);
+            }
+        }
+        if (updateTaskDto.getRecurrenceRuleStr() != null) {
+            task.setRecurrenceRuleStr(updateTaskDto.getRecurrenceRuleStr());
+            recurrenceFieldsUpdated = true;
+        }
+        if (updateTaskDto.getStartDate() != null) {
+            task.setStartDate(updateTaskDto.getStartDate());
+            recurrenceFieldsUpdated = true;
+        }
+        if (updateTaskDto.getEndDate() != null) {
+            task.setEndDate(updateTaskDto.getEndDate());
+            recurrenceFieldsUpdated = true;
+        }
+
+        // Validate recurrence configuration only if recurrence fields were updated
+        if (recurrenceFieldsUpdated) {
+            validateRecurrence(
+                task.getIsRecurring(),
+                task.getRecurrenceRuleStr(),
+                task.getStartDate(),
+                task.getEndDate()
+            );
+        }
+
+        task.setUpdatedBy(currentUserId);
+        task.setUpdatedAt(OffsetDateTime.now());
+    }
+
     private void handleRecurringTaskEdit(Task task, UpdateTaskDto updateTaskDto, Long currentUserId) {
             // Update this instance only
             if(updateTaskDto.getRecurrenceEditMode() == RecurrenceEditMode.THIS_INSTANCE) {
@@ -867,5 +888,33 @@ public class TaskServiceImpl implements TaskService {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'");
 
         return utcDateTime.format(formatter);
+    }
+
+    // Helper method to publish status changes
+    private void publishStatusChangeNotification(Task task, Status oldStatus, Status newStatus, Long editorId) {
+        try {
+            // Get all assignees 
+            List<Long> assigneeIds = collaboratorService.getCollaboratorIdsByTaskId(task.getId());
+            List<Long> recipientsToNotify = assigneeIds.stream().filter(id -> !id.equals(editorId)).toList();
+
+            // Publish if there are recipients
+            if (!recipientsToNotify.isEmpty()) {
+                TaskNotificationMessageDto dto = TaskNotificationMessageDto.forStatusChange(
+                    task.getId(),
+                    editorId,
+                    task.getProjectId(),
+                    task.getTitle(),
+                    oldStatus.toString(),
+                    newStatus.toString(),
+                    recipientsToNotify
+                );
+
+                notificationPublisher.publishTaskNotification(dto);
+            }
+            
+        } catch(Exception e) {
+            log.error("Failed to publish status change notification for task ID: {} - Error: {}",
+                 task.getId(), e.getMessage(), e);
+        }
     }
 }

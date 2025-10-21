@@ -50,6 +50,8 @@ class TaskNotificationConsumerTest {
     private TaskNotificationMessageDto taskAssignedMessage;
     private TaskNotificationMessageDto taskCompletedMessage;
     private TaskNotificationMessageDto taskUpdatedMessage;
+    private TaskNotificationMessageDto taskUnassignedMessage;
+    private TaskNotificationMessageDto statusUpdatedMessage;
 
     @BeforeEach
     void setUp() {
@@ -104,6 +106,33 @@ class TaskNotificationConsumerTest {
                 .taskTitle("Updated Task")
                 .taskStatus("IN_PROGRESS")
                 .assignedUserIds(List.of(200L))
+                .timestamp(Instant.now())
+                .build();
+
+        // Setup task unassigned message
+        taskUnassignedMessage = TaskNotificationMessageDto.builder()
+                .messageId("msg-345")
+                .eventType("TASK_UNASSIGNED")
+                .taskId(5L)
+                .authorId(100L)
+                .projectId(10L)
+                .taskTitle("Unassigned Task")
+                .taskDescription("Removal Description")
+                .assignedUserIds(List.of(200L))
+                .timestamp(Instant.now())
+                .build();
+
+        // Setup status updated message
+        statusUpdatedMessage = TaskNotificationMessageDto.builder()
+                .messageId("msg-678")
+                .eventType("STATUS_UPDATED")
+                .taskId(6L)
+                .authorId(100L)
+                .projectId(10L)
+                .taskTitle("Status Changed Task")
+                .prevTaskStatus("TODO")
+                .taskStatus("IN_PROGRESS")
+                .assignedUserIds(List.of(200L, 300L))
                 .timestamp(Instant.now())
                 .build();
     }
@@ -308,6 +337,185 @@ class TaskNotificationConsumerTest {
         } catch (RuntimeException e) {
             assert e.getMessage().equals("Database error");
         }
+    }
+
+    @Test
+    void testHandleTaskUnassignedNotification() {
+        // Arrange
+        NotificationDto notification = createMockNotificationDto(1L, 200L, "Removed from task");
+        when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
+        when(userManagementService.getUserById(200L))
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+
+        // Act
+        taskNotificationConsumer.handleTaskNotification(taskUnassignedMessage);
+
+        // Assert
+        ArgumentCaptor<List<CreateNotificationDto>> captor = ArgumentCaptor.forClass(List.class);
+        verify(notificationService).createBulkNotifications(captor.capture());
+
+        List<CreateNotificationDto> capturedNotifications = captor.getValue();
+        assert capturedNotifications.size() == 1;
+        assert capturedNotifications.get(0).getSubject().equals("Removed from task");
+        assert capturedNotifications.get(0).getMessage().contains("You've been removed from task");
+        assert capturedNotifications.get(0).getMessage().contains("Unassigned Task");
+        assert capturedNotifications.get(0).getPriority() == Priority.MEDIUM;
+        assert capturedNotifications.get(0).getChannels().contains(Channel.IN_APP);
+        assert capturedNotifications.get(0).getChannels().contains(Channel.EMAIL);
+
+        verify(emailService).sendEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void testHandleTaskUnassignedNotification_SelfRemoval() {
+        // Arrange - User removes themselves (authorId == assignedUserId)
+        TaskNotificationMessageDto selfRemovalMessage = TaskNotificationMessageDto.builder()
+                .messageId("msg-self")
+                .eventType("TASK_UNASSIGNED")
+                .taskId(5L)
+                .authorId(200L)
+                .projectId(10L)
+                .taskTitle("Self Removal Task")
+                .assignedUserIds(List.of(200L))
+                .timestamp(Instant.now())
+                .build();
+
+        // Act
+        taskNotificationConsumer.handleTaskNotification(selfRemovalMessage);
+
+        // Assert - Should not create notification for self-removal
+        verify(notificationService, never()).createBulkNotifications(anyList());
+        verify(emailService, never()).sendEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void testHandleStatusUpdatedNotification() {
+        // Arrange
+        NotificationDto notification1 = createMockNotificationDto(1L, 200L, "Task status updated");
+        NotificationDto notification2 = createMockNotificationDto(2L, 300L, "Task status updated");
+
+        when(notificationService.createBulkNotifications(anyList()))
+                .thenReturn(List.of(notification1, notification2));
+        when(userManagementService.getUserById(100L))
+                .thenReturn(new UserResponseDto(100L, "Editor", "editor@test.com", "STAFF", true, UUID.randomUUID()));
+        when(userManagementService.getUserById(200L))
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+        when(userManagementService.getUserById(300L))
+                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", "STAFF", true, UUID.randomUUID()));
+
+        // Act
+        taskNotificationConsumer.handleTaskNotification(statusUpdatedMessage);
+
+        // Assert
+        ArgumentCaptor<List<CreateNotificationDto>> captor = ArgumentCaptor.forClass(List.class);
+        verify(notificationService).createBulkNotifications(captor.capture());
+
+        List<CreateNotificationDto> capturedNotifications = captor.getValue();
+        assert capturedNotifications.size() == 2;
+        assert capturedNotifications.get(0).getMessage().contains("Status Changed Task");
+        assert capturedNotifications.get(0).getMessage().contains("TODO");
+        assert capturedNotifications.get(0).getMessage().contains("IN_PROGRESS");
+        assert capturedNotifications.get(0).getMessage().contains("Editor");
+        assert capturedNotifications.get(0).getChannels().contains(Channel.IN_APP);
+        assert capturedNotifications.get(0).getChannels().contains(Channel.EMAIL);
+
+        verify(emailService, times(2)).sendEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void testHandleStatusUpdatedNotification_EditorIsAssignee() {
+        // Arrange - Editor is also an assignee, should not receive notification
+        TaskNotificationMessageDto editorIsAssigneeMessage = TaskNotificationMessageDto.builder()
+                .messageId("msg-editor")
+                .eventType("STATUS_UPDATED")
+                .taskId(6L)
+                .authorId(100L)
+                .projectId(10L)
+                .taskTitle("Status Changed Task")
+                .prevTaskStatus("TODO")
+                .taskStatus("DONE")
+                .assignedUserIds(List.of(100L, 200L))
+                .timestamp(Instant.now())
+                .build();
+
+        NotificationDto notification = createMockNotificationDto(1L, 200L, "Task status updated");
+        when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
+        when(userManagementService.getUserById(100L))
+                .thenReturn(new UserResponseDto(100L, "Editor", "editor@test.com", "STAFF", true, UUID.randomUUID()));
+        when(userManagementService.getUserById(200L))
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+
+        // Act
+        taskNotificationConsumer.handleTaskNotification(editorIsAssigneeMessage);
+
+        // Assert - Should only notify user 200, not the editor (100)
+        ArgumentCaptor<List<CreateNotificationDto>> captor = ArgumentCaptor.forClass(List.class);
+        verify(notificationService).createBulkNotifications(captor.capture());
+
+        List<CreateNotificationDto> capturedNotifications = captor.getValue();
+        assert capturedNotifications.size() == 1;
+        assert capturedNotifications.get(0).getTargetId().equals(200L);
+
+        verify(emailService, times(1)).sendEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void testNotificationLinks_WithHighlightContext() {
+        // Arrange
+        NotificationDto notification = createMockNotificationDto(1L, 200L, "Task status updated");
+        when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
+        when(userManagementService.getUserById(100L))
+                .thenReturn(new UserResponseDto(100L, "Editor", "editor@test.com", "STAFF", true, UUID.randomUUID()));
+        when(userManagementService.getUserById(200L))
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+
+        // Act
+        taskNotificationConsumer.handleTaskNotification(statusUpdatedMessage);
+
+        // Assert - Check that link contains highlight parameter
+        ArgumentCaptor<List<CreateNotificationDto>> captor = ArgumentCaptor.forClass(List.class);
+        verify(notificationService).createBulkNotifications(captor.capture());
+
+        List<CreateNotificationDto> capturedNotifications = captor.getValue();
+        assert capturedNotifications.get(0).getLink().contains("?highlight=status");
+    }
+
+    @Test
+    void testNotificationLinks_AssigneeHighlightContext() {
+        // Arrange
+        NotificationDto notification = createMockNotificationDto(1L, 200L, "Task assigned");
+        when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
+        when(userManagementService.getUserById(200L))
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+
+        // Act
+        taskNotificationConsumer.handleTaskNotification(taskAssignedMessage);
+
+        // Assert - Check that link contains assignees highlight parameter
+        ArgumentCaptor<List<CreateNotificationDto>> captor = ArgumentCaptor.forClass(List.class);
+        verify(notificationService).createBulkNotifications(captor.capture());
+
+        List<CreateNotificationDto> capturedNotifications = captor.getValue();
+        assert capturedNotifications.get(0).getLink().contains("?highlight=assignees");
+    }
+
+    @Test
+    void testNotificationLinks_UnassignedHighlightContext() {
+        // Arrange
+        NotificationDto notification = createMockNotificationDto(1L, 200L, "Removed from task");
+        when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
+        when(userManagementService.getUserById(200L))
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+
+        // Act
+        taskNotificationConsumer.handleTaskNotification(taskUnassignedMessage);
+
+        // Assert - Check that link contains assignees highlight parameter
+        ArgumentCaptor<List<CreateNotificationDto>> captor = ArgumentCaptor.forClass(List.class);
+        verify(notificationService).createBulkNotifications(captor.capture());
+
+        List<CreateNotificationDto> capturedNotifications = captor.getValue();
+        assert capturedNotifications.get(0).getLink().contains("?highlight=assignees");
     }
 
     private NotificationDto createMockNotificationDto(Long id, Long targetId, String subject) {

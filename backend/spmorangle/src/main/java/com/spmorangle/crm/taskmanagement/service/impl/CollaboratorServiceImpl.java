@@ -1,10 +1,13 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.notification.messaging.dto.TaskNotificationMessageDto;
+import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
 import com.spmorangle.crm.reporting.service.ReportService;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
+import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
 import com.spmorangle.crm.taskmanagement.model.TaskAssigneeCK;
 import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
@@ -29,6 +32,7 @@ public class CollaboratorServiceImpl implements CollaboratorService {
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
     private final ReportService reportService;
+    private final NotificationMessagePublisher notificationMessagePublisher;
 
     @Override
     public AddCollaboratorResponseDto addCollaborator(AddCollaboratorRequestDto requestDto, Long assignedById) {
@@ -80,6 +84,9 @@ public class CollaboratorServiceImpl implements CollaboratorService {
             // Don't fail the operation if time tracking sync fails
         }
 
+        Task task = taskRepository.getTaskById(taskId);
+        publishAssigneeAddedNotification(task, collaboratorId, assignedById);
+
         return AddCollaboratorResponseDto.builder()
                 .taskId(savedAssignee.getTaskId())
                 .collaboratorId(savedAssignee.getUserId())
@@ -98,12 +105,15 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         }
 
         taskAssigneeRepository.deleteById(new TaskAssigneeCK(taskId, collaboratorId, assignedById));
-        
+
+        Task task = taskRepository.getTaskById(taskId);
+        publishAssigneeRemovedNotification(task, collaboratorId, assignedById);
+
         // Sync time tracking if task is IN_PROGRESS
         try {
             reportService.syncTimeTrackingOnAssigneeRemove(taskId, collaboratorId);
         } catch (Exception e) {
-            log.error("[COLLABORATOR] Failed to sync time tracking for removed assignee - TaskId: {}, CollaboratorId: {}", 
+            log.error("[COLLABORATOR] Failed to sync time tracking for removed assignee - TaskId: {}, CollaboratorId: {}",
                      taskId, collaboratorId, e);
             // Don't fail the operation if time tracking sync fails
         }
@@ -122,5 +132,53 @@ public class CollaboratorServiceImpl implements CollaboratorService {
     @Override
     public List<Long> getCollaboratorIdsByTaskId(Long taskId) {
         return taskAssigneeRepository.findAssigneeIdsByTaskId(taskId);
+    }
+
+    private void publishAssigneeAddedNotification(Task task, Long assigneeId, Long assignedById) {
+        try {
+            if (assigneeId.equals(assignedById)) {
+                return;
+            }
+
+            TaskNotificationMessageDto messageDto = TaskNotificationMessageDto.forTaskAssigned(
+                task.getId(),
+                assignedById,
+                task.getProjectId(),
+                task.getTitle(),
+                task.getDescription(),
+                List.of(assigneeId)
+            );
+
+            notificationMessagePublisher.publishTaskNotification(messageDto);
+            log.info("Published assignee added notification for task ID: {}, assignee: {}", task.getId(), assigneeId);
+
+        } catch (Exception e) {
+            log.error("Failed to publish assignee added notification for task ID: {} - Error: {}",
+                     task.getId(), e.getMessage(), e);
+        }
+    }
+
+    private void publishAssigneeRemovedNotification(Task task, Long assigneeId, Long removedById) {
+        try {
+            if (assigneeId.equals(removedById)) {
+                return;
+            }
+
+            TaskNotificationMessageDto messageDto = TaskNotificationMessageDto.forTaskUnassigned(
+                task.getId(),
+                removedById,
+                task.getProjectId(),
+                task.getTitle(),
+                task.getDescription(),
+                List.of(assigneeId)
+            );
+
+            notificationMessagePublisher.publishTaskNotification(messageDto);
+            log.info("Published assignee removed notification for task ID: {}, assignee: {}", task.getId(), assigneeId);
+
+        } catch (Exception e) {
+            log.error("Failed to publish assignee removed notification for task ID: {} - Error: {}",
+                     task.getId(), e.getMessage(), e);
+        }
     }
 }

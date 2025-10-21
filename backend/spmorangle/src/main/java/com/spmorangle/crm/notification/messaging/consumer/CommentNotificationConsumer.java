@@ -151,7 +151,7 @@ public class CommentNotificationConsumer {
         }
 
         emailBody.append("Best regards,\n");
-        emailBody.append("SPM Orange Team");
+        emailBody.append("SPM Orangle Team");
 
         return emailBody.toString();
     }
