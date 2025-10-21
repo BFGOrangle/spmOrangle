@@ -345,7 +345,7 @@ class TaskNotificationConsumerTest {
         NotificationDto notification = createMockNotificationDto(1L, 200L, "Removed from task");
         when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
 
         // Act
         taskNotificationConsumer.handleTaskNotification(taskUnassignedMessage);
@@ -397,11 +397,11 @@ class TaskNotificationConsumerTest {
         when(notificationService.createBulkNotifications(anyList()))
                 .thenReturn(List.of(notification1, notification2));
         when(userManagementService.getUserById(100L))
-                .thenReturn(new UserResponseDto(100L, "Editor", "editor@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(100L, "Editor", "editor@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
         when(userManagementService.getUserById(300L))
-                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(300L, "User2", "user2@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
 
         // Act
         taskNotificationConsumer.handleTaskNotification(statusUpdatedMessage);
@@ -441,9 +441,9 @@ class TaskNotificationConsumerTest {
         NotificationDto notification = createMockNotificationDto(1L, 200L, "Task status updated");
         when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
         when(userManagementService.getUserById(100L))
-                .thenReturn(new UserResponseDto(100L, "Editor", "editor@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(100L, "Editor", "editor@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
 
         // Act
         taskNotificationConsumer.handleTaskNotification(editorIsAssigneeMessage);
@@ -465,9 +465,9 @@ class TaskNotificationConsumerTest {
         NotificationDto notification = createMockNotificationDto(1L, 200L, "Task status updated");
         when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
         when(userManagementService.getUserById(100L))
-                .thenReturn(new UserResponseDto(100L, "Editor", "editor@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(100L, "Editor", "editor@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
 
         // Act
         taskNotificationConsumer.handleTaskNotification(statusUpdatedMessage);
@@ -486,7 +486,7 @@ class TaskNotificationConsumerTest {
         NotificationDto notification = createMockNotificationDto(1L, 200L, "Task assigned");
         when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
 
         // Act
         taskNotificationConsumer.handleTaskNotification(taskAssignedMessage);
@@ -505,7 +505,7 @@ class TaskNotificationConsumerTest {
         NotificationDto notification = createMockNotificationDto(1L, 200L, "Removed from task");
         when(notificationService.createBulkNotifications(anyList())).thenReturn(List.of(notification));
         when(userManagementService.getUserById(200L))
-                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, UUID.randomUUID()));
+                .thenReturn(new UserResponseDto(200L, "User1", "user1@test.com", "STAFF", true, "Engineering", UUID.randomUUID()));
 
         // Act
         taskNotificationConsumer.handleTaskNotification(taskUnassignedMessage);
