@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { use, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -121,6 +121,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
   const resolvedParams = use(params);
   const taskId = parseInt(resolvedParams.taskId, 10);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentUser } = useCurrentUser();
   const { toast } = useToast();
 
@@ -138,24 +139,8 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
   const [loadingCollaborators, setLoadingCollaborators] = useState(false);
   const [collaboratorsError, setCollaboratorsError] = useState<string | null>(null);
 
-  // Validate task ID (after all hooks)
-  const isValidTaskId = !Number.isNaN(taskId) && taskId > 0;
-
-  if (!isValidTaskId) {
-    return (
-      <SidebarInset>
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-center space-y-4">
-            <div className="text-lg font-semibold text-destructive">Invalid task ID</div>
-            <Button onClick={() => router.push('/tasks')}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Tasks
-            </Button>
-          </div>
-        </div>
-      </SidebarInset>
-    );
-  }
+  const statusSectionRef = useRef<HTMLDivElement>(null);
+  const assigneesSectionRef = useRef<HTMLDivElement>(null);
 
   const derivedCurrentUserId =
     currentUser?.backendStaffId ??
@@ -275,6 +260,37 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
       setCollaboratorIds(task.assignedUserIds ?? []);
     }
   }, [task?.assignedUserIds, task?.id]);
+
+  useEffect(() => {
+    const highlight = searchParams.get('highlight');
+
+    if (!highlight || loading) return;
+
+    const scrollToSection = () => {
+      let targetElement: HTMLDivElement | null = null;
+
+      if (highlight === 'status' && statusSectionRef.current) {
+        targetElement = statusSectionRef.current;
+      } else if (highlight === 'assignees' && assigneesSectionRef.current) {
+        targetElement = assigneesSectionRef.current;
+      }
+
+      if (targetElement) {
+        targetElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+
+        targetElement.classList.add('highlight-section');
+
+        setTimeout(() => {
+          targetElement?.classList.remove('highlight-section');
+        }, 2000);
+      }
+    };
+
+    setTimeout(scrollToSection, 300);
+  }, [searchParams, loading, task]);
 
   const handleTaskUpdated = (updatedTask: TaskResponse) => {
     setTask(updatedTask);
@@ -473,7 +489,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
           </div>
 
           <div className="space-y-4">
-            <Card>
+            <Card ref={statusSectionRef}>
               <CardHeader>
                 <h3 className="text-sm font-semibold">Status</h3>
               </CardHeader>
@@ -501,7 +517,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
               </CardContent>
             </Card>
 
-            <Card>
+            <Card ref={assigneesSectionRef}>
               <CardHeader className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold">Collaborators</h3>

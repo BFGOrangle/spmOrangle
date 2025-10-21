@@ -55,7 +55,7 @@ public class EmailTemplateServiceImpl implements EmailTemplateService {
         // Footer
         emailBody.append("<div class='footer'>");
         emailBody.append("<p>Best regards,<br>");
-        emailBody.append("SPM Orange Team</p>");
+        emailBody.append("SPM Orangle Team</p>");
         emailBody.append("<p><small>This is an automated notification. Please do not reply to this email.</small></p>");
         emailBody.append("</div>");
         
@@ -77,7 +77,7 @@ public class EmailTemplateServiceImpl implements EmailTemplateService {
         }
         
         emailBody.append("Best regards,\n");
-        emailBody.append("SPM Orange Team\n\n");
+        emailBody.append("SPM Orangle Team\n\n");
         emailBody.append("This is an automated notification. Please do not reply to this email.");
         
         return emailBody.toString();
