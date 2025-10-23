@@ -91,7 +91,7 @@ public class EmailServiceImpl implements EmailService {
 
 
     @Override
-    @Scheduled(cron = "0 56 23 * * ?")
+    @Scheduled(cron = "0 0 9 * * ?")
     public void sendDailyEmail(){
         try {
             log.info("Starting daily digest email job");
