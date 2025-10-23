@@ -803,6 +803,8 @@ export function TaskUpdateDialog({
                 ))}
               </ul>
             )}
+          </div>
+
           {/* Task Recurrence Settings */}
           <div className="space-y-2">
             <RecurrenceSelector
