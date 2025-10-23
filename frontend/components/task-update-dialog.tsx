@@ -100,11 +100,6 @@ export function TaskUpdateDialog({
   const [pendingUpdate, setPendingUpdate] = useState<UpdateTaskRequest | null>(null);
   const [selectedRecurrenceMode, setSelectedRecurrenceMode] = useState<RecurrenceEditMode | null>(null);
 
-  // State for recurrence instance dialog
-  const [showRecurrenceDialog, setShowRecurrenceDialog] = useState(false);
-  const [pendingUpdate, setPendingUpdate] = useState<UpdateTaskRequest | null>(null);
-  const [selectedRecurrenceMode, setSelectedRecurrenceMode] = useState<RecurrenceEditMode | null>(null);
-
   // Due date state - convert UTC to local datetime-local format
   const [dueDate, setDueDate] = useState<string>(() => {
     if (task.dueDateTime) {
