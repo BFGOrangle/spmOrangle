@@ -1,5 +1,6 @@
 package com.spmorangle.crm.taskmanagement.service;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.spmorangle.crm.taskmanagement.dto.CreateTaskDto;
@@ -7,7 +8,6 @@ import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateTaskResponseDto;
-import com.spmorangle.crm.taskmanagement.model.Task;
 
 public interface TaskService {
 
@@ -38,5 +38,9 @@ public interface TaskService {
     boolean canUserUpdateTask(Long taskId, Long userId);
 
     boolean canUserDeleteTask(Long taskId, Long userId);
+
+    List<TaskResponseDto> getUserTasksDueTmr(Long userId, OffsetDateTime startOfDay, OffsetDateTime endOfDay);
+
+    List<TaskResponseDto> getUserTasksDueTomorrowForDigest(Long userId, OffsetDateTime startOfDay, OffsetDateTime endOfDay);
 
 }

@@ -529,6 +529,99 @@ public class TaskServiceImpl implements TaskService {
         return projectOwnerId.equals(userId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskResponseDto> getUserTasksDueTmr(Long userId, OffsetDateTime startOfDay, OffsetDateTime endOfDay) {
+        List<Task> tasks = taskRepository.findUserIncompleteTasksDueTmr(userId, startOfDay, endOfDay);
+
+        if(tasks.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // Fetch project names
+        Set<Long> projectIds = tasks.stream()
+            .map(Task::getProjectId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+         Map<Long, String> projectNames = resolveProjectNames(projectIds);
+
+        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+
+        // Convert to DTOs
+        return tasks.stream()
+            .map(task -> mapToTaskResponseDto(
+                task,
+                false, // userHasEditAccess - not needed for digest
+                false, // userHasDeleteAccess - not needed for digest
+                projectNames,
+                ownerDetails,
+                userId
+            ))
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskResponseDto> getUserTasksDueTomorrowForDigest(Long userId, OffsetDateTime startOfDay, OffsetDateTime endOfDay) {
+        List<Task> tasks = taskRepository.findUserIncompleteTasksDueTmr(userId, startOfDay, endOfDay);
+
+        if(tasks.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Set<Long> projectIds = tasks.stream()
+            .map(Task::getProjectId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, String> projectNames = resolveProjectNames(projectIds);
+
+        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+
+        return tasks.stream()
+            .map(task -> mapToTaskResponseDtoLightweight(task, projectNames, ownerDetails))
+            .collect(Collectors.toList());
+    }
+
+    private TaskResponseDto mapToTaskResponseDtoLightweight(
+            Task task,
+            Map<Long, String> projectNames,
+            Map<Long, User> ownerDetails) {
+
+        List<Long> assignedUserIds = collaboratorService.getCollaboratorIdsByTaskId(task.getId());
+
+        User owner = ownerDetails.get(task.getOwnerId());
+        String projectName = task.getProjectId() != null ? projectNames.get(task.getProjectId()) : null;
+
+        return TaskResponseDto.builder()
+                .id(task.getId())
+                .projectId(task.getProjectId())
+                .projectName(projectName)
+                .ownerId(task.getOwnerId())
+                .ownerName(owner != null ? owner.getUserName() : null)
+                .ownerDepartment(owner != null ? owner.getDepartment() : null)
+                .taskType(task.getTaskType())
+                .title(task.getTitle())
+                .description(task.getDescription())
+                .status(task.getStatus())
+                .tags(task.getTags() != null
+                        ? task.getTags().stream().map(Tag::getTagName).toList()
+                        : null)
+                .assignedUserIds(assignedUserIds)
+                .userHasEditAccess(false)
+                .userHasDeleteAccess(false)
+                .createdAt(task.getCreatedAt())
+                .updatedAt(task.getUpdatedAt())
+                .createdBy(task.getCreatedBy())
+                .updatedBy(task.getUpdatedBy())
+                .dueDateTime(task.getDueDateTime())
+                .subtasks(Collections.emptyList())
+                .isRecurring(task.getIsRecurring())
+                .recurrenceRuleStr(task.getRecurrenceRuleStr())
+                .startDate(task.getStartDate())
+                .endDate(task.getEndDate())
+                .build();
+    }
+
     /**
      * Validates recurrence configuration for a task
      * @param isRecurring Whether the task is recurring
