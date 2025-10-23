@@ -1,0 +1,21 @@
+meta {
+  name: Time Analytics - Date Range
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:8080/api/reports/time-analytics?startDate=2025-01-01&endDate=2025-12-31
+  body: none
+  auth: inherit
+}
+
+params:query {
+  startDate: 2025-01-01
+  endDate: 2025-12-31
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

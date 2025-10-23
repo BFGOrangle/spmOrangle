@@ -120,3 +120,26 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .highlight-section {
+    animation: highlight-pulse 2s ease-out;
+    border: 2px solid oklch(0.828 0.189 84.429);
+    border-radius: var(--radius-lg);
+  }
+
+  @keyframes highlight-pulse {
+    0% {
+      background-color: oklch(0.828 0.189 84.429 / 20%);
+      box-shadow: 0 0 0 4px oklch(0.828 0.189 84.429 / 20%);
+    }
+    50% {
+      background-color: oklch(0.828 0.189 84.429 / 10%);
+      box-shadow: 0 0 0 8px oklch(0.828 0.189 84.429 / 10%);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: none;
+    }
+  }
+}

@@ -13,7 +13,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UsersIcon } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,8 +27,10 @@ import {
   Clock4,
   Paperclip,
   ExternalLink,
+  Repeat,
 } from "lucide-react";
 import { TaskSummary, TaskPriority, TaskStatus } from "@/lib/mvp-data";
+import { formatRecurrenceRule } from "@/lib/recurrence-utils";
 import { TaskResponse, SubtaskResponse, projectService } from "@/services/project-service";
 import { SubtaskList } from "./subtask-list";
 import { CommentSection } from "./comment-section";
@@ -112,9 +113,9 @@ const mapBackendStatus = (status: string): TaskStatus => {
 // Helper function to get task properties safely for both TaskSummary and TaskResponse
 const getTaskProperties = (task: TaskSummary | TaskResponse) => {
   const isTaskSummary = 'key' in task && 'collaborators' in task;
-  
+
   return {
-    id: task.id,
+    id: typeof task.id === 'string' ? parseInt(task.id, 10) : task.id,
     title: task.title,
     description: task.description || '',
     userHasEditAccess: task.userHasEditAccess,
@@ -216,31 +217,9 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
 
     return collaboratorIds.map((id) => {
       const collaborator = collaboratorLookup.get(id);
-      return collaborator?.fullName || collaborator?.email || `User ${id}`;
+      return collaborator?.username || collaborator?.email || `User ${id}`;
     });
   }, [taskProps.isTaskSummary, taskProps.collaborators, collaboratorIds, collaboratorLookup]);
-
-  const collaboratorAvatars = useMemo(() => {
-    return collaboratorDisplayNames.slice(0, 2).map((name, index) => {
-      const fallbackId = taskProps.isTaskSummary
-        ? `${taskProps.id}-collaborator-${index}`
-        : collaboratorIds[index] ?? `${taskProps.id}-collaborator-${index}`;
-
-      const initials = name
-        .split(" ")
-        .map((part) => part.trim()[0])
-        .filter(Boolean)
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
-
-      return {
-        key: fallbackId,
-        label: name,
-        initials: initials || name.charAt(0).toUpperCase(),
-      };
-    });
-  }, [collaboratorDisplayNames, collaboratorIds, taskProps.id, taskProps.isTaskSummary]);
 
   const handleSubtaskCreated = (newSubtask: SubtaskResponse) => {
     const updatedSubtasks = [...subtasks, newSubtask];
@@ -271,7 +250,18 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
 
   const handleOpenPage = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/tasks/${taskProps.id}`);
+    // Ensure ID is a valid number
+    const numericId = typeof taskProps.id === 'string' ? parseInt(taskProps.id, 10) : taskProps.id;
+    if (!Number.isNaN(numericId) && numericId > 0) {
+      router.push(`/tasks/${numericId}`);
+    } else {
+      console.error('Invalid task ID:', taskProps.id);
+      toast({
+        title: "Navigation Error",
+        description: "Invalid task ID. Cannot navigate to task details.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleTaskUpdate = (updatedTask: TaskResponse) => {
@@ -313,7 +303,7 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
 
   const { total, done, progress } = getSubtaskSummary();
   const collaboratorOverflow = Math.max(collaboratorDisplayNames.length - 2, 0);
-  
+
   // Check if task is overdue
   const taskIsOverdue = isTaskOverdue({
     dueDateTime: taskProps.dueDateTime,
@@ -371,54 +361,31 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
         {/* Assignee Section */}
         <div className="flex items-center gap-1.5 text-[0.65rem] text-muted-foreground">
           <span className="font-medium">ASSIGNEE:</span>
-          <div className="flex items-center gap-1">
-            <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary/10 text-[0.55rem] font-semibold text-primary">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
+            <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.55rem] font-semibold text-primary">
               {getInitials(taskProps.owner)}
             </div>
-            <span className="font-medium">{taskProps.owner}</span>
+            <span className="font-medium truncate">{taskProps.owner}</span>
             {collaboratorDisplayNames.length > 0 && (
-              <>
-                <span>, </span>
-                <span>{collaboratorDisplayNames.slice(0, 2).join(', ')}</span>
+              <div className="flex items-center gap-0.5 ml-1 shrink-0">
+                {collaboratorDisplayNames.slice(0, 2).map((name, idx) => (
+                  <div
+                    key={`${taskProps.id}-collab-${idx}`}
+                    className="flex h-4 w-4 items-center justify-center rounded-full bg-secondary text-[0.5rem] font-semibold text-secondary-foreground border border-background"
+                    title={name}
+                  >
+                    {getInitials(name)}
+                  </div>
+                ))}
                 {collaboratorDisplayNames.length > 2 && (
-                  <span className="text-muted-foreground/70">
-                    , +{collaboratorDisplayNames.length - 2} more
+                  <span className="text-[0.55rem] text-muted-foreground/70 ml-0.5">
+                    +{collaboratorDisplayNames.length - 2}
                   </span>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>
-
-        <h3 className="text-sm font-semibold leading-tight mb-2">{taskProps.title}</h3>
-
-        <div className="flex items-center gap-2 mb-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-            {getInitials(taskProps.owner)}
-          </div>
-          <span className="text-xs font-medium truncate">{taskProps.owner}</span>
-        </div>
-
-        {collaboratorDisplayNames.length > 0 && (
-          <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-            <UsersIcon className="h-3 w-3" aria-hidden="true" />
-            <div className="flex items-center -space-x-1">
-              {collaboratorAvatars.map(({ key, initials }) => (
-                <span
-                  key={key}
-                  className="flex h-5 w-5 items-center justify-center rounded-full border border-background bg-secondary text-[0.6rem] font-semibold text-secondary-foreground shadow-sm"
-                >
-                  {initials}
-                </span>
-              ))}
-              {collaboratorOverflow > 0 && (
-                <span className="text-muted-foreground/70">
-                  +{collaboratorOverflow} more
-                </span>
-              )}
-            </div>
-          </div>
-        )}
       </CardHeader>
 
       <CardContent className="pt-0 pb-2 px-3">
@@ -439,7 +406,7 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
           </div>
         )}
 
-        {/* Footer with attachments */}
+        {/* Footer with attachments and recurrence */}
         <div className="flex items-center justify-between text-[0.6rem] text-muted-foreground">
           <div className="flex items-center gap-2">
             {!isLoadingFiles && files.length > 0 && (
@@ -455,6 +422,12 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
               <div className="flex items-center gap-1">
                 <Paperclip className="h-3 w-3" />
                 <span>{taskProps.attachments} attachment{taskProps.attachments > 1 ? 's' : ''}</span>
+              </div>
+            )}
+            {!taskProps.isTaskSummary && (task as TaskResponse).isRecurring && (task as TaskResponse).recurrenceRuleStr && (
+              <div className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
+                <Repeat className="h-3 w-3" />
+                <span>{formatRecurrenceRule((task as TaskResponse).recurrenceRuleStr)}</span>
               </div>
             )}
           </div>
@@ -532,6 +505,15 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
                         : "No due date set"}
                     </span>
                   </div>
+                  {!taskProps.isTaskSummary && (task as TaskResponse).isRecurring && (task as TaskResponse).recurrenceRuleStr && (
+                    <div className="col-span-2">
+                      <span className="font-medium">Recurrence:</span>
+                      <div className="ml-2 inline-flex items-center gap-1.5 text-purple-600 dark:text-purple-400">
+                        <Repeat className="h-3.5 w-3.5" />
+                        <span>{formatRecurrenceRule((task as TaskResponse).recurrenceRuleStr)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-t pt-4">
@@ -545,15 +527,10 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
                     />
                   </div>
 
-                  {collaboratorIds.length > 0 ? (
+                  {collaboratorDisplayNames.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
-                  {collaboratorIds.map((collaboratorId) => {
-                    const collaborator = collaboratorLookup.get(collaboratorId);
-                    const collaboratorLabel =
-                      collaborator?.fullName ||
-                      collaborator?.email ||
-                      `User ${collaboratorId}`;
-                    const initials = collaboratorLabel
+                  {collaboratorDisplayNames.map((name, index) => {
+                    const initials = name
                       .split(" ")
                       .map((part) => part.trim()[0])
                       .filter(Boolean)
@@ -562,11 +539,11 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
                       .toUpperCase();
 
                     return (
-                      <div key={collaboratorId} className="flex items-center gap-2 px-3 py-1 bg-secondary rounded-full">
+                      <div key={taskProps.isTaskSummary ? `${name}-${index}` : collaboratorIds[index]} className="flex items-center gap-2 px-3 py-1 bg-secondary rounded-full">
                         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                          {initials || collaboratorId}
+                          {initials}
                         </div>
-                        <span className="text-sm">{collaboratorLabel}</span>
+                        <span className="text-sm">{name}</span>
                       </div>
                     );
                   })}
@@ -666,7 +643,7 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
   const total = subtasks.length;
   const done = subtasks.filter((subtask) => subtask.status === 'COMPLETED').length;
   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
-  
+
   // Check if task is overdue
   const taskIsOverdue = isTaskOverdue({
     dueDateTime: taskProps.dueDateTime,
@@ -699,7 +676,7 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
 
     return collaboratorIds.map((id) => {
       const collaborator = collaboratorLookup.get(id);
-      return collaborator?.fullName || collaborator?.email || `User ${id}`;
+      return collaborator?.username || collaborator?.email || `User ${id}`;
     });
   }, [taskProps.isTaskSummary, taskProps.collaborators, collaboratorIds, collaboratorLookup]);
 
@@ -736,7 +713,18 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
 
   const handleOpenPage = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/tasks/${taskProps.id}`);
+    // Ensure ID is a valid number
+    const numericId = typeof taskProps.id === 'string' ? parseInt(taskProps.id, 10) : taskProps.id;
+    if (!Number.isNaN(numericId) && numericId > 0) {
+      router.push(`/tasks/${numericId}`);
+    } else {
+      console.error('Invalid task ID:', taskProps.id);
+      toast({
+        title: "Navigation Error",
+        description: "Invalid task ID. Cannot navigate to task details.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleTaskUpdate = (updatedTask: TaskResponse) => {
@@ -899,6 +887,14 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
           <span className="flex items-center gap-1">
             <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
             {taskProps.attachments} attachment{taskProps.attachments > 1 ? "s" : ""}
+          </span>
+        )}
+
+        {/* Show recurrence information */}
+        {!taskProps.isTaskSummary && (task as TaskResponse).isRecurring && (task as TaskResponse).recurrenceRuleStr && (
+          <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
+            <Repeat className="h-3.5 w-3.5" aria-hidden="true" />
+            {formatRecurrenceRule((task as TaskResponse).recurrenceRuleStr)}
           </span>
         )}
       </div>

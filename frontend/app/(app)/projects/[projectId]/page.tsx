@@ -36,10 +36,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DroppableColumn } from "@/components/ui/droppable-column";
 import {
   ArrowLeft,
-  Clock4,
-  MoreHorizontal,
   Plus,
-  Users as UsersIcon,
 } from "lucide-react";
 
 import { projectService, ProjectResponse, TaskResponse } from "@/services/project-service";
@@ -88,15 +85,16 @@ const statusStyles: Record<TaskStatus, string> = {
 
 export default function ProjectTasksPage() {
   const params = useParams();
-  const projectId = parseInt(params.projectId as string);
+  const projectId = parseInt(params.projectId as string, 10);
   const { currentUser } = useCurrentUser();
 
+  // All hooks must be called before any conditional returns
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [tasks, setTasks] = useState<TaskResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Get current user ID, fallback to 1 for now
+
+  // Get current user ID from context
   const currentUserId = currentUser?.backendStaffId || 1;
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | "All">("All");
   const [selectedAssignee, setSelectedAssignee] = useState<string>("all"); // "all" or ownerId as string
@@ -219,13 +217,17 @@ export default function ProjectTasksPage() {
     const loadProjectData = async () => {
       try {
         setLoading(true);
-        
-        // For now, we'll use a dummy user ID. In a real app, this would come from auth context
-        const userId = 1;
-        
+
+        // Use actual user ID from context
+        if (!currentUserId) {
+          setError("User not authenticated");
+          setLoading(false);
+          return;
+        }
+
         // Load project details and tasks in parallel
-        const [projectsResponse, tasksResponse] = await Promise.all([
-          projectService.getUserProjects(userId),
+        const [projectsResponse, tasksResponse,] = await Promise.all([
+          projectService.getUserProjects(currentUserId),
           projectService.getProjectTasks(projectId)
         ]);
         
@@ -245,10 +247,10 @@ export default function ProjectTasksPage() {
       }
     };
 
-    if (projectId) {
+    if (projectId && currentUserId) {
       loadProjectData();
     }
-  }, [projectId]);
+  }, [projectId, currentUserId]);
 
   const handleTaskCreated = (newTask: TaskResponse) => {
     // Add the new task to the current tasks list
@@ -330,6 +332,27 @@ export default function ProjectTasksPage() {
                          selectedStatus === "Blocked" ? "BLOCKED" : "TODO";
     return base.filter(task => task.status === backendStatus);
   }, [selectedStatus, assigneeFilteredTasks]);
+
+  // Validate project ID (after all hooks)
+  if (Number.isNaN(projectId) || projectId <= 0) {
+    return (
+      <SidebarInset>
+        <div className="flex h-full items-center justify-center">
+          <div className="text-center">
+            <div className="text-lg font-semibold text-destructive mb-4">
+              Invalid project ID
+            </div>
+            <Link href="/projects">
+              <Button variant="outline">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Projects
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </SidebarInset>
+    );
+  }
 
   if (loading) {
     return (

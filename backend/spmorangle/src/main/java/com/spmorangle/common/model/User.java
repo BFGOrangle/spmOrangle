@@ -31,6 +31,10 @@ public class User {
     @Column(name = "role_type", nullable = false)
     private String roleType;
 
+    @NotNull
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive;
+
     @Size(max = 100)
     @Column(name = "department")
     private String department;

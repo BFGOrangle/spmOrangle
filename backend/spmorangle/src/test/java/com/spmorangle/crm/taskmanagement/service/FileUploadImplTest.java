@@ -1,9 +1,12 @@
 package com.spmorangle.crm.taskmanagement.service;
 
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
+import com.spmorangle.crm.reporting.service.ReportService;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorRequestDto;
 import com.spmorangle.crm.taskmanagement.dto.AddCollaboratorResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.RemoveCollaboratorRequestDto;
+import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
 import com.spmorangle.crm.taskmanagement.model.TaskAssigneeCK;
 import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
@@ -47,12 +50,19 @@ class FileUploadImplTest {
     @Mock
     private TaskRepository taskRepository;
 
+    @Mock
+    private ReportService reportService;
+
+    @Mock
+    private NotificationMessagePublisher notificationMessagePublisher;
+
     @InjectMocks
     private CollaboratorServiceImpl collaboratorService;
 
     private AddCollaboratorRequestDto addRequest;
     private RemoveCollaboratorRequestDto removeRequest;
     private TaskAssignee taskAssignee;
+    private Task task;
 
     @BeforeEach
     void setUp() {
@@ -67,6 +77,12 @@ class FileUploadImplTest {
         taskAssignee.setUserId(2L);
         taskAssignee.setAssignedId(3L);
         taskAssignee.setAssignedAt(OffsetDateTime.now());
+
+        task = new Task();
+        task.setId(1L);
+        task.setProjectId(100L);
+        task.setTitle("Test Task");
+        task.setDescription("Test Description");
     }
 
     @Nested
@@ -78,6 +94,7 @@ class FileUploadImplTest {
         void addCollaborator_ValidRequest_ReturnsResponseDto() {
             // Given
             when(taskRepository.existsById(1L)).thenReturn(true);
+            when(taskRepository.getTaskById(1L)).thenReturn(task);
             when(userRepository.existsById(2L)).thenReturn(true);
             when(userRepository.existsById(3L)).thenReturn(true);
             when(taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(1L, 2L, 3L))
@@ -105,6 +122,7 @@ class FileUploadImplTest {
         void addCollaborator_ValidRequest_SavesCorrectTaskAssignee() {
             // Given
             when(taskRepository.existsById(anyLong())).thenReturn(true);
+            when(taskRepository.getTaskById(anyLong())).thenReturn(task);
             when(userRepository.existsById(anyLong())).thenReturn(true);
             when(taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(1L, 2L, 3L))
                     .thenReturn(false);
@@ -158,7 +176,14 @@ class FileUploadImplTest {
             differentTaskAssignee.setAssignedId(300L);
             differentTaskAssignee.setAssignedAt(OffsetDateTime.now());
 
+            Task differentTask = new Task();
+            differentTask.setId(100L);
+            differentTask.setProjectId(200L);
+            differentTask.setTitle("Different Task");
+            differentTask.setDescription("Different Description");
+
             when(taskRepository.existsById(100L)).thenReturn(true);
+            when(taskRepository.getTaskById(100L)).thenReturn(differentTask);
             when(userRepository.existsById(200L)).thenReturn(true);
             when(userRepository.existsById(300L)).thenReturn(true);
             when(taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(100L, 200L, 300L))
@@ -186,6 +211,7 @@ class FileUploadImplTest {
         @DisplayName("Should successfully remove collaborator when assignment exists")
         void removeCollaborator_ValidRequest_RemovesCollaborator() {
             // Given
+            when(taskRepository.getTaskById(1L)).thenReturn(task);
             when(taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(1L, 2L, 3L))
                     .thenReturn(true);
 
@@ -201,6 +227,7 @@ class FileUploadImplTest {
         @DisplayName("Should delete with correct composite key")
         void removeCollaborator_ValidRequest_DeletesWithCorrectKey() {
             // Given
+            when(taskRepository.getTaskById(1L)).thenReturn(task);
             when(taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(1L, 2L, 3L))
                     .thenReturn(true);
 
@@ -239,6 +266,14 @@ class FileUploadImplTest {
         void removeCollaborator_DifferentIds_HandlesCorrectly() {
             // Given
             RemoveCollaboratorRequestDto differentRequest = new RemoveCollaboratorRequestDto(500L, 600L);
+
+            Task differentTask = new Task();
+            differentTask.setId(500L);
+            differentTask.setProjectId(600L);
+            differentTask.setTitle("Different Task");
+            differentTask.setDescription("Different Description");
+
+            when(taskRepository.getTaskById(500L)).thenReturn(differentTask);
             when(taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(500L, 600L, 700L))
                     .thenReturn(true);
 

@@ -13,6 +13,8 @@ public class UserConverter {
                 .username(user.getUserName())
                 .email(user.getEmail())
                 .roleType(user.getRoleType())
+                .isActive(user.getIsActive())
+                .department(user.getDepartment())
                 .cognitoSub(user.getCognitoSub())
                 .build();
 

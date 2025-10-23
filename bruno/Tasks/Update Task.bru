@@ -1,0 +1,28 @@
+meta {
+  name: Update Task
+  type: http
+  seq: 2
+}
+
+put {
+  url: http://localhost:8080/api/tasks
+  body: json
+  auth: inherit
+}
+
+body:json {
+  // {
+  //   "taskId": 12,
+  //   "status": "IN_PROGRESS"
+  // }
+  
+  {
+    "taskId": 22,
+    "status": "IN_PROGRESS"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

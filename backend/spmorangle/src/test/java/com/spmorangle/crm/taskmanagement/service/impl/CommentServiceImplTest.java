@@ -115,7 +115,7 @@ class CommentServiceImplTest {
                 .build();
 
         // Setup test user
-        testUser = new UserResponseDto(10L, "testuser", "test@example.com", "USER", UUID.randomUUID());
+        testUser = new UserResponseDto(10L, "testuser", "test@example.com", "USER", true, "Engineering", UUID.randomUUID());
     }
 
     @Nested
@@ -129,8 +129,8 @@ class CommentServiceImplTest {
             when(taskRepository.findById(1L)).thenReturn(Optional.of(testTask));
             when(taskCommentRepository.save(any(TaskComment.class))).thenReturn(testComment);
             // Mock project members to include mentioned users
-            UserResponseDto user20 = new UserResponseDto(20L, "user20", "user20@example.com", "USER", UUID.randomUUID());
-            UserResponseDto user30 = new UserResponseDto(30L, "user30", "user30@example.com", "USER", UUID.randomUUID());
+            UserResponseDto user20 = new UserResponseDto(20L, "user20", "user20@example.com", "USER", true, "Engineering", UUID.randomUUID());
+            UserResponseDto user30 = new UserResponseDto(30L, "user30", "user30@example.com", "USER", true, "Engineering", UUID.randomUUID());
             when(userManagementService.getProjectMembers(100L)).thenReturn(Arrays.asList(user20, user30));
 
             // Act
@@ -313,8 +313,8 @@ class CommentServiceImplTest {
             when(userManagementService.getUserById(10L)).thenReturn(testUser);
             when(taskCommentRepository.countRepliesByParentCommentId(1L)).thenReturn(0L);
             // Mock project members to include mentioned users
-            UserResponseDto user40 = new UserResponseDto(40L, "user40", "user40@example.com", "USER", UUID.randomUUID());
-            UserResponseDto user50 = new UserResponseDto(50L, "user50", "user50@example.com", "USER", UUID.randomUUID());
+            UserResponseDto user40 = new UserResponseDto(40L, "user40", "user40@example.com", "USER", true, "Engineering", UUID.randomUUID());
+            UserResponseDto user50 = new UserResponseDto(50L, "user50", "user50@example.com", "USER", true, "Engineering", UUID.randomUUID());
             when(userManagementService.getProjectMembers(100L)).thenReturn(Arrays.asList(user40, user50));
             // Mock for notification publishing
             when(taskRepository.findById(1L)).thenReturn(Optional.of(testTask));
@@ -536,7 +536,7 @@ class CommentServiceImplTest {
             List<TaskComment> replies = Arrays.asList(reply);
             when(taskCommentRepository.findRepliesByParentCommentId(1L)).thenReturn(replies);
             when(userManagementService.getUserById(20L)).thenReturn(
-                new UserResponseDto(20L, "replyuser", "reply@example.com", "USER", UUID.randomUUID()));
+                new UserResponseDto(20L, "replyuser", "reply@example.com", "USER", true, "Engineering", UUID.randomUUID()));
             when(taskCommentRepository.countRepliesByParentCommentId(3L)).thenReturn(0L);
 
             // Act
@@ -751,8 +751,8 @@ class CommentServiceImplTest {
             when(taskRepository.findById(1L)).thenReturn(Optional.of(testTask));
             when(taskCommentRepository.save(any(TaskComment.class))).thenReturn(testComment);
             // Mock project members to include mentioned users
-            UserResponseDto user20 = new UserResponseDto(20L, "user20", "user20@example.com", "USER", UUID.randomUUID());
-            UserResponseDto user30 = new UserResponseDto(30L, "user30", "user30@example.com", "USER", UUID.randomUUID());
+            UserResponseDto user20 = new UserResponseDto(20L, "user20", "user20@example.com", "USER", true, "Engineering", UUID.randomUUID());
+            UserResponseDto user30 = new UserResponseDto(30L, "user30", "user30@example.com", "USER", true, "Engineering", UUID.randomUUID());
             when(userManagementService.getProjectMembers(100L)).thenReturn(Arrays.asList(user20, user30));
 
             // Act & Assert - Should not throw exception

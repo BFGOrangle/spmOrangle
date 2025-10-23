@@ -1,0 +1,1 @@
+export type RecurrenceEditMode = 'THIS_INSTANCE' | 'THIS_AND_FUTURE_INSTANCES' | 'ALL_FUTURE_INSTANCES';

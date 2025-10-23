@@ -25,14 +25,14 @@ jest.mock('../../services/project-service', () => ({
 jest.mock('../../services/user-management-service', () => ({
   userManagementService: {
     getProjectMembers: jest.fn(() => Promise.resolve([
-      { id: 1, fullName: 'John Manager', email: 'john@test.com' },
-      { id: 2, fullName: 'Jane Staff', email: 'jane@test.com' },
-      { id: 3, fullName: 'Bob Developer', email: 'bob@test.com' },
+      { id: 1, username: 'John Manager', email: 'john@test.com', roleType: 'MANAGER', cognitoSub: 'sub-1' },
+      { id: 2, username: 'Jane Staff', email: 'jane@test.com', roleType: 'STAFF', cognitoSub: 'sub-2' },
+      { id: 3, username: 'Bob Developer', email: 'bob@test.com', roleType: 'STAFF', cognitoSub: 'sub-3' },
     ])),
     getCollaborators: jest.fn(() => Promise.resolve([
-      { id: 2, fullName: 'Jane Staff', email: 'jane@test.com', roleType: 'STAFF', cognitoSub: 'sub-2' },
-      { id: 3, fullName: 'Bob Developer', email: 'bob@test.com', roleType: 'STAFF', cognitoSub: 'sub-3' },
-      { id: 4, fullName: 'Alice Analyst', email: 'alice@test.com', roleType: 'STAFF', cognitoSub: 'sub-4' },
+      { id: 2, username: 'Jane Staff', email: 'jane@test.com', roleType: 'STAFF', cognitoSub: 'sub-2' },
+      { id: 3, username: 'Bob Developer', email: 'bob@test.com', roleType: 'STAFF', cognitoSub: 'sub-3' },
+      { id: 4, username: 'Alice Analyst', email: 'alice@test.com', roleType: 'STAFF', cognitoSub: 'sub-4' },
     ])),
   },
 }));
@@ -281,7 +281,18 @@ describe('TaskCreationDialog', () => {
             { id: 1, name: 'Project Alpha' },
             { id: 2, name: 'Project Beta' },
           ]}
-        />
+        />,
+        {
+          currentUser: {
+            id: '1',
+            backendStaffId: 1,
+            email: 'john@test.com',
+            fullName: 'John Manager',
+            role: 'MANAGER',
+          },
+          isAdmin: true,
+          isStaff: false,
+        }
       );
 
       await waitFor(() => {
@@ -301,7 +312,18 @@ describe('TaskCreationDialog', () => {
           availableProjects={[
             { id: 1, name: 'Project Alpha' },
           ]}
-        />
+        />,
+        {
+          currentUser: {
+            id: '1',
+            backendStaffId: 1,
+            email: 'john@test.com',
+            fullName: 'John Manager',
+            role: 'MANAGER',
+          },
+          isAdmin: true,
+          isStaff: false,
+        }
       );
 
       await waitFor(() => {
@@ -357,7 +379,18 @@ describe('TaskCreationDialog', () => {
           onOpenChange={mockOnOpenChange} 
           onTaskCreated={mockOnTaskCreated}
           availableProjects={[]}
-        />
+        />,
+        {
+          currentUser: {
+            id: '1',
+            backendStaffId: 1,
+            email: 'john@test.com',
+            fullName: 'John Manager',
+            role: 'MANAGER',
+          },
+          isAdmin: true,
+          isStaff: false,
+        }
       );
 
       await waitFor(() => {
@@ -375,7 +408,18 @@ describe('TaskCreationDialog', () => {
           onOpenChange={mockOnOpenChange} 
           onTaskCreated={mockOnTaskCreated}
           projectId={1}
-        />
+        />,
+        {
+          currentUser: {
+            id: '1',
+            backendStaffId: 1,
+            email: 'john@test.com',
+            fullName: 'John Manager',
+            role: 'MANAGER',
+          },
+          isAdmin: true,
+          isStaff: false,
+        }
       );
 
       await waitFor(() => {
@@ -394,7 +438,18 @@ describe('TaskCreationDialog', () => {
           onOpenChange={mockOnOpenChange} 
           onTaskCreated={mockOnTaskCreated}
           projectId={1}
-        />
+        />,
+        {
+          currentUser: {
+            id: '1',
+            backendStaffId: 1,
+            email: 'john@test.com',
+            fullName: 'John Manager',
+            role: 'MANAGER',
+          },
+          isAdmin: true,
+          isStaff: false,
+        }
       );
 
       await waitFor(() => {
@@ -416,7 +471,18 @@ describe('TaskCreationDialog', () => {
           onOpenChange={mockOnOpenChange} 
           onTaskCreated={mockOnTaskCreated}
           projectId={1}
-        />
+        />,
+        {
+          currentUser: {
+            id: '1',
+            backendStaffId: 1,
+            email: 'john@test.com',
+            fullName: 'John Manager',
+            role: 'MANAGER',
+          },
+          isAdmin: true,
+          isStaff: false,
+        }
       );
 
       await waitFor(() => {
@@ -430,23 +496,6 @@ describe('TaskCreationDialog', () => {
   });
 
   describe('Staff User Behavior', () => {
-    beforeEach(() => {
-      mockUseCurrentUser.mockReturnValue({
-        currentUser: {
-          id: '2',
-          backendStaffId: 2,
-          email: 'jane@test.com',
-          fullName: 'Jane Staff',
-          role: 'STAFF',
-        },
-        setCurrentUser: jest.fn(),
-        isLoading: false,
-        isAdmin: false,
-        isStaff: true,
-        signOut: jest.fn(),
-      });
-    });
-
     it('does not show project selection for staff', async () => {
       render(
         <TaskCreationDialog 
@@ -456,7 +505,18 @@ describe('TaskCreationDialog', () => {
           availableProjects={[
             { id: 1, name: 'Project Alpha' },
           ]}
-        />
+        />,
+        {
+          currentUser: {
+            id: '2',
+            backendStaffId: 2,
+            email: 'jane@test.com',
+            fullName: 'Jane Staff',
+            role: 'STAFF',
+          },
+          isAdmin: false,
+          isStaff: true,
+        }
       );
 
       await waitFor(() => {
@@ -474,7 +534,18 @@ describe('TaskCreationDialog', () => {
           onOpenChange={mockOnOpenChange} 
           onTaskCreated={mockOnTaskCreated}
           projectId={1}
-        />
+        />,
+        {
+          currentUser: {
+            id: '2',
+            backendStaffId: 2,
+            email: 'jane@test.com',
+            fullName: 'Jane Staff',
+            role: 'STAFF',
+          },
+          isAdmin: false,
+          isStaff: true,
+        }
       );
 
       await waitFor(() => {
@@ -545,7 +616,18 @@ describe('TaskCreationDialog', () => {
           open={true} 
           onOpenChange={mockOnOpenChange} 
           onTaskCreated={mockOnTaskCreated}
-        />
+        />,
+        {
+          currentUser: {
+            id: '1',
+            backendStaffId: 1,
+            email: 'john@test.com',
+            fullName: 'John Manager',
+            role: 'MANAGER',
+          },
+          isAdmin: true,
+          isStaff: false,
+        }
       );
 
       const titleInput = screen.getByPlaceholderText(/enter task title/i);
@@ -572,7 +654,18 @@ describe('TaskCreationDialog', () => {
           onOpenChange={mockOnOpenChange} 
           onTaskCreated={mockOnTaskCreated}
           projectId={1}
-        />
+        />,
+        {
+          currentUser: {
+            id: '1',
+            backendStaffId: 1,
+            email: 'john@test.com',
+            fullName: 'John Manager',
+            role: 'MANAGER',
+          },
+          isAdmin: true,
+          isStaff: false,
+        }
       );
 
       await waitFor(() => {
@@ -602,7 +695,18 @@ describe('TaskCreationDialog', () => {
           onOpenChange={mockOnOpenChange} 
           onTaskCreated={mockOnTaskCreated}
           projectId={1}
-        />
+        />,
+        {
+          currentUser: {
+            id: '1',
+            backendStaffId: 1,
+            email: 'john@test.com',
+            fullName: 'John Manager',
+            role: 'MANAGER',
+          },
+          isAdmin: true,
+          isStaff: false,
+        }
       );
 
       await waitFor(() => {

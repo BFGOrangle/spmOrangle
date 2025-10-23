@@ -34,4 +34,8 @@ public class TaskResponseDto {
     private final Long updatedBy;
     private final List<SubtaskResponseDto> subtasks;
     private final OffsetDateTime dueDateTime;
+    private final Boolean isRecurring;
+    private final String recurrenceRuleStr;
+    private final OffsetDateTime startDate;
+    private final OffsetDateTime endDate;
 }

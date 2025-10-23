@@ -14,6 +14,7 @@ import com.spmorangle.crm.notification.enums.Channel;
 import com.spmorangle.crm.notification.messaging.dto.TaskNotificationMessageDto;
 import com.spmorangle.crm.notification.service.EmailService;
 import com.spmorangle.crm.notification.service.NotificationService;
+import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
 import com.spmorangle.crm.usermanagement.service.UserManagementService;
 
 import lombok.RequiredArgsConstructor;
@@ -52,6 +53,12 @@ public class TaskNotificationConsumer {
                     break;
                 case "TASK_UPDATED":
                     notificationsToCreate.addAll(processTaskUpdated(message));
+                    break;
+                case "STATUS_UPDATED":
+                    notificationsToCreate.addAll(processStatusUpdated(message));
+                    break;
+                case "TASK_UNASSIGNED":
+                    notificationsToCreate.addAll(processTaskUnassigned(message));
                     break;
                 default:
                     log.warn("Unknown event type: {}", message.getEventType());
@@ -93,7 +100,7 @@ public class TaskNotificationConsumer {
                         .notificationType(com.spmorangle.common.enums.NotificationType.TASK_ASSIGNED)
                         .subject("New task assigned to you")
                         .message(String.format("You've been assigned to task: \"%s\"", message.getTaskTitle()))
-                        .link(message.generateNotificationLink())
+                        .link(message.generateNotificationLinkWithContext("assignees"))
                         .priority(com.spmorangle.crm.notification.enums.Priority.MEDIUM)
                         .channels(List.of(Channel.IN_APP, Channel.EMAIL))
                         .build());
@@ -117,7 +124,7 @@ public class TaskNotificationConsumer {
                             .notificationType(com.spmorangle.common.enums.NotificationType.TASK_ASSIGNED)
                             .subject("Task assigned to you")
                             .message(String.format("You've been assigned to task: \"%s\"", message.getTaskTitle()))
-                            .link(message.generateNotificationLink())
+                            .link(message.generateNotificationLinkWithContext("assignees"))
                             .priority(com.spmorangle.crm.notification.enums.Priority.HIGH)
                             .channels(List.of(Channel.IN_APP, Channel.EMAIL))
                             .build());
@@ -174,6 +181,63 @@ public class TaskNotificationConsumer {
                             .link(message.generateNotificationLink())
                             .priority(com.spmorangle.crm.notification.enums.Priority.LOW)
                             .channels(List.of(Channel.IN_APP))
+                            .build());
+                }
+            }
+        }
+
+        return notifications;
+    }
+
+    private List<CreateNotificationDto> processStatusUpdated(TaskNotificationMessageDto message) {
+        List<CreateNotificationDto> notifications = new ArrayList<>();
+        log.info("🔄 Processing STATUS_UPDATED for {} assignees",
+                message.hasAssignees() ? message.getAssignedUserIds().size() : 0);
+
+        if (message.hasAssignees()) {
+            for (Long assigneeId : message.getAssignedUserIds()) {
+                if (!assigneeId.equals(message.getAuthorId())) {
+                    String updateMessage = String.format(
+                        "Task \"%s\" status changed from %s to %s by %s",
+                        message.getTaskTitle(),
+                        message.getPrevTaskStatus(),
+                        message.getTaskStatus(),
+                        getEditorName(message.getAuthorId())
+                    );
+                    notifications.add(CreateNotificationDto.builder()
+                            .authorId(message.getAuthorId())
+                            .targetId(assigneeId)
+                            .notificationType(com.spmorangle.common.enums.NotificationType.TASK_ASSIGNED)
+                            .subject("Task status updated")
+                            .message(updateMessage)
+                            .link(message.generateNotificationLinkWithContext("status"))
+                            .priority(com.spmorangle.crm.notification.enums.Priority.MEDIUM)
+                            .channels(List.of(Channel.IN_APP, Channel.EMAIL))
+                            .build());
+                }
+            }
+        }
+
+        return notifications;
+    }
+
+    private List<CreateNotificationDto> processTaskUnassigned(TaskNotificationMessageDto message) {
+        List<CreateNotificationDto> notifications = new ArrayList<>();
+        log.info("🔄 Processing TASK_UNASSIGNED for {} removed assignees",
+                message.hasAssignees() ? message.getAssignedUserIds().size() : 0);
+
+        if (message.hasAssignees()) {
+            for (Long removedUserId : message.getAssignedUserIds()) {
+                if (!removedUserId.equals(message.getAuthorId())) {
+                    notifications.add(CreateNotificationDto.builder()
+                            .authorId(message.getAuthorId())
+                            .targetId(removedUserId)
+                            .notificationType(com.spmorangle.common.enums.NotificationType.TASK_ASSIGNED)
+                            .subject("Removed from task")
+                            .message(String.format("You've been removed from task: \"%s\"", message.getTaskTitle()))
+                            .link(message.generateNotificationLinkWithContext("assignees"))
+                            .priority(com.spmorangle.crm.notification.enums.Priority.MEDIUM)
+                            .channels(List.of(Channel.IN_APP, Channel.EMAIL))
                             .build());
                 }
             }
@@ -251,8 +315,19 @@ public class TaskNotificationConsumer {
         }
 
         emailBody.append("Best regards,\n");
-        emailBody.append("SPM Orange Team");
+        emailBody.append("SPM Orangle Team");
 
         return emailBody.toString();
+    }
+
+    private String getEditorName(Long userId) {
+        try {
+            UserResponseDto user = userManagementService.getUserById(userId);
+            String username = user.username();
+            return username;
+        } catch (Exception e) {
+            log.error("Failed to get username for userid {}: {}", userId, e.getMessage());
+            return "Unknown User";
+        }
     }
 }
