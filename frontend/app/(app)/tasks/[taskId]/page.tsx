@@ -262,41 +262,54 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
   }, [task?.assignedUserIds, task?.id]);
 
   useEffect(() => {
-    const highlight = searchParams.get('highlight');
+  const highlight = searchParams.get('highlight');
+  if (!highlight || loading) return;
+  
+  const scrollToSection = () => {
+    let targetElement: HTMLDivElement | null = null;
+    
+    if (highlight === 'status' && statusSectionRef.current) {
+      targetElement = statusSectionRef.current;
+    } else if (highlight === 'assignees' && assigneesSectionRef.current) {
+      targetElement = assigneesSectionRef.current;
+    }
+    
+    if (targetElement) {
+      targetElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+      targetElement.classList.add('highlight-section');
+      setTimeout(() => {
+        targetElement?.classList.remove('highlight-section');
+      }, 2000);
+    }
+  };
+  
+  setTimeout(scrollToSection, 300);
+}, [searchParams, loading, task]);
 
-    if (!highlight || loading) return;
-
-    const scrollToSection = () => {
-      let targetElement: HTMLDivElement | null = null;
-
-      if (highlight === 'status' && statusSectionRef.current) {
-        targetElement = statusSectionRef.current;
-      } else if (highlight === 'assignees' && assigneesSectionRef.current) {
-        targetElement = assigneesSectionRef.current;
-      }
-
-      if (targetElement) {
-        targetElement.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-
-        targetElement.classList.add('highlight-section');
-
-        setTimeout(() => {
-          targetElement?.classList.remove('highlight-section');
-        }, 2000);
-      }
-    };
-
-    setTimeout(scrollToSection, 300);
-  }, [searchParams, loading, task]);
-
-  const handleTaskUpdated = (updatedTask: TaskResponse) => {
+  const handleTaskUpdated = async (updatedTask: TaskResponse) => {
     setTask(updatedTask);
     setSubtasks(updatedTask.subtasks || []);
     setCollaboratorIds(updatedTask.assignedUserIds || []);
     setShowUpdateDialog(false);
+
+    // Refetch files after task update to show newly uploaded files
+    if (updatedTask.projectId) {
+      try {
+        setIsLoadingFiles(true);
+        const fetchedFiles = await fileService.getFilesByTaskAndProject(
+          updatedTask.id,
+          updatedTask.projectId
+        );
+        setFiles(fetchedFiles);
+      } catch (error) {
+        console.error("Error refetching files after task update:", error);
+      } finally {
+        setIsLoadingFiles(false);
+      }
+    }
   };
 
   const handleDeleteClick = () => {
@@ -322,6 +335,24 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
         variant: "destructive",
       });
       setShowDeleteDialog(false);
+    }
+  };
+
+  const handleDeleteFile = async (fileId: number) => {
+    try {
+      await fileService.deleteFile(fileId);
+      setFiles(prev => prev.filter(f => f.id !== fileId));
+      toast({
+        title: "File deleted",
+        description: "File has been successfully deleted.",
+      });
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      toast({
+        title: "Failed to delete file",
+        description: error instanceof Error ? error.message : "An error occurred while deleting the file.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -466,7 +497,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
                     <div className="h-8 w-8 bg-muted rounded" />
                   </div>
                 ) : files.length > 0 ? (
-                  <FileList files={files} size="lg" showDownload={true} />
+                  <FileList files={files} size="lg" showDownload={true} showDelete={true} onDelete={handleDeleteFile} />
                 ) : (
                   <p className="text-sm text-muted-foreground">No files attached to this task.</p>
                 )}

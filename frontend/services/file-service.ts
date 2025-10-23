@@ -53,6 +53,20 @@ export class FileService {
   }
 
   /**
+   * Delete a file by ID
+   */
+  async deleteFile(fileId: number): Promise<{ id: number; message: string; success: boolean }> {
+    return this.authenticatedClient.delete(`/api/files/${fileId}`);
+  }
+
+  /**
+   * Get a file by ID
+   */
+  async getFileById(fileId: number): Promise<FileResponse> {
+    return this.authenticatedClient.get(`/api/files/${fileId}`);
+  }
+
+  /**
    * Get file extension from filename or URL
    */
   static getFileExtension(filename: string): string {
