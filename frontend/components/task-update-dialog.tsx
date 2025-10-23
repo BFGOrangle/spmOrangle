@@ -21,9 +21,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, X } from "lucide-react";
+import { Calendar, X, Loader2 } from "lucide-react";
 import { projectService, TaskResponse, UpdateTaskRequest } from "@/services/project-service";
 import { tagService } from "@/services/tag-service";
+import { fileService } from "@/services/file-service";
 import { useCurrentUser } from "@/contexts/user-context";
 import { TaskCollaboratorManagement } from "@/components/task-collaborator-management";
 import { userManagementService } from "@/services/user-management-service";
@@ -32,6 +33,26 @@ import { useUpdateTask } from "@/hooks/use-task-mutations";
 import { RecurrenceSelector, RecurrenceData } from "./recurrence-selector";
 import { RecurrenceEditModeDialog } from "./recurrence-edit-mode-dialog";
 import { RecurrenceEditMode } from "@/types/recurrence";
+
+// Helper for file upload
+async function uploadFiles({ files, taskId, projectId }: { files: FileList | File[], taskId: number, projectId: number }) {
+  console.log('uploadFiles called with:', { taskId, projectId, filesCount: files.length });
+
+  const uploads = Array.from(files).map(async (file, index) => {
+    console.log(`Uploading file ${index + 1}/${files.length}:`, file.name);
+    try {
+      // Use correct argument object for uploadFile
+      const result = await fileService.uploadFile({ file, taskId, projectId });
+      console.log(`File ${file.name} uploaded successfully:`, result);
+      return result;
+    } catch (error) {
+      console.error(`Error uploading file ${file.name}:`, error);
+      throw error;
+    }
+  });
+
+  return Promise.all(uploads);
+}
 
 interface TaskUpdateDialogProps {
   task: TaskResponse;
@@ -72,6 +93,7 @@ export function TaskUpdateDialog({
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [loadingTags, setLoadingTags] = useState(false);
   const [tagsError, setTagsError] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
 
   // State for recurrence instance dialog
   const [showRecurrenceDialog, setShowRecurrenceDialog] = useState(false);
@@ -469,8 +491,36 @@ export function TaskUpdateDialog({
     setIsSubmitting(true);
     try {
       const updatedTask = await updateTaskMutation.mutateAsync(updateRequest);
+      
+      console.log('Task updated successfully:', updatedTask);
+
+      // Upload files if any
+      if (selectedFiles && updatedTask.id) {
+        console.log('Starting file upload...');
+        const projectId = updatedTask.projectId ?? task.projectId;
+        if (projectId === undefined || projectId === null) {
+          setError('Cannot upload files: missing project ID.');
+          setIsSubmitting(false);
+          return; // Don't close dialog if upload fails
+        }
+        try {
+          await uploadFiles({
+            files: selectedFiles,
+            taskId: updatedTask.id,
+            projectId: projectId,
+          });
+          console.log('File upload completed successfully');
+        } catch (uploadError) {
+          console.error('File upload failed:', uploadError);
+          setError('Task updated successfully, but file upload failed. Please try uploading files again.');
+          setIsSubmitting(false);
+          return; // Don't close dialog if upload fails
+        }
+      }
+
       onTaskUpdated(updatedTask);
       onOpenChange(false);
+      setSelectedFiles(null); // Reset file input
     } catch (err) {
       console.error('Error updating task:', err);
       setError(err instanceof Error ? err.message : 'Failed to update task');
@@ -733,6 +783,26 @@ export function TaskUpdateDialog({
             <p className="text-xs text-muted-foreground">
               Set a deadline for this task (optional)
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="attachments">Attachments</Label>
+            <Input
+              id="attachments"
+              type="file"
+              multiple
+              onChange={e => setSelectedFiles(e.target.files)}
+            />
+            <p className="text-xs text-muted-foreground">
+              You can select one or more files to upload as attachments.
+            </p>
+            {selectedFiles && selectedFiles.length > 0 && (
+              <ul className="text-xs mt-1">
+                {Array.from(selectedFiles).map((file, idx) => (
+                  <li key={idx}>{file.name}</li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Task Recurrence Settings */}

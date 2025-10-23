@@ -4,6 +4,8 @@ import com.spmorangle.common.model.User;
 import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.fileupload.dto.CreateFileDTO;
 import com.spmorangle.crm.fileupload.dto.CreateFileResponseDTO;
+import com.spmorangle.crm.fileupload.dto.UpdateFileDTO;
+import com.spmorangle.crm.fileupload.dto.DeleteFileResponseDTO;
 import com.spmorangle.crm.fileupload.service.FileService;
 import com.spmorangle.crm.fileupload.service.StorageClientService;
 import lombok.RequiredArgsConstructor;
@@ -144,6 +146,100 @@ public class FileServiceController {
         } catch (Exception e) {
             log.error("Error fetching files for projectId={}: {}", projectId, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch files: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Update a file record
+     * @param fileId the file ID to update
+     * @param fileUrl optional new file URL
+     * @return Updated File
+     */
+    @PutMapping("/{fileId}")
+    public ResponseEntity<com.spmorangle.crm.fileupload.model.File> updateFile(
+            @PathVariable("fileId") Long fileId,
+            @RequestParam(value = "fileUrl", required = false) String fileUrl) {
+
+        User user = userContextService.getRequestingUser();
+        log.info("Updating file for user {}: fileId={}, fileUrl={}",
+                user.getId(), fileId, fileUrl);
+
+        try {
+            com.spmorangle.crm.fileupload.model.File updatedFile = fileService.updateFile(
+                fileId,
+                fileUrl,
+                user.getId()
+            );
+
+            log.info("File updated successfully: {}", updatedFile.getId());
+            return ResponseEntity.ok(updatedFile);
+
+        } catch (RuntimeException e) {
+            log.error("Error updating file {}: {}", fileId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(null);
+        }
+    }
+
+    /**
+     * Delete a file record
+     * @param fileId the file ID to delete
+     * @return DeleteFileResponseDTO
+     */
+    @DeleteMapping("/{fileId}")
+    public ResponseEntity<DeleteFileResponseDTO> deleteFile(
+            @PathVariable("fileId") Long fileId) {
+
+        User user = userContextService.getRequestingUser();
+        log.info("Deleting file for user {}: fileId={}", user.getId(), fileId);
+
+        try {
+            boolean deleted = fileService.deleteFile(fileId, user.getId());
+
+            if (deleted) {
+                DeleteFileResponseDTO response = DeleteFileResponseDTO.builder()
+                    .id(fileId)
+                    .message("File deleted successfully")
+                    .success(true)
+                    .build();
+                
+                log.info("File deleted successfully: {}", fileId);
+                return ResponseEntity.ok(response);
+            } else {
+                DeleteFileResponseDTO response = DeleteFileResponseDTO.builder()
+                    .id(fileId)
+                    .message("File not found")
+                    .success(false)
+                    .build();
+                
+                log.error("File not found: {}", fileId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+
+        } catch (Exception e) {
+            log.error("Error deleting file {}: {}", fileId, e.getMessage(), e);
+            throw new RuntimeException("Failed to delete file: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get a file by ID
+     * @param fileId the file ID
+     * @return File
+     */
+    @GetMapping("/{fileId}")
+    public ResponseEntity<com.spmorangle.crm.fileupload.model.File> getFileById(
+            @PathVariable("fileId") Long fileId) {
+
+        log.info("Fetching file by ID: {}", fileId);
+
+        try {
+            return fileService.getFileById(fileId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            log.error("Error fetching file {}: {}", fileId, e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch file: " + e.getMessage(), e);
         }
     }
 }
