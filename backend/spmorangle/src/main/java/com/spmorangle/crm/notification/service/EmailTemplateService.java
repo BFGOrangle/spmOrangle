@@ -1,5 +1,6 @@
 package com.spmorangle.crm.notification.service;
 
+import com.spmorangle.crm.notification.dto.DailyDigestDto;
 import com.spmorangle.crm.notification.dto.NotificationDto;
 
 public interface EmailTemplateService {
@@ -17,4 +18,6 @@ public interface EmailTemplateService {
      * @return formatted plain text email body
      */
     String generatePlainTextBody(NotificationDto notification);
+
+    String generateDailyDigestEmail(DailyDigestDto dailyDigestDto);
 }

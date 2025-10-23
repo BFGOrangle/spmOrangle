@@ -1,5 +1,6 @@
 package com.spmorangle.crm.taskmanagement.repository;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -34,4 +35,14 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     @Query("SELECT t FROM Task t WHERE t.deleteInd = false AND t.id = :id")
     Task findByIdAndNotDeleted(@Param("id") Long id);
+
+    // Create a method that gets incompleted tasks due tmr 
+    @Query("SELECT t FROM Task t " + 
+            "LEFT JOIN TaskAssignee ta ON t.id = ta.taskId " + 
+            "WHERE t.deleteInd = false " +
+            "AND (t.ownerId = :userId OR ta.userId = :userId) " +
+            "AND t.status != 'COMPLETED' " +
+            "AND t.dueDateTime >= :startOfDay " +
+            "AND t.dueDateTime < :endOfDay ")
+    List<Task> findUserIncompleteTasksDueTmr(@Param("userId") Long userId, @Param("startOfDay") OffsetDateTime startOfDay, @Param("endOfDay") OffsetDateTime endOfDay);
 }
