@@ -794,7 +794,16 @@ describe('TaskCreationDialog', () => {
       });
 
       const dueDateInput = screen.getByLabelText(/due date & time/i);
-      const expectedMin = new Date().toISOString().slice(0, 16);
+      
+      // Get the current datetime in the same format as getCurrentLocalDateTime()
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const expectedMin = `${year}-${month}-${day}T${hours}:${minutes}`;
+      
       expect(dueDateInput).toHaveAttribute('min', expectedMin);
     });
 
@@ -1107,7 +1116,7 @@ describe('TaskCreationDialog', () => {
       expect(newDueDateInput).toHaveValue('');
     });
 
-    it('handles edge case with past date (should still work if user somehow enters it)', async () => {
+    it('prevents creating task with past date and shows error', async () => {
       const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
       render(
@@ -1126,17 +1135,21 @@ describe('TaskCreationDialog', () => {
       await user.type(titleInput, 'Test Task Past Date');
 
       const dueDateInput = screen.getByLabelText(/due date & time/i);
-      // Simulate somehow setting a past date (bypassing browser validation)
+      // Try to set a past date
       fireEvent.change(dueDateInput, { target: { value: '2020-01-01T12:00' } });
+
+      // Due date should not be set because onChange validation prevents it
+      expect(dueDateInput).toHaveValue('');
 
       const createButton = screen.getByRole('button', { name: /create task/i });
       await user.click(createButton);
 
+      // Task should be created without a due date (past date was rejected)
       await waitFor(() => {
         expect(projectService.createTask).toHaveBeenCalledWith(
           expect.objectContaining({
             title: 'Test Task Past Date',
-            dueDateTime: expect.stringMatching(/2020-01-01T.*\.000Z$/),
+            dueDateTime: undefined,
           })
         );
       });
