@@ -20,8 +20,12 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     Optional<User> findByEmail(String email);
 
     @Modifying
-    @Query(value = "UPDATE users SET user_type = ?2 WHERE id = ?1", nativeQuery = true)
+    @Query(value = "UPDATE syncup.users SET role_type = ?2 WHERE id = ?1", nativeQuery = true)
     void updateUserTypeById(Long id, String userType);
+
+    @Modifying
+    @Query(value = "UPDATE syncup.users SET is_active = ?2 WHERE id = ?1", nativeQuery = true)
+    void updateUserIsActiveById(Long id, Boolean isActive);
 
     @Query(value = "SELECT u.* FROM syncup.users u JOIN syncup.project_members pm ON u.id = pm.user_id WHERE pm.project_id = :projectId", nativeQuery = true)
     List<User> findProjectMembers(@Param("projectId") Long projectId);

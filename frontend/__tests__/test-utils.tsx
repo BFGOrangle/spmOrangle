@@ -2,8 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render as rtlRender, RenderOptions } from "@testing-library/react";
 import { ReactElement, ReactNode } from "react";
 
-// Mock the entire user context module to avoid authentication issues in tests
-const mockUseCurrentUser = jest.fn().mockReturnValue({
+// Default mock user context values
+const defaultMockUserContext = {
   currentUser: {
     id: "test-user-id",
     firstName: "Test",
@@ -20,7 +20,10 @@ const mockUseCurrentUser = jest.fn().mockReturnValue({
   isAdmin: false,
   isStaff: true,
   signOut: jest.fn(),
-});
+};
+
+// Mock the entire user context module to avoid authentication issues in tests
+const mockUseCurrentUser = jest.fn().mockReturnValue(defaultMockUserContext);
 
 jest.mock("@/contexts/user-context", () => ({
   useCurrentUser: mockUseCurrentUser,
@@ -51,6 +54,10 @@ const createTestQueryClient = () =>
 
 interface CustomRenderOptions extends Omit<RenderOptions, "wrapper"> {
   queryClient?: QueryClient;
+  currentUser?: Partial<typeof defaultMockUserContext.currentUser> | null;
+  isAdmin?: boolean;
+  isStaff?: boolean;
+  isLoading?: boolean;
 }
 
 const AllTheProviders = ({
@@ -69,8 +76,31 @@ const AllTheProviders = ({
 
 const customRender = (
   ui: ReactElement,
-  { queryClient, ...options }: CustomRenderOptions = {},
+  { 
+    queryClient, 
+    currentUser, 
+    isAdmin, 
+    isStaff, 
+    isLoading,
+    ...options 
+  }: CustomRenderOptions = {},
 ) => {
+  // Override mock values if provided
+  if (currentUser !== undefined || isAdmin !== undefined || isStaff !== undefined || isLoading !== undefined) {
+    mockUseCurrentUser.mockReturnValue({
+      ...defaultMockUserContext,
+      ...(currentUser !== undefined && { 
+        currentUser: currentUser ? { ...defaultMockUserContext.currentUser, ...currentUser } : null 
+      }),
+      ...(isAdmin !== undefined && { isAdmin }),
+      ...(isStaff !== undefined && { isStaff }),
+      ...(isLoading !== undefined && { isLoading }),
+    });
+  } else {
+    // Reset to default
+    mockUseCurrentUser.mockReturnValue(defaultMockUserContext);
+  }
+
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <AllTheProviders queryClient={queryClient}>{children}</AllTheProviders>
   );

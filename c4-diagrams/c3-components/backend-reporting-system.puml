@@ -1,0 +1,86 @@
+@startuml backend-reporting-system
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - Backend Reporting & Export System
+
+Container_Ext(frontend, "Frontend", "Next.js", "User interface")
+ContainerDb_Ext(database, "PostgreSQL", "Database", "Task and time tracking data")
+
+Container_Boundary(reporting_system, "Reporting & Export System") {
+    Component(report_controller, "ReportController", "Spring REST Controller", "REST API endpoints:\n- POST /api/reports/generate\n- POST /api/reports/task-summary\n- POST /api/reports/time-analytics\n\nAuth: @PreAuthorize('hasRole(HR) or hasRole(MANAGER)')")
+    
+    Component(report_service, "ReportService", "Spring Service", "Aggregates report data:\n- Task summary by status\n- Department breakdown\n- Project breakdown\n- Time analytics\n- Time series data (WEEKLY/MONTHLY/etc)")
+    
+    Component(report_export_service, "ReportExportService", "Factory Service", "Selects appropriate exporter based on ExportFormat\n\nFactory Method Pattern:\nselectExporter(format) → ReportExporter")
+    
+    Component(json_exporter, "JsonReportExporter", "Strategy Implementation", "Exports report as JSON\n✅ Fully Implemented\n\nContentType: application/json")
+    
+    Component(csv_exporter, "CsvReportExporter", "Strategy Implementation", "Exports report as CSV\n⏳ To Be Implemented\n\nContentType: text/csv")
+    
+    Component(pdf_exporter, "PdfReportExporter", "Strategy Implementation", "Exports report as PDF\n⏳ To Be Implemented\n\nContentType: application/pdf")
+    
+    Component(reporting_repository, "ReportingRepository", "Custom JPA Repository", "Complex queries for:\n- Task counts by status\n- Department aggregations\n- Project summaries")
+    
+    Component(time_tracking_repository, "TaskTimeTrackingRepository", "Spring Data JPA", "Queries time tracking data:\n- Total hours by task\n- Hours by department\n- Hours by project")
+}
+
+Rel(frontend, report_controller, "Requests report", "HTTPS/REST")
+Rel(report_controller, report_service, "Generates report data")
+Rel(report_controller, report_export_service, "Exports report")
+
+Rel(report_service, reporting_repository, "Queries task summaries")
+Rel(report_service, time_tracking_repository, "Queries time data")
+
+Rel(reporting_repository, database, "Executes queries", "JDBC")
+Rel(time_tracking_repository, database, "Executes queries", "JDBC")
+
+Rel(report_export_service, json_exporter, "Uses (if format=JSON)")
+Rel(report_export_service, csv_exporter, "Uses (if format=CSV)")
+Rel(report_export_service, pdf_exporter, "Uses (if format=PDF)")
+
+Rel(report_export_service, report_controller, "Returns ResponseEntity\nwith file attachment")
+Rel(report_controller, frontend, "Returns JSON or File", "HTTPS")
+
+note right of report_export_service
+  Strategy + Factory Pattern
+  
+  Benefits:
+  - Open/Closed Principle
+  - Easy to add new formats
+  - Single Responsibility
+  - Dependency Injection
+  
+  selectExporter(format):
+    switch(format) {
+      case JSON -> jsonExporter
+      case CSV -> csvExporter
+      case PDF -> pdfExporter
+    }
+end note
+
+note bottom of report_service
+  Role-Based Filtering:
+  - HR: See all departments
+  - Manager: See own department only
+  
+  Time Series Aggregation:
+  - WEEKLY, MONTHLY, QUARTERLY, YEARLY
+  - Groups tasks by period
+end note
+
+note left of json_exporter
+  All exporters implement:
+  
+  interface ReportExporter {
+    byte[] export(data, filters)
+    String getContentType()
+    String getFileExtension()
+  }
+end note
+
+@enduml
+
+
+

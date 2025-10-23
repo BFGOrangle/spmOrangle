@@ -1,0 +1,21 @@
+meta {
+  name: Manager - Reports
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:8080/api/reports/task-summary?department=HR
+GET http://localhost:8080/api/reports/task-summary?department=HR
+  body: none
+  auth: inherit
+}
+
+params:query {
+  department: HR
+  GET http://localhost:8080/api/reports/task-summary?department=HR
+}
+
+settings {
+  encodeUrl: true
+}

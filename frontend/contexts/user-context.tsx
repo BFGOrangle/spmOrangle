@@ -20,6 +20,7 @@ export interface CurrentUser {
   fullName: string;
   cognitoSub?: string; // Added for reference if needed
   backendStaffId?: number; // Added as explicit numeric ID
+  department?: string
 }
 
 interface UserContextType {
@@ -158,6 +159,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   const isManager = currentUser?.role === "MANAGER";
   const isStaff = currentUser?.role === "STAFF";
+  const isHR = currentUser?.role === "HR";
+  // Only HR should have admin access to User Management
   // add others where needed for other roles
 
   return (
@@ -166,7 +169,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         currentUser,
         setCurrentUser: handleSetCurrentUser,
         isLoading,
-        isAdmin: isManager,
+        isAdmin: isHR,
         isStaff,
         signOut: handleSignOut,
       }}

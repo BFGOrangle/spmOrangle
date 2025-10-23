@@ -28,6 +28,8 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     
     List<Task> getTasksById(long id);
 
+    Task getTaskById(long id);
+
     List<Task> getTasksByOwnerId(long ownerId);
 
     @Query("SELECT t FROM Task t WHERE t.deleteInd = false AND t.id = :id")

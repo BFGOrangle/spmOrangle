@@ -30,6 +30,7 @@ import { UserResponseDto } from "@/types/user";
 import { User, Crown, Loader2, X, Calendar } from "lucide-react";
 import { tagService } from "@/services/tag-service";
 import { useCreateTask } from "@/hooks/use-task-mutations";
+import { RecurrenceData, RecurrenceSelector } from "./recurrence-selector";
 
 // Helper for file upload
 async function uploadFiles({ files, taskId, projectId }: { files: FileList | File[], taskId: number, projectId: number }) {
@@ -157,6 +158,13 @@ export function TaskCreationDialog({
       .filter((tag) => !selectedTags.has(normalizeTag(tag)))
       .slice(0, 10);
   }, [availableTags, formData.tags]);
+
+  const [recurrenceData, setRecurrenceData] = useState<RecurrenceData>({
+    isRecurring: false,
+    recurrenceRuleStr: null,
+    startDate: null,
+    endDate: null
+  })
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -420,6 +428,10 @@ export function TaskCreationDialog({
         taskType: formData.taskType!,
         projectId: isPersonalTask ? 0 : selectedProjectId!,
         dueDateTime: formatDueDateTime(dueDate),
+        isRecurring: recurrenceData.isRecurring,
+        recurrenceRuleStr: recurrenceData.recurrenceRuleStr ?? undefined,
+        startDate: recurrenceData.startDate ?? undefined,
+        endDate: recurrenceData.endDate ?? undefined
       };
 
       await ensureManagedTagsExist(taskData.tags ?? []);
@@ -645,7 +657,7 @@ export function TaskCreationDialog({
                       <SelectItem key={member.id} value={member.id.toString()}>
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4" />
-                          <span>{member.fullName}</span>
+                          <span>{member.username}</span>
                           <span className="text-xs">{member.email}</span>
                         </div>
                       </SelectItem>
@@ -796,13 +808,26 @@ export function TaskCreationDialog({
           </p>
         </div>
 
+        {/* Task Recurrence input */}
+        <div className="space-y-2">
+          <RecurrenceSelector
+            onChange={setRecurrenceData}
+            initialValue={{
+              isRecurring: false,
+              recurrenceRuleStr: null,
+              startDate: null,
+              endDate: null,
+            }}
+          />
+        </div>
+
         <div className="space-y-2">
           <Label>Collaborators</Label>
           {selectedCollaborators.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {selectedCollaborators.map((collaborator) => {
                 const label =
-                  collaborator.fullName ||
+                  collaborator.username ||
                   collaborator.email ||
                   `User ID: ${collaborator.id}`;
 
@@ -962,7 +987,7 @@ export function TaskCreationDialog({
                         onClick={() => toggleDraftCollaborator(collaborator.id)}
                       >
                         <span className="flex flex-col items-start">
-                          <span className="text-sm font-medium">{collaborator.fullName}</span>
+                          <span className="text-sm font-medium">{collaborator.username}</span>
                           <span className="text-xs text-muted-foreground">ID: {collaborator.id} · {collaborator.email}</span>
                         </span>
                       </Button>

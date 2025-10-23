@@ -1,0 +1,39 @@
+@startuml system-context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_WITH_LEGEND()
+
+title System Context Diagram for SPM Orangle
+
+Person(hr, "HR", "Human Resources personnel who manage organization-wide tasks and reports")
+Person(manager, "Manager", "Department manager who oversees projects, assigns tasks, and reviews reports")
+Person(staff, "Staff", "Team members who work on tasks, collaborate, and track time")
+
+System(spm_orangle, "SPM Orangle", "Task and Project Management System\nEnables task tracking, project management, time analytics, and team collaboration")
+
+System_Ext(cognito, "AWS Cognito", "User authentication and authorization service")
+System_Ext(s3, "AWS S3", "Cloud file storage for task attachments and documents")
+System_Ext(email, "Email Service", "External email delivery service for notifications")
+
+Rel(hr, spm_orangle, "Manages organization, generates reports, exports data (JSON/CSV/PDF)", "HTTPS")
+Rel(manager, spm_orangle, "Creates projects, assigns tasks, reviews team performance", "HTTPS")
+Rel(staff, spm_orangle, "Works on tasks, adds comments, uploads files, receives notifications", "HTTPS/WSS")
+
+Rel(spm_orangle, cognito, "Authenticates users, validates JWT tokens", "HTTPS/OAuth2")
+Rel(spm_orangle, s3, "Stores and retrieves file attachments", "AWS SDK")
+Rel(spm_orangle, email, "Sends notification emails", "SMTP")
+
+note right of spm_orangle
+  Key Features:
+  - Task & Project Management
+  - Real-time Notifications (WebSocket)
+  - Time Tracking & Analytics
+  - Report Export (JSON/CSV/PDF)
+  - Comment & Collaboration
+  - Role-based Access Control
+end note
+
+@enduml
+
+
+

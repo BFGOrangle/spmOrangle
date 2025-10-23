@@ -11,7 +11,10 @@ import java.util.Optional;
 public interface CognitoService {
 
     Optional<AdminCreateUserResponse> createUser(String username, String email,
-                                                 String temporaryPassword, Map<String, String> userAttributes);
+                                                        String password, boolean isSetAsTemporaryPassword);
+
+    Optional<AdminCreateUserResponse> createUser(String username, String email,
+                                                        String password, Map<String, String> userAttributes, boolean isSetAsTemporaryPassword);
 
     Optional<AdminGetUserResponse> getUser(String username);
 

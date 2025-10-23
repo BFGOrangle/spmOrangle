@@ -1,0 +1,179 @@
+@startuml export-strategy-factory-pattern
+
+title Code Diagram - Export System: Strategy + Factory Pattern
+
+skinparam class {
+    BackgroundColor<<Factory>> LightYellow
+    BackgroundColor<<Strategy>> LightBlue
+}
+
+package "reporting.controller" {
+    class ReportController {
+        - ReportService reportService
+        - ReportExportService exportService
+        --
+        + ResponseEntity<?> generateReport(ReportFilterDto)
+    }
+}
+
+package "reporting.export" {
+    interface ReportExporter {
+        + byte[] export(Map<String, Object>, ReportFilterDto)
+        + String getContentType()
+        + String getFileExtension()
+    }
+    
+    class ReportExportService <<Factory>> {
+        - JsonReportExporter jsonExporter
+        - CsvReportExporter csvExporter
+        - PdfReportExporter pdfExporter
+        --
+        + ResponseEntity<?> exportReport(Map, ReportFilterDto)
+        - ReportExporter selectExporter(ExportFormat)
+        - String generateFilename(ReportFilterDto, String)
+    }
+    
+    class JsonReportExporter <<Strategy>> {
+        + byte[] export(Map, ReportFilterDto)
+        + String getContentType()
+        + String getFileExtension()
+        --
+        Exports report as JSON
+    }
+    
+    class CsvReportExporter <<Strategy>> {
+        + byte[] export(Map, ReportFilterDto)
+        + String getContentType()
+        + String getFileExtension()
+        --
+        Exports report as CSV
+    }
+    
+    class PdfReportExporter <<Strategy>> {
+        + byte[] export(Map, ReportFilterDto)
+        + String getContentType()
+        + String getFileExtension()
+        --
+        Exports report as PDF
+    }
+}
+
+package "reporting.dto" {
+    enum ExportFormat {
+        JSON
+        CSV
+        PDF
+    }
+    
+    class ReportFilterDto {
+        - String department
+        - List<Long> projectIds
+        - LocalDate startDate
+        - LocalDate endDate
+        - TimeRange timeRange
+        - ExportFormat exportFormat
+    }
+}
+
+ReportController --> ReportExportService : uses
+ReportController --> ReportFilterDto : passes
+
+ReportExportService --> ReportExporter : uses polymorphically
+ReportExportService --> ExportFormat : selects based on
+
+JsonReportExporter ..|> ReportExporter : implements
+CsvReportExporter ..|> ReportExporter : implements
+PdfReportExporter ..|> ReportExporter : implements
+
+ReportExportService --> JsonReportExporter : @Autowired (DI)
+ReportExportService --> CsvReportExporter : @Autowired (DI)
+ReportExportService --> PdfReportExporter : @Autowired (DI)
+
+note right of ReportExportService
+  **Factory Method Pattern**
+  
+  selectExporter(format):
+    return switch (format) {
+      case JSON -> jsonExporter;
+      case CSV -> csvExporter;
+      case PDF -> pdfExporter;
+    };
+  
+  Spring automatically injects
+  all implementations via
+  constructor injection.
+end note
+
+note bottom of ReportExporter
+  **Strategy Pattern**
+  
+  Each export format is a strategy
+  that implements the same interface.
+  
+  Client (Controller) doesn't know
+  which concrete implementation is used.
+  
+  Benefits:
+  ✅ Open/Closed Principle
+  ✅ Single Responsibility
+  ✅ Easy to add new formats
+  ✅ Testable (mock strategies)
+end note
+
+note left of JsonReportExporter
+  **Implementation Example**
+  
+  @Component
+  public class JsonReportExporter 
+      implements ReportExporter {
+    
+    @Override
+    public byte[] export(
+        Map<String, Object> data, 
+        ReportFilterDto filters) {
+      
+      ObjectMapper mapper = 
+        new ObjectMapper();
+      return mapper
+        .writeValueAsBytes(data);
+    }
+    
+    @Override
+    public String getContentType() {
+      return "application/json";
+    }
+    
+    @Override
+    public String getFileExtension() {
+      return "json";
+    }
+  }
+end note
+
+note as flow_note
+  **Request Flow**
+  
+  1. Client: POST /api/reports/generate
+     { "department": "Engineering", 
+       "exportFormat": "CSV" }
+  
+  2. ReportController generates report data
+     Map<String, Object> reportData = {...}
+  
+  3. Controller calls:
+     exportService.exportReport(reportData, filters)
+  
+  4. ReportExportService:
+     - Checks filters.getExportFormat() → CSV
+     - Calls selectExporter(CSV) → csvExporter
+     - Calls csvExporter.export(data, filters)
+     - Returns ResponseEntity with:
+       * Content-Disposition: attachment
+       * Content-Type: text/csv
+       * Body: byte[] CSV data
+  
+  5. Client receives file download
+end note
+
+@enduml
+

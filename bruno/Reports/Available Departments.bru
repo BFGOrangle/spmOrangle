@@ -1,0 +1,16 @@
+meta {
+  name: Available Departments
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:8080/api/reports/departments
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

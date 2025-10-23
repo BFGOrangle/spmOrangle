@@ -1,0 +1,20 @@
+meta {
+  name: Task Summary - Time Range (Monthly)
+  type: http
+  seq: 5
+}
+
+get {
+  url: http://localhost:8080/api/reports/task-summary?timeRange=WEEKLY
+  body: none
+  auth: inherit
+}
+
+params:query {
+  timeRange: WEEKLY
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -30,6 +30,9 @@ import { TaskCollaboratorManagement } from "@/components/task-collaborator-manag
 import { userManagementService } from "@/services/user-management-service";
 import type { UserResponseDto } from "@/types/user";
 import { useUpdateTask } from "@/hooks/use-task-mutations";
+import { RecurrenceSelector, RecurrenceData } from "./recurrence-selector";
+import { RecurrenceEditModeDialog } from "./recurrence-edit-mode-dialog";
+import { RecurrenceEditMode } from "@/types/recurrence";
 
 // Helper for file upload
 async function uploadFiles({ files, taskId, projectId }: { files: FileList | File[], taskId: number, projectId: number }) {
@@ -92,6 +95,11 @@ export function TaskUpdateDialog({
   const [tagsError, setTagsError] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
 
+  // State for recurrence instance dialog
+  const [showRecurrenceDialog, setShowRecurrenceDialog] = useState(false);
+  const [pendingUpdate, setPendingUpdate] = useState<UpdateTaskRequest | null>(null);
+  const [selectedRecurrenceMode, setSelectedRecurrenceMode] = useState<RecurrenceEditMode | null>(null);
+
   // Due date state - convert UTC to local datetime-local format
   const [dueDate, setDueDate] = useState<string>(() => {
     if (task.dueDateTime) {
@@ -107,6 +115,18 @@ export function TaskUpdateDialog({
     return '';
   });
 
+  // Task recurrence data - managed by RecurrenceSelector
+  const [recurrenceData, setRecurrenceData] = useState<RecurrenceData>({
+    isRecurring: task.isRecurring ?? false,
+    recurrenceRuleStr: task.recurrenceRuleStr ?? null,
+    startDate: task.startDate ?? null,
+    endDate: task.endDate ?? null,
+  })
+
+  // Track if user actually changed recurrence settings
+  const [userModifiedRecurrence, setUserModifiedRecurrence] = useState(false);
+  const [recurrenceInitialized, setRecurrenceInitialized] = useState(false);
+
   // Reset form fields when task changes
   useEffect(() => {
     setTitle(task.title);
@@ -115,7 +135,7 @@ export function TaskUpdateDialog({
     setTaskType(task.taskType);
     setTags(task.tags || []);
     setCollaboratorIds(task.assignedUserIds ?? []);
-    
+
     // Reset due date
     if (task.dueDateTime) {
       const date = new Date(task.dueDateTime);
@@ -128,6 +148,24 @@ export function TaskUpdateDialog({
     } else {
       setDueDate('');
     }
+
+    setRecurrenceData({
+      isRecurring: task.isRecurring ?? false,
+      recurrenceRuleStr: task.recurrenceRuleStr ?? null,
+      startDate: task.startDate ?? null,
+      endDate: task.endDate ?? null
+    })
+
+    // Reset the modification flag when task changes
+    setUserModifiedRecurrence(false);
+    setRecurrenceInitialized(false);
+
+    // Allow RecurrenceSelector to initialize, then mark as ready
+    const timer = setTimeout(() => {
+      setRecurrenceInitialized(true);
+    }, 500); // Wait 500ms after dialog opens
+
+    return () => clearTimeout(timer);
   }, [task]);
 
   const [collaboratorIds, setCollaboratorIds] = useState<number[]>(
@@ -339,23 +377,22 @@ export function TaskUpdateDialog({
     }
   };
 
-const formatDueDateTime = (localDateTime: string): string | undefined => {
-  if (!localDateTime) return undefined;
-  
-  // JavaScript automatically handles the conversion
-  const date = new Date(localDateTime);
-  
-  // Send as ISO string - backend handles it perfectly
-  return date.toISOString();
-  // Input: "2025-10-06T14:30" (local)
-  // Output: "2025-10-06T06:30:00.000Z" (UTC)
-  // Backend receives and stores correctly ✅
-};
+  const formatDueDateTime = (localDateTime: string): string | undefined => {
+    if (!localDateTime) return undefined;
+    
+    // JavaScript automatically handles the conversion
+    const date = new Date(localDateTime);
+    
+    // Send as ISO string - backend handles it perfectly
+    return date.toISOString();
+    // Input: "2025-10-06T14:30" (local)
+    // Output: "2025-10-06T06:30:00.000Z" (UTC)
+    // Backend receives and stores correctly ✅
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setIsSubmitting(true);
 
     try {
       // Build update request with only changed fields
@@ -408,7 +445,51 @@ const formatDueDateTime = (localDateTime: string): string | undefined => {
       }
     }
 
-      // Use the mutation hook for task update with automatic cache invalidation
+      // Check if recurrence data has actually been changed by the user
+      // Use the flag instead of comparing values (RecurrenceSelector causes timezone shifts)
+      const recurrenceChanged = userModifiedRecurrence;
+
+      console.log('🔍 RECURRENCE DEBUG:');
+      console.log('  userModifiedRecurrence:', userModifiedRecurrence);
+      console.log('  task.isRecurring:', task.isRecurring);
+
+      if (recurrenceChanged) {
+        updateRequest.isRecurring = recurrenceData.isRecurring;
+        updateRequest.recurrenceRuleStr = recurrenceData.recurrenceRuleStr ?? undefined;
+        updateRequest.startDate = recurrenceData.startDate ?? undefined;
+        updateRequest.endDate = recurrenceData.endDate ?? undefined;
+      }
+
+      const isEditingRecurringTask = task.isRecurring === true && !recurrenceChanged;
+
+      console.log('🔍 DEBUG: task.isRecurring =', task.isRecurring);
+      console.log('🔍 DEBUG: recurrenceChanged =', recurrenceChanged);
+      console.log('🔍 DEBUG: isEditingRecurringTask =', isEditingRecurringTask);
+      console.log('🔍 DEBUG: updateRequest =', updateRequest);
+
+      if(isEditingRecurringTask) {
+        console.log('✅ Showing recurrence dialog!');
+        // Store the update request and show the dialog
+        setPendingUpdate(updateRequest);
+        setShowRecurrenceDialog(true);
+        return;
+      }
+      console.log('❌ NOT showing recurrence dialog - updating directly');
+
+      setIsSubmitting(true);
+
+      // If not recurring, submit directly
+      await performUpdate(updateRequest);
+
+    } catch (err) {
+      console.log('Error updating task:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update task');
+    }
+  };
+
+  const performUpdate = async (updateRequest: UpdateTaskRequest) => {
+    setIsSubmitting(true);
+    try {
       const updatedTask = await updateTaskMutation.mutateAsync(updateRequest);
       
       console.log('Task updated successfully:', updatedTask);
@@ -448,7 +529,37 @@ const formatDueDateTime = (localDateTime: string): string | undefined => {
     }
   };
 
+  const handleRecurrenceModeSelected = async (mode: RecurrenceEditMode) => {
+    if(!pendingUpdate) return;
+
+    // Determine the instance date - use dueDateTime if available, fallback to startDate or current time
+    const instanceDate = task.dueDateTime || task.startDate || new Date().toISOString();
+
+    if (!task.dueDateTime) {
+      console.warn('⚠️ Task has no dueDateTime, using fallback for instanceDate:', instanceDate);
+    }
+
+    // Add instance date and recurrence edit mode to the update request
+    const finalUpdateRequest: UpdateTaskRequest = {
+      ...pendingUpdate,
+      instanceDate: instanceDate,
+      recurrenceEditMode: mode,
+    };
+
+    console.log('📤 Sending recurrence update:', {
+      mode,
+      instanceDate,
+      taskId: task.id,
+      updateFields: Object.keys(pendingUpdate)
+    });
+
+    setShowRecurrenceDialog(false);
+    await performUpdate(finalUpdateRequest);
+    setPendingUpdate(null);
+  }
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -547,7 +658,7 @@ const formatDueDateTime = (localDateTime: string): string | undefined => {
                   variant="secondary"
                   className="flex flex-col gap-0 px-2 py-1 text-xs leading-snug"
                 >
-                  <span className="font-medium">{collaborator.fullName}</span>
+                  <span className="font-medium">{collaborator.username}</span>
                   <span className="text-[10px] text-muted-foreground">{collaborator.email}</span>
                 </Badge>
               ))}
@@ -692,6 +803,26 @@ const formatDueDateTime = (localDateTime: string): string | undefined => {
                 ))}
               </ul>
             )}
+          {/* Task Recurrence Settings */}
+          <div className="space-y-2">
+            <RecurrenceSelector
+              onChange={(data) => {
+                setRecurrenceData(data);
+                // Only mark as modified if initialization is complete
+                if (recurrenceInitialized) {
+                  console.log('🔄 User modified recurrence settings');
+                  setUserModifiedRecurrence(true);
+                } else {
+                  console.log('⏳ RecurrenceSelector initializing, ignoring onChange');
+                }
+              }}
+              initialValue={{
+                isRecurring: task.isRecurring ?? false,
+                recurrenceRuleStr: task.recurrenceRuleStr ?? null,
+                startDate: task.startDate ?? null,
+                endDate: task.endDate ?? null,
+              }}
+            />
           </div>
 
           {error && (
@@ -716,5 +847,11 @@ const formatDueDateTime = (localDateTime: string): string | undefined => {
         </form>
       </DialogContent>
     </Dialog>
+    <RecurrenceEditModeDialog
+      open={showRecurrenceDialog}
+      onOpenChange={setShowRecurrenceDialog}
+      onSelect={handleRecurrenceModeSelected}
+    />
+    </>
   );
 }

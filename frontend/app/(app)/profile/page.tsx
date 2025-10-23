@@ -167,7 +167,7 @@ export default function ProfilePage() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-2xl font-bold">{profileData.fullName}</h3>
+              <h3 className="text-2xl font-bold">{profileData.username}</h3>
               <p className="text-gray-600 flex items-center space-x-1">
                 <Mail className="h-4 w-4" />
                 <span>{profileData.email}</span>

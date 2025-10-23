@@ -1,5 +1,6 @@
 package com.spmorangle.crm.taskmanagement.dto;
 
+import com.spmorangle.crm.taskmanagement.enums.RecurrenceEditMode;
 import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import jakarta.validation.constraints.NotNull;
@@ -24,4 +25,10 @@ public class UpdateTaskDto {
     private final TaskType taskType;
     private final List<String> tags;
     private final OffsetDateTime dueDateTime;
+    private final Boolean isRecurring;
+    private final String recurrenceRuleStr;
+    private final OffsetDateTime startDate;
+    private final OffsetDateTime endDate;
+    private final RecurrenceEditMode recurrenceEditMode;
+    private final OffsetDateTime instanceDate;
 }

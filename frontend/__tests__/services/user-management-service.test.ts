@@ -118,11 +118,238 @@ describe("UserManagementService", () => {
     });
   });
 
+  describe("adminCreateUser", () => {
+    it("successfully creates a user via admin endpoint", async () => {
+      const userData: CreateUserDto = {
+        userName: "Admin User",
+        email: "admin@example.com",
+        password: "password123",
+        roleType: "HR",
+      };
+
+      mockAuthenticatedClient.post.mockResolvedValueOnce(undefined);
+
+      await service.adminCreateUser(userData);
+
+      expect(mockAuthenticatedClient.post).toHaveBeenCalledWith("/api/user/admin-create", userData);
+    });
+
+    it("handles admin user creation errors", async () => {
+      const userData: CreateUserDto = {
+        userName: "Admin User",
+        email: "admin@example.com",
+        password: "password123",
+        roleType: "MANAGER",
+      };
+
+      const error = new Error("Insufficient permissions");
+      mockAuthenticatedClient.post.mockRejectedValueOnce(error);
+
+      await expect(service.adminCreateUser(userData)).rejects.toThrow("Insufficient permissions");
+    });
+
+    it("handles validation errors for admin create", async () => {
+      const userData: CreateUserDto = {
+        userName: "",
+        email: "invalid-email",
+        password: "123",
+        roleType: "STAFF",
+      };
+
+      const error = new Error("Validation failed");
+      mockAuthenticatedClient.post.mockRejectedValueOnce(error);
+
+      await expect(service.adminCreateUser(userData)).rejects.toThrow("Validation failed");
+    });
+
+    it("creates user with different roles", async () => {
+      const roles = ["STAFF", "MANAGER", "HR", "DIRECTOR"];
+      
+      for (const role of roles) {
+        const userData: CreateUserDto = {
+          userName: `User ${role}`,
+          email: `user.${role.toLowerCase()}@example.com`,
+          password: "password123",
+          roleType: role,
+        };
+
+        mockAuthenticatedClient.post.mockResolvedValueOnce(undefined);
+        await service.adminCreateUser(userData);
+
+        expect(mockAuthenticatedClient.post).toHaveBeenCalledWith("/api/user/admin-create", userData);
+      }
+    });
+  });
+
+  describe("deactivateUser", () => {
+    it("successfully deactivates a user", async () => {
+      mockAuthenticatedClient.post.mockResolvedValueOnce(undefined);
+
+      await service.deactivateUser(1);
+
+      expect(mockAuthenticatedClient.post).toHaveBeenCalledWith("/api/user/deactivate/1", {});
+    });
+
+    it("handles deactivate user errors", async () => {
+      const error = new Error("User not found");
+      mockAuthenticatedClient.post.mockRejectedValueOnce(error);
+
+      await expect(service.deactivateUser(999)).rejects.toThrow("User not found");
+    });
+
+    it("handles insufficient permissions error", async () => {
+      const error = new Error("Insufficient permissions");
+      mockAuthenticatedClient.post.mockRejectedValueOnce(error);
+
+      await expect(service.deactivateUser(1)).rejects.toThrow("Insufficient permissions");
+    });
+
+    it("deactivates user with different IDs", async () => {
+      const userIds = [1, 5, 10, 100];
+      
+      for (const userId of userIds) {
+        mockAuthenticatedClient.post.mockResolvedValueOnce(undefined);
+        await service.deactivateUser(userId);
+
+        expect(mockAuthenticatedClient.post).toHaveBeenCalledWith(`/api/user/deactivate/${userId}`, {});
+      }
+    });
+
+    it("handles network errors during deactivation", async () => {
+      const networkError = new Error("Network error");
+      mockAuthenticatedClient.post.mockRejectedValueOnce(networkError);
+
+      await expect(service.deactivateUser(1)).rejects.toThrow("Network error");
+    });
+
+    it("sends empty object in request body", async () => {
+      mockAuthenticatedClient.post.mockResolvedValueOnce(undefined);
+
+      await service.deactivateUser(5);
+
+      expect(mockAuthenticatedClient.post).toHaveBeenCalledWith("/api/user/deactivate/5", {});
+      const callArgs = mockAuthenticatedClient.post.mock.calls[0];
+      expect(callArgs[1]).toEqual({});
+    });
+  });
+
+  describe("reactivateUser", () => {
+    it("successfully reactivates a user", async () => {
+      mockAuthenticatedClient.post.mockResolvedValueOnce(undefined);
+
+      await service.reactivateUser(1);
+
+      expect(mockAuthenticatedClient.post).toHaveBeenCalledWith("/api/user/reactivate/1", {});
+    });
+
+    it("handles reactivate user errors", async () => {
+      const error = new Error("User not found");
+      mockAuthenticatedClient.post.mockRejectedValueOnce(error);
+
+      await expect(service.reactivateUser(999)).rejects.toThrow("User not found");
+    });
+
+    it("handles insufficient permissions error", async () => {
+      const error = new Error("Insufficient permissions");
+      mockAuthenticatedClient.post.mockRejectedValueOnce(error);
+
+      await expect(service.reactivateUser(1)).rejects.toThrow("Insufficient permissions");
+    });
+
+    it("reactivates user with different IDs", async () => {
+      const userIds = [1, 5, 10, 100];
+      
+      for (const userId of userIds) {
+        mockAuthenticatedClient.post.mockResolvedValueOnce(undefined);
+        await service.reactivateUser(userId);
+
+        expect(mockAuthenticatedClient.post).toHaveBeenCalledWith(`/api/user/reactivate/${userId}`, {});
+      }
+    });
+
+    it("handles network errors during reactivation", async () => {
+      const networkError = new Error("Network error");
+      mockAuthenticatedClient.post.mockRejectedValueOnce(networkError);
+
+      await expect(service.reactivateUser(1)).rejects.toThrow("Network error");
+    });
+
+    it("sends empty object in request body", async () => {
+      mockAuthenticatedClient.post.mockResolvedValueOnce(undefined);
+
+      await service.reactivateUser(5);
+
+      expect(mockAuthenticatedClient.post).toHaveBeenCalledWith("/api/user/reactivate/5", {});
+      const callArgs = mockAuthenticatedClient.post.mock.calls[0];
+      expect(callArgs[1]).toEqual({});
+    });
+  });
+
+  describe("getAllUsers", () => {
+    it("successfully retrieves all users", async () => {
+      const mockUsers: UserResponseDto[] = [
+        {
+          id: 1,
+          username: "John Doe",
+          email: "john@example.com",
+          roleType: "STAFF",
+          cognitoSub: "cognito-sub-123",
+        },
+        {
+          id: 2,
+          username: "Jane Smith",
+          email: "jane@example.com",
+          roleType: "MANAGER",
+          cognitoSub: "cognito-sub-456",
+        },
+        {
+          id: 3,
+          username: "Bob Johnson",
+          email: "bob@example.com",
+          roleType: "HR",
+          cognitoSub: "cognito-sub-789",
+        },
+      ];
+
+      mockAuthenticatedClient.get.mockResolvedValueOnce(mockUsers);
+
+      const result = await service.getAllUsers();
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith("/api/user/");
+      expect(result).toEqual(mockUsers);
+      expect(result).toHaveLength(3);
+    });
+
+    it("handles empty user list", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+
+      const result = await service.getAllUsers();
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith("/api/user/");
+      expect(result).toEqual([]);
+      expect(result).toHaveLength(0);
+    });
+
+    it("handles get all users errors", async () => {
+      const error = new Error("Failed to fetch users");
+      mockAuthenticatedClient.get.mockRejectedValueOnce(error);
+
+      await expect(service.getAllUsers()).rejects.toThrow("Failed to fetch users");
+    });
+
+    it("handles authorization errors", async () => {
+      const error = new Error("Unauthorized");
+      mockAuthenticatedClient.get.mockRejectedValueOnce(error);
+
+      await expect(service.getAllUsers()).rejects.toThrow("Unauthorized");
+    });
+  });
+
   describe("getUserById", () => {
     it("successfully retrieves user by ID", async () => {
       const mockUser: UserResponseDto = {
         id: 1,
-        fullName: "John Doe",
+        username: "John Doe",
         email: "john@example.com",
         roleType: "STAFF",
         cognitoSub: "cognito-sub-123",
@@ -148,7 +375,7 @@ describe("UserManagementService", () => {
     it("successfully retrieves user by Cognito Sub", async () => {
       const mockUser: UserResponseDto = {
         id: 1,
-        fullName: "John Doe",
+        username: "John Doe",
         email: "john@example.com",
         roleType: "STAFF",
         cognitoSub: "cognito-sub-123",
@@ -363,6 +590,8 @@ describe("UserManagementService", () => {
     it("singleton instance has all methods", () => {
       expect(typeof userManagementService.signUp).toBe("function");
       expect(typeof userManagementService.createUser).toBe("function");
+      expect(typeof userManagementService.adminCreateUser).toBe("function");
+      expect(typeof userManagementService.deactivateUser).toBe("function");
       expect(typeof userManagementService.getUserById).toBe("function");
       expect(typeof userManagementService.getUserByCognitoSub).toBe("function");
       expect(typeof userManagementService.updateUserRole).toBe("function");

@@ -1,6 +1,7 @@
 package com.spmorangle.crm.usermanagement.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.spmorangle.common.config.SecurityConfig;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.usermanagement.dto.CreateUserDto;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -40,8 +42,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UserController.class)
+@Import({SecurityConfig.class})
 @DisplayName("UserController Tests")
-@WithMockUser(username = "test@example.com", authorities = {"ROLE_MANAGER"})
+@WithMockUser(username = "test@example.com", authorities = {"ROLE_HR"})
 public class UserControllerTest {
 
     @Autowired
@@ -86,13 +89,7 @@ public class UserControllerTest {
                 "MANAGER"
         );
 
-        userResponseDto = UserResponseDto.builder()
-                .id(1L)
-                .username("John Doe")
-                .email("john.doe@example.com")
-                .roleType("STAFF")
-                .cognitoSub(testCognitoSub)
-                .build();
+        userResponseDto = new UserResponseDto(1L, "John Doe", "john.doe@example.com", "STAFF", true, "Engineering", testCognitoSub);
     }
 
     @Nested
@@ -103,7 +100,7 @@ public class UserControllerTest {
         @DisplayName("Should successfully create user and return 200")
         void createUser_ValidRequest_ReturnsOk() throws Exception {
             // Given
-            doNothing().when(userManagementService).createUser(any(CreateUserDto.class));
+            doNothing().when(userManagementService).createUser(any(CreateUserDto.class), eq("STAFF"), eq(false));
 
             // When & Then
             mockMvc.perform(post("/api/user/create")
@@ -112,7 +109,7 @@ public class UserControllerTest {
                             .content(objectMapper.writeValueAsString(createUserDto)))
                     .andExpect(status().isOk());
 
-            verify(userManagementService).createUser(any(CreateUserDto.class));
+            verify(userManagementService).createUser(any(CreateUserDto.class), eq("STAFF"), eq(false));
         }
 
         @Test
@@ -176,7 +173,7 @@ public class UserControllerTest {
         @DisplayName("Should allow user creation with proper authentication")
         void createUser_WithAuthentication_AllowsAccess() throws Exception {
             // Given
-            doNothing().when(userManagementService).createUser(any(CreateUserDto.class));
+            doNothing().when(userManagementService).createUser(any(CreateUserDto.class), eq("STAFF"), eq(false));
 
             // When & Then - The @PreAuthorize("permitAll()") should allow this
             mockMvc.perform(post("/api/user/create")
@@ -300,9 +297,10 @@ public class UserControllerTest {
         }
 
         @Test
-        @DisplayName("Should allow MANAGER role to update user roles")
-        void updateUserRole_ManagerRole_AllowsAccess() throws Exception {
-            // Given - MANAGER role should have access to update user roles
+        @WithMockUser(username = "manager@example.com", authorities = {"ROLE_MANAGER"})
+        @DisplayName("Should deny MANAGER role access to update user roles (HR-only)")
+        void updateUserRole_ManagerRole_DeniesAccess() throws Exception {
+            // Given - MANAGER role should NOT have access to update user roles (HR-only)
             doNothing().when(userManagementService).updateUserRole(any(UpdateUserRoleDto.class));
 
             // When & Then
@@ -310,9 +308,9 @@ public class UserControllerTest {
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateUserRoleDto)))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isForbidden());
 
-            verify(userManagementService).updateUserRole(any(UpdateUserRoleDto.class));
+            verify(userManagementService, never()).updateUserRole(any(UpdateUserRoleDto.class));
         }
     }
 
@@ -415,8 +413,8 @@ public class UserControllerTest {
 
         @Test
         @WithMockUser(username = "test@example.com", authorities = {"ROLE_DIRECTOR"})
-        @DisplayName("Should allow DIRECTOR role to access all endpoints")
-        void allEndpoints_DirectorRole_AllowsAccess() throws Exception {
+        @DisplayName("Should allow DIRECTOR role to access non-HR endpoints only")
+        void allEndpoints_DirectorRole_AllowsAccessToNonHREndpoints() throws Exception {
             // Given
             when(userManagementService.getUserById(eq(1L))).thenReturn(userResponseDto);
             when(userManagementService.getUserTypes()).thenReturn(Arrays.asList("DIRECTOR", "MANAGER"));
@@ -425,18 +423,19 @@ public class UserControllerTest {
             doNothing().when(userManagementService).updateUserRole(any(UpdateUserRoleDto.class));
             doNothing().when(userManagementService).deleteUser(eq(123L));
 
-            // Test all protected endpoints
+            // Test non-HR protected endpoints - should work
             mockMvc.perform(get("/api/user/user-id/1").with(csrf()))
                     .andExpect(status().isOk());
 
             mockMvc.perform(get("/api/user/user-types").with(csrf()))
                     .andExpect(status().isOk());
 
+            // Test HR-only endpoints - should be forbidden
             mockMvc.perform(put("/api/user/role")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateUserRoleDto)))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isForbidden());
 
             mockMvc.perform(delete("/api/user/123").with(csrf()))
                     .andExpect(status().isNoContent());
@@ -470,13 +469,7 @@ public class UserControllerTest {
             String usernameWithSpecialChars = "User with \"quotes\" and \\backslashes\\";
             String emailWithSpecialChars = "user+test@example.com";
 
-            UserResponseDto userWithSpecialContent = UserResponseDto.builder()
-                    .id(1L)
-                    .username(usernameWithSpecialChars)
-                    .email(emailWithSpecialChars)
-                    .roleType("STAFF")
-                    .cognitoSub(testCognitoSub)
-                    .build();
+            UserResponseDto userWithSpecialContent = new UserResponseDto(1L, usernameWithSpecialChars, emailWithSpecialChars, "STAFF", true, "Engineering", testCognitoSub);
 
             when(userManagementService.getUserById(eq(1L))).thenReturn(userWithSpecialContent);
 
@@ -488,6 +481,233 @@ public class UserControllerTest {
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.username").value(usernameWithSpecialChars))
                     .andExpect(jsonPath("$.email").value(emailWithSpecialChars));
+        }
+    }
+
+    @Nested
+    @DisplayName("Admin Create User Tests")
+    class AdminCreateUserTests {
+
+        @Test
+        @DisplayName("Should successfully create user with admin permissions and return 200")
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
+        void adminCreateUser_ValidRequest_ReturnsOk() throws Exception {
+            // Given
+            doNothing().when(userManagementService).createUser(any(CreateUserDto.class), eq(true));
+
+            // When & Then
+            mockMvc.perform(post("/api/user/admin-create")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createUserDto)))
+                    .andExpect(status().isOk());
+
+            verify(userManagementService).createUser(any(CreateUserDto.class), eq(true));
+        }
+
+        @Test
+        @DisplayName("Should return 403 when non-admin tries to admin create user")
+        @WithMockUser(username = "staff@example.com", authorities = {"ROLE_STAFF"})
+        void adminCreateUser_NonAdminRole_ReturnsForbidden() throws Exception {
+            // When & Then
+            mockMvc.perform(post("/api/user/admin-create")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createUserDto)))
+                    .andExpect(status().isForbidden());
+
+            verify(userManagementService, never()).createUser(any(CreateUserDto.class), eq(true));
+        }
+    }
+
+    @Nested
+    @DisplayName("Deactivate User Tests")
+    class DeactivateUserTests {
+
+        @Test
+        @DisplayName("Should successfully deactivate user and return 200")
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
+        void deactivateUser_ValidRequest_ReturnsOk() throws Exception {
+            // Given
+            Long userId = 1L;
+            doNothing().when(userManagementService).toggleUserStatus(userId, false);
+
+            // When & Then
+            mockMvc.perform(post("/api/user/deactivate/{userId}", userId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk());
+
+            verify(userManagementService).toggleUserStatus(userId, false);
+        }
+
+        @Test
+        @DisplayName("Should return 403 when non-authorized user tries to deactivate")
+        @WithMockUser(username = "staff@example.com", authorities = {"ROLE_STAFF"})
+        void deactivateUser_NonAuthorizedRole_ReturnsForbidden() throws Exception {
+            // Given
+            Long userId = 1L;
+
+            // When & Then
+            mockMvc.perform(post("/api/user/deactivate/{userId}", userId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isForbidden());
+
+            verify(userManagementService, never()).toggleUserStatus(userId, false);
+        }
+
+        @Test
+        @DisplayName("Should allow HR role to deactivate users")
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
+        void deactivateUser_HrRole_AllowsAccess() throws Exception {
+            // Given
+            Long userId = 1L;
+            doNothing().when(userManagementService).toggleUserStatus(userId, false);
+
+            // When & Then
+            mockMvc.perform(post("/api/user/deactivate/{userId}", userId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk());
+
+            verify(userManagementService).toggleUserStatus(userId, false);
+        }
+    }
+
+    @Nested
+    @DisplayName("Reactivate User Tests")
+    class ReactivateUserTests {
+
+        @Test
+        @DisplayName("Should successfully reactivate user and return 200")
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
+        void reactivateUser_ValidRequest_ReturnsOk() throws Exception {
+            // Given
+            Long userId = 1L;
+            doNothing().when(userManagementService).toggleUserStatus(userId, true);
+
+            // When & Then
+            mockMvc.perform(post("/api/user/reactivate/{userId}", userId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk());
+
+            verify(userManagementService).toggleUserStatus(userId, true);
+        }
+
+        @Test
+        @DisplayName("Should return 403 when non-authorized user tries to reactivate")
+        @WithMockUser(username = "staff@example.com", authorities = {"ROLE_STAFF"})
+        void reactivateUser_NonAuthorizedRole_ReturnsForbidden() throws Exception {
+            // Given
+            Long userId = 1L;
+
+            // When & Then
+            mockMvc.perform(post("/api/user/reactivate/{userId}", userId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isForbidden());
+
+            verify(userManagementService, never()).toggleUserStatus(userId, true);
+        }
+
+        @Test
+        @DisplayName("Should allow HR role to reactivate users")
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
+        void reactivateUser_HrRole_AllowsAccess() throws Exception {
+            // Given
+            Long userId = 1L;
+            doNothing().when(userManagementService).toggleUserStatus(userId, true);
+
+            // When & Then
+            mockMvc.perform(post("/api/user/reactivate/{userId}", userId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk());
+
+            verify(userManagementService).toggleUserStatus(userId, true);
+        }
+    }
+
+    @Nested
+    @DisplayName("Get All Users Tests")
+    class GetAllUsersTests {
+
+        @Test
+        @DisplayName("Should successfully return all users")
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
+        void getAllUsers_ValidRequest_ReturnsUserList() throws Exception {
+            // Given
+            List<UserResponseDto> users = Arrays.asList(
+                    new UserResponseDto(1L, "John Doe", "john@example.com", "STAFF", true, "Engineering", UUID.randomUUID()),
+                    new UserResponseDto(2L, "Jane Smith", "jane@example.com", "MANAGER", true, "Management", UUID.randomUUID())
+            );
+            when(userManagementService.getAllUsers()).thenReturn(users);
+
+            // When & Then
+            mockMvc.perform(get("/api/user/")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].id").value(1L))
+                    .andExpect(jsonPath("$[0].username").value("John Doe"))
+                    .andExpect(jsonPath("$[0].isActive").value(true))
+                    .andExpect(jsonPath("$[1].id").value(2L))
+                    .andExpect(jsonPath("$[1].username").value("Jane Smith"))
+                    .andExpect(jsonPath("$[1].isActive").value(true));
+        }
+
+        @Test
+        @DisplayName("Should return 403 when non-authorized user tries to get all users")
+        @WithMockUser(username = "staff@example.com", authorities = {"ROLE_STAFF"})
+        void getAllUsers_NonAuthorizedRole_ReturnsForbidden() throws Exception {
+            // When & Then
+            mockMvc.perform(get("/api/user/")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isForbidden());
+
+            verify(userManagementService, never()).getAllUsers();
+        }
+
+        @Test
+        @DisplayName("Should allow HR role to get all users")
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
+        void getAllUsers_HrRole_AllowsAccess() throws Exception {
+            // Given
+            List<UserResponseDto> users = Arrays.asList(
+                    new UserResponseDto(1L, "John Doe", "john@example.com", "STAFF", true, "Engineering", UUID.randomUUID())
+            );
+            when(userManagementService.getAllUsers()).thenReturn(users);
+
+            // When & Then
+            mockMvc.perform(get("/api/user/")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(1));
+        }
+
+        @Test
+        @DisplayName("Should return empty list when no users exist")
+        @WithMockUser(username = "hr@example.com", authorities = {"ROLE_HR"})
+        void getAllUsers_NoUsers_ReturnsEmptyList() throws Exception {
+            // Given
+            when(userManagementService.getAllUsers()).thenReturn(Arrays.asList());
+
+            // When & Then
+            mockMvc.perform(get("/api/user/")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(0));
         }
     }
 }

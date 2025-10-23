@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -507,6 +508,208 @@ public class ProjectControllerTest {
                     .andExpect(jsonPath("$[0].ownerId").isNumber())
                     .andExpect(jsonPath("$[0].createdAt").isString())
                     .andExpect(jsonPath("$[0].updatedAt").isString());
+        }
+    }
+
+    @Nested
+    @DisplayName("Role-Based Project Viewing Permission Tests")
+    class RoleBasedProjectViewingTests {
+
+        private User staffUser;
+        private User managerUser;
+        private User hrUser;
+
+        @BeforeEach
+        void setUpPermissionTests() {
+            // Setup STAFF user
+            staffUser = new User();
+            staffUser.setId(100L);
+            staffUser.setUserName("staff_user");
+            staffUser.setEmail("staff@example.com");
+            staffUser.setRoleType("STAFF");
+            staffUser.setDepartment("Engineering");
+            staffUser.setCognitoSub(UUID.randomUUID());
+
+            // Setup MANAGER user
+            managerUser = new User();
+            managerUser.setId(200L);
+            managerUser.setUserName("manager_user");
+            managerUser.setEmail("manager@example.com");
+            managerUser.setRoleType("MANAGER");
+            managerUser.setDepartment("Engineering");
+            managerUser.setCognitoSub(UUID.randomUUID());
+
+            // Setup HR user
+            hrUser = new User();
+            hrUser.setId(300L);
+            hrUser.setUserName("hr_user");
+            hrUser.setEmail("hr@example.com");
+            hrUser.setRoleType("HR");
+            hrUser.setDepartment("HR");
+            hrUser.setCognitoSub(UUID.randomUUID());
+        }
+
+        @Test
+        @DisplayName("STAFF role should see only member projects without related projects")
+        @WithMockUser(username = "staff@example.com", authorities = {"ROLE_STAFF"})
+        void getUserProjects_StaffRole_ReturnsOnlyMemberProjects() throws Exception {
+            // Given
+            List<ProjectResponseDto> staffProjects = Arrays.asList(
+                    ProjectResponseDto.builder()
+                            .id(1L)
+                            .name("Member Project 1")
+                            .description("Project where staff is member")
+                            .ownerId(999L)
+                            .createdAt(OffsetDateTime.now())
+                            .updatedAt(OffsetDateTime.now())
+                            .isOwner(false)
+                            .isRelated(false)
+                            .departmentName("Engineering")
+                            .build(),
+                    ProjectResponseDto.builder()
+                            .id(2L)
+                            .name("Owned Project")
+                            .description("Project owned by staff")
+                            .ownerId(100L)
+                            .createdAt(OffsetDateTime.now())
+                            .updatedAt(OffsetDateTime.now())
+                            .isOwner(true)
+                            .isRelated(false)
+                            .departmentName("Engineering")
+                            .build()
+            );
+
+            when(userContextService.getRequestingUser()).thenReturn(staffUser);
+            when(projectService.getUserProjects(eq(100L))).thenReturn(staffProjects);
+
+            // When & Then
+            mockMvc.perform(get("/api/projects")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].id").value(1L))
+                    .andExpect(jsonPath("$[0].isOwner").value(false))
+                    .andExpect(jsonPath("$[0].isRelated").value(false))
+                    .andExpect(jsonPath("$[1].id").value(2L))
+                    .andExpect(jsonPath("$[1].isOwner").value(true))
+                    .andExpect(jsonPath("$[1].isRelated").value(false));
+
+            verify(userContextService).getRequestingUser();
+            verify(projectService).getUserProjects(eq(100L));
+        }
+
+        @Test
+        @DisplayName("MANAGER role should see member projects AND related cross-department projects")
+        @WithMockUser(username = "manager@example.com", authorities = {"ROLE_MANAGER"})
+        void getUserProjects_ManagerRole_ReturnsMemberAndRelatedProjects() throws Exception {
+            // Given
+            List<ProjectResponseDto> managerProjects = Arrays.asList(
+                    ProjectResponseDto.builder()
+                            .id(1L)
+                            .name("Owned Engineering Project")
+                            .description("Project owned by manager")
+                            .ownerId(200L)
+                            .createdAt(OffsetDateTime.now())
+                            .updatedAt(OffsetDateTime.now())
+                            .isOwner(true)
+                            .isRelated(false)
+                            .departmentName("Engineering")
+                            .build(),
+                    ProjectResponseDto.builder()
+                            .id(3L)
+                            .name("Marketing Project with Engineering Staff")
+                            .description("Cross-dept project")
+                            .ownerId(888L)
+                            .createdAt(OffsetDateTime.now())
+                            .updatedAt(OffsetDateTime.now())
+                            .isOwner(false)
+                            .isRelated(true)
+                            .departmentName("Marketing")
+                            .build()
+            );
+
+            when(userContextService.getRequestingUser()).thenReturn(managerUser);
+            when(projectService.getUserProjects(eq(200L))).thenReturn(managerProjects);
+
+            // When & Then
+            mockMvc.perform(get("/api/projects")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$").isArray())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].id").value(1L))
+                    .andExpect(jsonPath("$[0].isOwner").value(true))
+                    .andExpect(jsonPath("$[0].isRelated").value(false))
+                    .andExpect(jsonPath("$[0].departmentName").value("Engineering"))
+                    .andExpect(jsonPath("$[1].id").value(3L))
+                    .andExpect(jsonPath("$[1].isOwner").value(false))
+                    .andExpect(jsonPath("$[1].isRelated").value(true))
+                    .andExpect(jsonPath("$[1].departmentName").value("Marketing"));
+
+            verify(userContextService).getRequestingUser();
+            verify(projectService).getUserProjects(eq(200L));
+        }
+
+        @Test
+        @DisplayName("Response should contain metadata fields: isOwner, isRelated, departmentName")
+        @WithMockUser(username = "manager@example.com", authorities = {"ROLE_MANAGER"})
+        void getUserProjects_ResponseContainsMetadata() throws Exception {
+            // Given
+            List<ProjectResponseDto> projectsWithMetadata = Collections.singletonList(
+                    ProjectResponseDto.builder()
+                            .id(1L)
+                            .name("Test Project")
+                            .description("Test description")
+                            .ownerId(200L)
+                            .createdAt(OffsetDateTime.now())
+                            .updatedAt(OffsetDateTime.now())
+                            .taskCount(5)
+                            .completedTaskCount(2)
+                            .isOwner(true)
+                            .isRelated(false)
+                            .departmentName("Engineering")
+                            .build()
+            );
+
+            when(userContextService.getRequestingUser()).thenReturn(managerUser);
+            when(projectService.getUserProjects(eq(200L))).thenReturn(projectsWithMetadata);
+
+            // When & Then
+            mockMvc.perform(get("/api/projects")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$[0].id").exists())
+                    .andExpect(jsonPath("$[0].name").exists())
+                    .andExpect(jsonPath("$[0].description").exists())
+                    .andExpect(jsonPath("$[0].ownerId").exists())
+                    .andExpect(jsonPath("$[0].createdAt").exists())
+                    .andExpect(jsonPath("$[0].updatedAt").exists())
+                    .andExpect(jsonPath("$[0].taskCount").exists())
+                    .andExpect(jsonPath("$[0].completedTaskCount").exists())
+                    .andExpect(jsonPath("$[0].isOwner").exists())
+                    .andExpect(jsonPath("$[0].isOwner").isBoolean())
+                    .andExpect(jsonPath("$[0].isRelated").exists())
+                    .andExpect(jsonPath("$[0].isRelated").isBoolean())
+                    .andExpect(jsonPath("$[0].departmentName").exists())
+                    .andExpect(jsonPath("$[0].departmentName").isString())
+                    .andExpect(jsonPath("$[0].departmentName").value("Engineering"));
+        }
+
+        @Test
+        @WithAnonymousUser
+        @DisplayName("Should require authentication for viewing projects")
+        void getUserProjects_RequiresAuthentication() throws Exception {
+            // When & Then - Without authentication mock
+            mockMvc.perform(get("/api/projects")
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isUnauthorized());
         }
     }
 }

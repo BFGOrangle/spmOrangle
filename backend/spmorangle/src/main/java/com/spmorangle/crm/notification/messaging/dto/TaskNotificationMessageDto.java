@@ -29,6 +29,7 @@ public class TaskNotificationMessageDto {
     private String taskTitle;
     private String taskDescription;
     private List<Long> assignedUserIds; // Users assigned to the task
+    private String prevTaskStatus;
     private String taskStatus;
     private Instant timestamp;
 
@@ -42,6 +43,7 @@ public class TaskNotificationMessageDto {
             @JsonProperty("taskTitle") String taskTitle,
             @JsonProperty("taskDescription") String taskDescription,
             @JsonProperty("assignedUserIds") List<Long> assignedUserIds,
+            @JsonProperty("prevTaskStatus") String prevTaskStatus,
             @JsonProperty("taskStatus") String taskStatus,
             @JsonProperty("timestamp") Instant timestamp) {
         this.messageId = messageId;
@@ -52,6 +54,7 @@ public class TaskNotificationMessageDto {
         this.taskTitle = taskTitle;
         this.taskDescription = taskDescription;
         this.assignedUserIds = assignedUserIds;
+        this.prevTaskStatus = prevTaskStatus;
         this.taskStatus = taskStatus;
         this.timestamp = timestamp;
     }
@@ -85,8 +88,9 @@ public class TaskNotificationMessageDto {
             Long projectId,
             String taskTitle,
             String taskDescription,
-            List<Long> assignedUserIds) {
-        
+            List<Long> assignedUserIds
+            ) {
+
         return TaskNotificationMessageDto.builder()
                 .messageId(UUID.randomUUID().toString())
                 .eventType("TASK_ASSIGNED")
@@ -96,6 +100,28 @@ public class TaskNotificationMessageDto {
                 .taskTitle(taskTitle)
                 .taskDescription(taskDescription)
                 .assignedUserIds(assignedUserIds)
+                .timestamp(Instant.now())
+                .build();
+    }
+
+    public static TaskNotificationMessageDto forTaskUnassigned(
+            Long taskId,
+            Long authorId,
+            Long projectId,
+            String taskTitle,
+            String taskDescription,
+            List<Long> removedUserIds
+            ) {
+
+        return TaskNotificationMessageDto.builder()
+                .messageId(UUID.randomUUID().toString())
+                .eventType("TASK_UNASSIGNED")
+                .taskId(taskId)
+                .authorId(authorId)
+                .projectId(projectId)
+                .taskTitle(taskTitle)
+                .taskDescription(taskDescription)
+                .assignedUserIds(removedUserIds)
                 .timestamp(Instant.now())
                 .build();
     }
@@ -142,6 +168,30 @@ public class TaskNotificationMessageDto {
                 .build();
     }
 
+    // Factory method for status change
+    public static TaskNotificationMessageDto forStatusChange(
+        Long taskId,
+        Long editorId,
+        Long projectId,
+        String taskTitle,
+        String previousStatus,
+        String newStatus,
+        List<Long> recipientIds
+    ) {
+        return TaskNotificationMessageDto.builder()
+                .messageId(UUID.randomUUID().toString())
+                .eventType("STATUS_UPDATED")
+                .taskId(taskId)
+                .authorId(editorId)
+                .projectId(projectId)
+                .taskTitle(taskTitle)
+                .prevTaskStatus(previousStatus)
+                .taskStatus(newStatus)
+                .assignedUserIds(recipientIds)
+                .timestamp(Instant.now())
+                .build();
+    }
+
     // Helper methods
     public boolean hasAssignees() {
         return assignedUserIds != null && !assignedUserIds.isEmpty();
@@ -157,6 +207,13 @@ public class TaskNotificationMessageDto {
     }
 
     public String generateNotificationLink() {
+        return generateNotificationLinkWithContext(null);
+    }
+
+    public String generateNotificationLinkWithContext(String highlightSection) {
+        if (highlightSection != null && !highlightSection.isEmpty()) {
+            return String.format("/tasks/%d?highlight=%s", taskId, highlightSection);
+        }
         return String.format("/tasks/%d", taskId);
     }
 
@@ -170,6 +227,8 @@ public class TaskNotificationMessageDto {
                 return "notification.task.completed";
             case "TASK_UPDATED":
                 return "notification.task.updated";
+            case "STATUS_UPDATED":
+                return "notification.task.status.updated";
             default:
                 log.warn("Unknown event type: {}, using default routing key", eventType);
                 return "notification.task.created";
