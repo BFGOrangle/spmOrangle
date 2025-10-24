@@ -790,7 +790,7 @@ public class TaskServiceImpl implements TaskService {
         // This allows clearing the due date if needed
         OffsetDateTime newDueDate = updateTaskDto.getDueDateTime();
         task.setDueDateTime(newDueDate);
-        
+
         // Reset overdue notification flag if due date is moved to the future
         // This ensures the task can receive a new notification if it becomes overdue again
         if (newDueDate != null && newDueDate.isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {

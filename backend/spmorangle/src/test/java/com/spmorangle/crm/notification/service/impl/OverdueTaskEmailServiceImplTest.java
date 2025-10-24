@@ -103,7 +103,8 @@ class OverdueTaskEmailServiceImplTest {
         assertTrue(body.contains("Important Task"), "Email body should contain task title");
         assertTrue(body.contains("This is an important task that is overdue"), "Email body should contain task description");
         assertTrue(body.contains("TODO"), "Email body should contain task status");
-        assertTrue(body.contains("Oct 22, 2025 21:07:00"), "Email body should contain formatted due date");
+        // UTC 2025-10-22 21:07:00 converts to SGT 2025-10-23 05:07:00 (UTC+8)
+        assertTrue(body.contains("Oct 23, 2025 05:07:00"), "Email body should contain formatted due date");
 
         // Verify user management service was called
         verify(userManagementService, times(2)).getUserById(100L); // Once for email, once for name
@@ -196,9 +197,13 @@ class OverdueTaskEmailServiceImplTest {
         assertTrue(body.contains("Task 1"), "Email body should contain first task");
         assertTrue(body.contains("Task 2"), "Email body should contain second task");
         assertTrue(body.contains("Task 3"), "Email body should contain third task");
-        assertTrue(body.contains("Oct 15, 2025 10:00:00"), "Email body should contain first task due date");
-        assertTrue(body.contains("Oct 20, 2025 14:30:00"), "Email body should contain second task due date");
-        assertTrue(body.contains("Oct 22, 2025 09:15:00"), "Email body should contain third task due date");
+        // UTC times converted to SGT (UTC+8):
+        // 2025-10-15 10:00:00 UTC -> 2025-10-15 18:00:00 SGT
+        assertTrue(body.contains("Oct 15, 2025 18:00:00"), "Email body should contain first task due date");
+        // 2025-10-20 14:30:00 UTC -> 2025-10-20 22:30:00 SGT
+        assertTrue(body.contains("Oct 20, 2025 22:30:00"), "Email body should contain second task due date");
+        // 2025-10-22 09:15:00 UTC -> 2025-10-22 17:15:00 SGT
+        assertTrue(body.contains("Oct 22, 2025 17:15:00"), "Email body should contain third task due date");
     }
 
     @Test
