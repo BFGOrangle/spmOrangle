@@ -412,7 +412,6 @@ export default function CalendarPage() {
       />
 
       {/* Calendar View */}
-      {/* Calendar View */}
       <div className="flex-1 overflow-hidden relative">
         {isLoadingTasks ? (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
