@@ -785,8 +785,17 @@ public class TaskServiceImpl implements TaskService {
             task.getTags().addAll(tagService.findOrCreateTags(updateTaskDto.getTags()));
         }
 
-        if (updateTaskDto.getDueDateTime() != null) {
-            task.setDueDateTime(updateTaskDto.getDueDateTime());
+        // Handle due date update - allow null values
+        // Note: We update the due date regardless of whether it's null or not
+        // This allows clearing the due date if needed
+        OffsetDateTime newDueDate = updateTaskDto.getDueDateTime();
+        task.setDueDateTime(newDueDate);
+
+        // Reset overdue notification flag if due date is moved to the future
+        // This ensures the task can receive a new notification if it becomes overdue again
+        if (newDueDate != null && newDueDate.isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
+            task.setHasSentOverdue(false);
+            log.info("Reset hasSentOverdue flag for task {} - new due date is in the future", task.getId());
         }
 
         // Track if any recurrence fields are being updated

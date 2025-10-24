@@ -42,3 +42,7 @@ supabase:
     s3_aws_secret_access_key: ${AWS_S3_SECRET_ACCESS_KEY}
     region: ap-southeast-1
     bucket: syncup_bucket
+
+overdue:
+  check:
+    rate-ms: 60000

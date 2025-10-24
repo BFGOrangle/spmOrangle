@@ -88,4 +88,4 @@ export interface CalendarPageState {
 
 // Utility function types
 export type TaskToEventConverter = (task: TaskResponseDto, project?: ProjectResponse) => CalendarEvent;
-export type EventColorGenerator = (taskType: string, status: string) => string;
+export type EventColorGenerator = (taskType: string, status: string, isOverdue?: boolean) => string;
