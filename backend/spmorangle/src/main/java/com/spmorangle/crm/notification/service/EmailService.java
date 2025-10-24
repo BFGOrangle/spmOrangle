@@ -1,5 +1,7 @@
 package com.spmorangle.crm.notification.service;
 
+import java.util.concurrent.CompletableFuture;
+
 public interface EmailService {
     
     /**
@@ -8,7 +10,7 @@ public interface EmailService {
      * @param subject email subject
      * @param body email body content
      */
-    void sendEmail(String toEmail, String subject, String body);
+    CompletableFuture<Void> sendEmail(String toEmail, String subject, String body);
     
     /**
      * Send HTML email notification  
@@ -16,5 +18,7 @@ public interface EmailService {
      * @param subject email subject
      * @param htmlBody HTML email body content
      */
-    void sendHtmlEmail(String toEmail, String subject, String htmlBody);
+    CompletableFuture<Void> sendHtmlEmail(String toEmail, String subject, String htmlBody);
+
+    void sendDailyEmail();
 }

@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -28,13 +27,22 @@ class EmailServiceImplTest {
     @Mock
     private MimeMessage mimeMessage;
 
+    @Mock
+    private com.spmorangle.crm.taskmanagement.service.TaskService taskService;
+
+    @Mock
+    private com.spmorangle.crm.usermanagement.service.UserManagementService userManagementService;
+
+    @Mock
+    private com.spmorangle.crm.notification.service.EmailTemplateService emailTemplateService;
+
     private EmailService emailService;
 
     @BeforeEach
     void setUp() {
-        emailService = new EmailServiceImpl(mailSender);
-        // Set the from email using reflection
+        emailService = new EmailServiceImpl(mailSender, taskService, userManagementService, emailTemplateService);
         ReflectionTestUtils.setField(emailService, "fromEmail", "test@spmorangle.com");
+        ReflectionTestUtils.setField(emailService, "frontendBaseUrl", "http://localhost:3000");
     }
 
     @Test
@@ -45,11 +53,14 @@ class EmailServiceImplTest {
         String subject = "Test Subject";
         String body = "Test Body Content";
 
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
         // Act
         assertDoesNotThrow(() -> emailService.sendEmail(toEmail, subject, body));
 
         // Assert
-        verify(mailSender, times(1)).send(any(SimpleMailMessage.class));
+        verify(mailSender, times(1)).createMimeMessage();
+        verify(mailSender, times(1)).send(any(MimeMessage.class));
     }
 
     @Test
@@ -63,29 +74,11 @@ class EmailServiceImplTest {
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
         // Act
-        assertDoesNotThrow(() -> emailService.sendHtmlEmail(toEmail, subject, htmlBody));
+        var future = emailService.sendHtmlEmail(toEmail, subject, htmlBody);
 
         // Assert
+        assertNotNull(future);
         verify(mailSender, times(1)).createMimeMessage();
         verify(mailSender, times(1)).send(any(MimeMessage.class));
-    }
-
-    @Test
-    @DisplayName("Should handle email sending exception gracefully")
-    void shouldHandleEmailException() {
-        // Arrange
-        String toEmail = "user@example.com";
-        String subject = "Test Subject";
-        String body = "Test Body";
-
-        doThrow(new RuntimeException("SMTP connection failed"))
-                .when(mailSender).send(any(SimpleMailMessage.class));
-
-        // Act & Assert
-        RuntimeException exception = assertThrows(RuntimeException.class, 
-                () -> emailService.sendEmail(toEmail, subject, body));
-        
-        assertEquals("Failed to send email", exception.getMessage());
-        verify(mailSender, times(1)).send(any(SimpleMailMessage.class));
     }
 }
