@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Dialog,
   DialogContent,
@@ -155,31 +156,41 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
-      {/* Profile Header */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <User className="h-6 w-6" />
-            <span>My Profile</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">{profileData.username}</h3>
-              <p className="text-gray-600 flex items-center space-x-1">
-                <Mail className="h-4 w-4" />
-                <span>{profileData.email}</span>
-              </p>
+    <SidebarInset>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <div className="flex items-center gap-2">
+          <User className="h-5 w-5" />
+          <h1 className="text-lg font-semibold">My Profile</h1>
+        </div>
+      </header>
+
+      <div className="flex flex-1 flex-col gap-6 p-6 pb-12 lg:p-10">
+        {/* Profile Header */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <User className="h-6 w-6" />
+              <span>My Profile</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl font-bold">{profileData.username}</h3>
+                <p className="text-gray-600 flex items-center space-x-1">
+                  <Mail className="h-4 w-4" />
+                  <span>{profileData.email}</span>
+                </p>
+              </div>
+              <Badge variant="secondary" className="flex items-center space-x-1">
+                <Shield className="h-3 w-3" />
+                <span>{profileData.roleType}</span>
+              </Badge>
             </div>
-            <Badge variant="secondary" className="flex items-center space-x-1">
-              <Shield className="h-3 w-3" />
-              <span>{profileData.roleType}</span>
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
       {/* Profile Details */}
       <Card>
@@ -283,6 +294,7 @@ export default function ProfilePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </SidebarInset>
   );
 }

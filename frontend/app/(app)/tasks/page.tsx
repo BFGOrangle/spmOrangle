@@ -57,6 +57,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock4,
+  ListTodo,
   MoreHorizontal,
   Paperclip,
   Plus,
@@ -1055,23 +1056,22 @@ export default function TasksPage() {
 
   return (
     <SidebarInset>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <div className="flex items-center gap-2">
+          <ListTodo className="h-5 w-5" />
+          <h1 className="text-lg font-semibold">Tasks</h1>
+        </div>
+      </header>
+
       <div className="flex flex-1 flex-col gap-4 p-4 pb-8 lg:p-6">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <SidebarTrigger className="-ml-1" />
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">Tasks</h1>
-              <p className="text-muted-foreground text-sm">
-                Rich cards that surface owners, collaborators, and delivery
-                detail.
-              </p>
-            </div>
-          </div>
+        <div className="flex justify-end">
           <Button size="sm" onClick={() => setShowCreateDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New Task
           </Button>
-        </header>
+        </div>
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Card className="p-3">
