@@ -1,5 +1,6 @@
 package com.spmorangle.crm.taskmanagement.repository;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -34,4 +35,8 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     @Query("SELECT t FROM Task t WHERE t.deleteInd = false AND t.id = :id")
     Task findByIdAndNotDeleted(@Param("id") Long id);
+
+    // Query for overdue task checking - returns non-deleted tasks with due date before threshold
+    @Query("SELECT t FROM Task t WHERE t.deleteInd = false AND t.dueDateTime < :threshold")
+    List<Task> findByDueDateTimeBefore(@Param("threshold") OffsetDateTime threshold);
 }
