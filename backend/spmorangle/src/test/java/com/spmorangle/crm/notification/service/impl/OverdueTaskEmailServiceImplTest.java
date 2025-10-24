@@ -18,6 +18,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -67,6 +68,10 @@ class OverdueTaskEmailServiceImplTest {
 
         // Mock user management service with lenient stubbing
         lenient().when(userManagementService.getUserById(100L)).thenReturn(testUser);
+
+        // Mock email service to return completed future (since sendHtmlEmail is async)
+        lenient().when(emailService.sendHtmlEmail(anyString(), anyString(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture(null));
     }
 
     @Test

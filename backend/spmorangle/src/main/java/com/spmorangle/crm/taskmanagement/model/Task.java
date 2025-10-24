@@ -83,4 +83,8 @@ public class Task {
 
     @Column(name = "end_date")
     private OffsetDateTime endDate;
+
+    @Column(name = "has_sent_overdue", nullable = false)
+    @ColumnDefault("false")
+    private Boolean hasSentOverdue = false;
 }

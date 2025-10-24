@@ -10,6 +10,7 @@ import com.spmorangle.crm.usermanagement.service.UserManagementService;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
 
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -22,6 +23,7 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
     private final UserManagementService userManagementService;
     private static final DateTimeFormatter DATE_FORMATTER =
             DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm:ss");
+    private static final ZoneId SINGAPORE_ZONE = ZoneId.of("Asia/Singapore"); // UTC+8
 
     public String getAssigneeEmail(TaskAssignee assignee) {
         long assigneeId = assignee.getUserId();
@@ -41,10 +43,18 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
         String htmlBody = buildOverdueTaskEmailHtml(task, assignee);
 
         String assigneeEmail = getAssigneeEmail(assignee);
-        emailService.sendHtmlEmail(assigneeEmail, subject, htmlBody);
 
-        log.info("Sent overdue task email for task {} to {}",
-                task.getId(), assigneeEmail);
+        try {
+            // Wait for async email to complete - this will throw if email fails
+            emailService.sendHtmlEmail(assigneeEmail, subject, htmlBody).join();
+
+            log.info("Sent overdue task email for task {} to {}",
+                    task.getId(), assigneeEmail);
+        } catch (Exception e) {
+            log.error("Failed to send overdue task email for task {} to {}: {}",
+                    task.getId(), assigneeEmail, e.getMessage());
+            throw e; // Re-throw so checker knows email failed
+        }
     }
 
     @Override
@@ -58,13 +68,25 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
         String subject = String.format("You have %d overdue tasks", tasks.size());
         String htmlBody = buildMultipleOverdueTasksEmailHtml(tasks, assignee);
 
-        emailService.sendHtmlEmail(assigneeEmail, subject, htmlBody);
+        try {
+            // Wait for async email to complete
+            emailService.sendHtmlEmail(assigneeEmail, subject, htmlBody).join();
 
-        log.info("Sent overdue tasks summary email ({} tasks) to {}",
-                tasks.size(), assigneeEmail);
+            log.info("Sent overdue tasks summary email ({} tasks) to {}",
+                    tasks.size(), assigneeEmail);
+        } catch (Exception e) {
+            log.error("Failed to send overdue tasks summary email ({} tasks) to {}: {}",
+                    tasks.size(), assigneeEmail, e.getMessage());
+            throw e;
+        }
     }
 
     private String buildOverdueTaskEmailHtml(Task task, TaskAssignee assignee) {
+        // Convert UTC time to Singapore time (UTC+8)
+        String formattedDueDate = task.getDueDateTime()
+                .atZoneSameInstant(SINGAPORE_ZONE)
+                .format(DATE_FORMATTER);
+
         return String.format("""
             <html>
             <body style="font-family: Arial, sans-serif;">
@@ -84,7 +106,7 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
             """,
                 getAssigneeName(assignee),
                 task.getTitle(),
-                task.getDueDateTime().format(DATE_FORMATTER),
+                formattedDueDate,
                 task.getStatus(),
                 task.getDescription() != null
                         ? "<p><strong>Description:</strong> " + task.getDescription() + "</p>"
@@ -96,6 +118,11 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
         StringBuilder taskList = new StringBuilder();
 
         for (Task task : tasks) {
+            // Convert UTC time to Singapore time (UTC+8)
+            String formattedDueDate = task.getDueDateTime()
+                    .atZoneSameInstant(SINGAPORE_ZONE)
+                    .format(DATE_FORMATTER);
+
             taskList.append(String.format("""
                 <div style="border-left: 4px solid #dc3545; padding-left: 15px; margin: 10px 0; background-color: #f8f9fa; padding: 10px;">
                     <h4 style="margin: 0 0 10px 0;">%s</h4>
@@ -104,7 +131,7 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
                 </div>
                 """,
                     task.getTitle(),
-                    task.getDueDateTime().format(DATE_FORMATTER),
+                    formattedDueDate,
                     task.getStatus()
             ));
         }

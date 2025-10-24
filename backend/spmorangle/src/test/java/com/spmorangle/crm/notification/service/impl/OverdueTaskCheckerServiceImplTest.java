@@ -50,6 +50,7 @@ class OverdueTaskCheckerServiceImplTest {
         overdueTask.setStatus(Status.TODO);
         overdueTask.setDueDateTime(OffsetDateTime.now(ZoneOffset.UTC).minusHours(48));
         overdueTask.setDeleteInd(false);
+        overdueTask.setHasSentOverdue(false); // Notification not yet sent
 
         // Setup assignees
         assignee1 = new TaskAssignee();
@@ -313,5 +314,88 @@ class OverdueTaskCheckerServiceImplTest {
         // Assert
         verify(overdueTaskEmailService, times(1)).sendOverdueTaskEmail(overdueTask, assignee1);
     }
-}
 
+    @Test
+    @DisplayName("Should skip task when overdue notification has already been sent")
+    void shouldSkipTaskWhenNotificationAlreadySent() {
+        // Arrange
+        overdueTask.setHasSentOverdue(true); // Notification already sent
+        when(taskRepository.findByDueDateTimeBefore(any(OffsetDateTime.class)))
+                .thenReturn(List.of(overdueTask));
+
+        // Act
+        checkerService.checkAndNotifyOverdueTasks();
+
+        // Assert
+        verify(taskRepository, times(1)).findByDueDateTimeBefore(any(OffsetDateTime.class));
+        verifyNoInteractions(taskAssigneeRepository);
+        verifyNoInteractions(overdueTaskEmailService);
+        verify(taskRepository, never()).save(any(Task.class));
+    }
+
+    @Test
+    @DisplayName("Should mark task as sent after successfully sending all emails")
+    void shouldMarkTaskAsSentAfterSuccess() {
+        // Arrange
+        when(taskRepository.findByDueDateTimeBefore(any(OffsetDateTime.class)))
+                .thenReturn(List.of(overdueTask));
+        when(taskAssigneeRepository.findByTaskId(100L))
+                .thenReturn(List.of(assignee1));
+
+        // Act
+        checkerService.checkAndNotifyOverdueTasks();
+
+        // Assert
+        verify(overdueTaskEmailService, times(1)).sendOverdueTaskEmail(overdueTask, assignee1);
+
+        ArgumentCaptor<Task> taskCaptor = ArgumentCaptor.forClass(Task.class);
+        verify(taskRepository, times(1)).save(taskCaptor.capture());
+
+        Task savedTask = taskCaptor.getValue();
+        assertTrue(savedTask.getHasSentOverdue(), "Task should be marked as overdue notification sent");
+    }
+
+    @Test
+    @DisplayName("Should not mark task as sent when email sending fails")
+    void shouldNotMarkTaskAsSentWhenEmailFails() {
+        // Arrange
+        when(taskRepository.findByDueDateTimeBefore(any(OffsetDateTime.class)))
+                .thenReturn(List.of(overdueTask));
+        when(taskAssigneeRepository.findByTaskId(100L))
+                .thenReturn(List.of(assignee1));
+
+        // Email fails
+        doThrow(new RuntimeException("Email service error"))
+                .when(overdueTaskEmailService).sendOverdueTaskEmail(overdueTask, assignee1);
+
+        // Act
+        checkerService.checkAndNotifyOverdueTasks();
+
+        // Assert
+        verify(overdueTaskEmailService, times(1)).sendOverdueTaskEmail(overdueTask, assignee1);
+        verify(taskRepository, never()).save(any(Task.class));
+    }
+
+    @Test
+    @DisplayName("Should not mark task as sent when one of multiple emails fails")
+    void shouldNotMarkTaskAsSentWhenOneEmailFails() {
+        // Arrange
+        when(taskRepository.findByDueDateTimeBefore(any(OffsetDateTime.class)))
+                .thenReturn(List.of(overdueTask));
+        when(taskAssigneeRepository.findByTaskId(100L))
+                .thenReturn(List.of(assignee1, assignee2));
+
+        // First email succeeds, second fails
+        doNothing().when(overdueTaskEmailService).sendOverdueTaskEmail(overdueTask, assignee1);
+        doThrow(new RuntimeException("Email service error"))
+                .when(overdueTaskEmailService).sendOverdueTaskEmail(overdueTask, assignee2);
+
+        // Act
+        checkerService.checkAndNotifyOverdueTasks();
+
+        // Assert
+        verify(overdueTaskEmailService, times(1)).sendOverdueTaskEmail(overdueTask, assignee1);
+        verify(overdueTaskEmailService, times(1)).sendOverdueTaskEmail(overdueTask, assignee2);
+        verify(taskRepository, never()).save(any(Task.class));
+    }
+}

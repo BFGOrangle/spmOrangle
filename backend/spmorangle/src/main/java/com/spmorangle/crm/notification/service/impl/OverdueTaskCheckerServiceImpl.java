@@ -26,7 +26,7 @@ public class OverdueTaskCheckerServiceImpl implements OverdueTaskCheckerService 
 
     @Override
     @Scheduled(fixedRateString = "${overdue.check.rate-ms:60000}")
-    @Transactional(readOnly = true)
+    @Transactional
     public void checkAndNotifyOverdueTasks() {
         OffsetDateTime threshold = OffsetDateTime.now(ZoneOffset.UTC).minusHours(24);
         log.info("Checking for tasks overdue before {}", threshold);
@@ -38,6 +38,12 @@ public class OverdueTaskCheckerServiceImpl implements OverdueTaskCheckerService 
         }
 
         for (Task task : candidates) {
+            // Skip if overdue notification has already been sent
+            if (Boolean.TRUE.equals(task.getHasSentOverdue())) {
+                log.debug("Skipping task {} - overdue notification already sent", task.getId());
+                continue;
+            }
+
             if (task.getStatus() != null) {
                 String s = task.getStatus().name();
                 if ("COMPLETED".equalsIgnoreCase(s)) {
@@ -52,13 +58,22 @@ public class OverdueTaskCheckerServiceImpl implements OverdueTaskCheckerService 
                 continue;
             }
 
+            boolean emailSentSuccessfully = true;
             for (TaskAssignee assignee : assignees) {
                 try {
                     overdueTaskEmailService.sendOverdueTaskEmail(task, assignee);
                     log.info("Triggered overdue email for task {} -> user {}", task.getId(), assignee.getUserId());
                 } catch (Exception ex) {
                     log.error("Failed to send overdue email for task {} to {}: {}", task.getId(), assignee.getUserId(), ex.getMessage(), ex);
+                    emailSentSuccessfully = false;
                 }
+            }
+
+            // Mark as sent only if all emails were sent successfully
+            if (emailSentSuccessfully) {
+                task.setHasSentOverdue(true);
+                taskRepository.save(task);
+                log.info("Marked task {} as overdue notification sent", task.getId());
             }
         }
     }
