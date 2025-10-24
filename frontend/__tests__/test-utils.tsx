@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render as rtlRender, RenderOptions } from "@testing-library/react";
 import { ReactElement, ReactNode } from "react";
+import { SidebarProvider } from "@/components/ui/sidebar";
 
 // Default mock user context values
 const defaultMockUserContext = {
@@ -69,7 +70,11 @@ const AllTheProviders = ({
 }) => {
   return (
     <MockUserProvider>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <SidebarProvider>
+          {children}
+        </SidebarProvider>
+      </QueryClientProvider>
     </MockUserProvider>
   );
 };
