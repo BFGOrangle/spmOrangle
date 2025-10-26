@@ -71,6 +71,7 @@ import { TaskCard } from "@/components/task-card";
 import { DraggableTaskCard } from "@/components/draggable-task-card";
 import { useCurrentUser } from "@/contexts/user-context";
 import { cn } from "@/lib/utils";
+import { isTaskOverdue } from "@/lib/calendar-utils";
 
 const STATUS_FILTERS: (TaskStatus | "All")[] = [
   "All",
@@ -234,29 +235,50 @@ const TaskBoardCard = ({ task }: TaskBoardCardProps) => {
   const { total, done, progress } = getSubtaskSummary(task);
   const taskProps = getTaskDisplayProps(task);
   const collaboratorOverflow = Math.max(taskProps.collaborators.length - 2, 0);
+  const taskIsOverdue = isTaskOverdue(task);
 
   return (
     <article
-      className="rounded-lg border border-border/70 bg-background p-2.5 shadow-sm transition hover:border-primary/50 hover:shadow-md"
+      className={cn(
+        "rounded-lg border p-2.5 shadow-sm transition hover:shadow-md",
+        taskIsOverdue
+          ? "border-red-600 bg-red-50 dark:bg-red-950/20 hover:border-red-700"
+          : "border-border/70 bg-background hover:border-primary/50"
+      )}
       data-testid="board-card"
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <span>{taskProps.key}</span>
+          <span className={taskIsOverdue ? "text-red-700 dark:text-red-400" : ""}>
+            {taskProps.key}
+          </span>
           <Badge
             variant="outline"
-            className={`border-none px-1 py-0 text-[0.6rem] ${priorityStyles[taskProps.priority].badge}`}
+            className={cn(
+              "border-none px-1 py-0 text-[0.6rem]",
+              taskIsOverdue 
+                ? "bg-red-600 text-white dark:bg-red-700" 
+                : priorityStyles[taskProps.priority].badge
+            )}
           >
-            {taskProps.priority}
+            {taskIsOverdue ? "OVERDUE" : taskProps.priority}
           </Badge>
         </div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <div className={cn(
+          "flex items-center gap-1 text-xs",
+          taskIsOverdue ? "text-red-700 dark:text-red-400 font-semibold" : "text-muted-foreground"
+        )}>
           <CalendarDays className="h-3 w-3" aria-hidden="true" />
-          <span>{formatDate(taskProps.dueDate)}</span>
+          <span>{task.dueDateTime ? formatDate(task.dueDateTime) : formatDate(taskProps.dueDate)}</span>
         </div>
       </div>
 
-      <h3 className="text-sm font-semibold leading-tight mb-2">{taskProps.title}</h3>
+      <h3 className={cn(
+        "text-sm font-semibold leading-tight mb-2",
+        taskIsOverdue && "text-red-700 dark:text-red-300"
+      )}>
+        {taskProps.title}
+      </h3>
 
       <div className="flex items-center gap-2 mb-2">
         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
@@ -316,20 +338,36 @@ const RelatedTaskCard = ({ task }: TaskBoardCardProps) => {
   const { total, done, progress } = getSubtaskSummary(task);
   const taskProps = getTaskDisplayProps(task);
   const lastUpdatedLabel = formatRelativeDate(task.updatedAt || task.createdAt);
+  const taskIsOverdue = isTaskOverdue(task);
 
   return (
-    <Card className="h-full border border-dashed border-muted-foreground/40">
+    <Card className={cn(
+      "h-full border border-dashed",
+      taskIsOverdue 
+        ? "border-red-600 bg-red-50 dark:bg-red-950/20" 
+        : "border-muted-foreground/40"
+    )}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
-            <CardTitle className="text-base leading-tight">{taskProps.title}</CardTitle>
+            <CardTitle className={cn(
+              "text-base leading-tight",
+              taskIsOverdue && "text-red-700 dark:text-red-300"
+            )}>
+              {taskProps.title}
+            </CardTitle>
             <CardDescription>{taskProps.project}</CardDescription>
           </div>
           <Badge
             variant="outline"
-            className="border-amber-500/60 bg-amber-50/80 text-[10px] font-semibold uppercase tracking-wide text-amber-600"
+            className={cn(
+              "text-[10px] font-semibold uppercase tracking-wide",
+              taskIsOverdue
+                ? "border-red-600 bg-red-600 text-white"
+                : "border-amber-500/60 bg-amber-50/80 text-amber-600"
+            )}
           >
-            View only
+            {taskIsOverdue ? "OVERDUE" : "View only"}
           </Badge>
         </div>
       </CardHeader>
@@ -385,27 +423,51 @@ const TaskTableRow = ({ task }: TaskTableRowProps) => {
   const { total, done, progress } = getSubtaskSummary(task);
   const taskProps = getTaskDisplayProps(task);
   const collaboratorOverflow = Math.max(taskProps.collaborators.length - 3, 0);
+  const taskIsOverdue = isTaskOverdue(task);
 
   return (
     <div
-      className="grid gap-3 py-4 transition hover:bg-accent/50 hover:text-accent-foreground sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)] sm:py-5"
+      className={cn(
+        "grid gap-3 py-4 transition sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)] sm:py-5",
+        taskIsOverdue 
+          ? "bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30" 
+          : "hover:bg-accent/50 hover:text-accent-foreground"
+      )}
       data-testid="table-row"
     >
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <span>{taskProps.key}</span>
+          <span className={taskIsOverdue ? "text-red-700 dark:text-red-400" : ""}>
+            {taskProps.key}
+          </span>
           <Badge
             variant="outline"
-            className={`border-none px-1.5 py-0 text-[0.65rem] ${priorityStyles[taskProps.priority].badge}`}
+            className={cn(
+              "border-none px-1.5 py-0 text-[0.65rem]",
+              taskIsOverdue 
+                ? "bg-red-600 text-white dark:bg-red-700" 
+                : priorityStyles[taskProps.priority].badge
+            )}
           >
-            {taskProps.priority}
+            {taskIsOverdue ? "OVERDUE" : taskProps.priority}
           </Badge>
         </div>
-        <p className="text-sm font-semibold leading-5">{taskProps.title}</p>
+        <p className={cn(
+          "text-sm font-semibold leading-5",
+          taskIsOverdue && "text-red-700 dark:text-red-300"
+        )}>
+          {taskProps.title}
+        </p>
         <p className="text-muted-foreground text-xs leading-relaxed line-clamp-2">
           {taskProps.description}
         </p>
         <p className="text-muted-foreground text-xs">{taskProps.project}</p>
+        {taskIsOverdue && task.dueDateTime && (
+          <p className="text-red-700 dark:text-red-400 text-xs font-semibold flex items-center gap-1">
+            <CalendarDays className="h-3 w-3" />
+            Due: {formatDate(task.dueDateTime)}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-3">

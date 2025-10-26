@@ -43,6 +43,8 @@ import { useQuery } from "@tanstack/react-query";
 import { userManagementService } from "@/services/user-management-service";
 import type { UserResponseDto } from "@/types/user";
 import { useDeleteTask } from "@/hooks/use-task-mutations";
+import { isTaskOverdue } from "@/lib/calendar-utils";
+import { cn } from "@/lib/utils";
 
 // Status and priority styles (moved from tasks page)
 const statusStyles: Record<TaskStatus, string> = {
@@ -333,14 +335,27 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
   }
 
   const { total, done, progress } = getSubtaskSummary();
+  const collaboratorOverflow = Math.max(collaboratorDisplayNames.length - 2, 0);
+
+  // Check if task is overdue
+  const taskIsOverdue = isTaskOverdue({
+    dueDateTime: taskProps.dueDateTime,
+    status: taskProps.isTaskSummary ? (taskProps.status === 'Done' ? 'COMPLETED' : 'TODO') : (task as TaskResponse).status
+  });
 
   return (
-    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={handleOpenPage}>
+    <Card className={cn(
+      "hover:shadow-md transition-shadow cursor-pointer",
+      taskIsOverdue && "bg-red-50 dark:bg-red-950/20 border-red-600"
+    )} onClick={handleOpenPage}>
       <CardHeader className="pb-2 pt-3 px-3 space-y-2">
         {/* Header: Key + Priority + Type Badge */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <span className="text-[0.65rem] font-semibold text-muted-foreground">
+            <span className={cn(
+              "text-[0.65rem] font-semibold",
+              taskIsOverdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
+            )}>
               {taskProps.key}
             </span>
             <Badge
@@ -350,16 +365,29 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
               {taskProps.isTaskSummary ? 'Task' : (task as TaskResponse).taskType || 'TASK'}
             </Badge>
           </div>
-          <Badge
-            variant="outline"
-            className={`border-none px-1.5 py-0 text-[0.55rem] ${priorityStyles[taskProps.priority].badge}`}
-          >
-            {taskProps.priority.toUpperCase()}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            {taskIsOverdue && (
+              <Badge
+                variant="outline"
+                className="border-red-600 bg-red-600 text-white px-1.5 py-0 text-[0.55rem]"
+              >
+                OVERDUE
+              </Badge>
+            )}
+            <Badge
+              variant="outline"
+              className={`border-none px-1.5 py-0 text-[0.55rem] ${priorityStyles[taskProps.priority].badge}`}
+            >
+              {taskProps.priority.toUpperCase()}
+            </Badge>
+          </div>
         </div>
 
         {/* Title */}
-        <h3 className="text-xs font-medium leading-snug line-clamp-2 text-foreground">
+        <h3 className={cn(
+          "text-xs font-medium leading-snug line-clamp-2",
+          taskIsOverdue ? "text-red-600 dark:text-red-400" : "text-foreground"
+        )}>
           {taskProps.title}
         </h3>
 
@@ -649,6 +677,12 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
   const done = subtasks.filter((subtask) => subtask.status === 'COMPLETED').length;
   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
 
+  // Check if task is overdue
+  const taskIsOverdue = isTaskOverdue({
+    dueDateTime: taskProps.dueDateTime,
+    status: taskProps.isTaskSummary ? (taskProps.status === 'Done' ? 'COMPLETED' : 'TODO') : (task as TaskResponse).status
+  });
+
   const { data: collaboratorDirectory = [] } = useQuery<UserResponseDto[]>({
     queryKey: ["tasks", "collaborators", "available"],
     queryFn: () => userManagementService.getCollaborators(),
@@ -794,12 +828,18 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
   return (
     <>
     <div
-      className="grid gap-3 py-4 transition hover:bg-accent/50 hover:text-accent-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)] sm:py-5 cursor-pointer"
+      className={cn(
+        "grid gap-3 py-4 transition hover:bg-accent/50 hover:text-accent-foreground sm:grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.8fr)] sm:py-5 cursor-pointer",
+        taskIsOverdue && "bg-red-50 dark:bg-red-950/20"
+      )}
       data-testid="table-row"
       onClick={handleOpenPage}
     >
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className={cn(
+          "flex items-center gap-2 text-xs font-semibold uppercase tracking-wide",
+          taskIsOverdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
+        )}>
           <span>{taskProps.key}</span>
           <Badge
             variant="outline"
@@ -808,10 +848,18 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
             {taskProps.priority}
           </Badge>
         </div>
-        <p className="text-sm font-semibold leading-5">{taskProps.title}</p>
+        <p className={cn(
+          "text-sm font-semibold leading-5",
+          taskIsOverdue && "text-red-600 dark:text-red-400"
+        )}>{taskProps.title}</p>
         <p className="text-muted-foreground text-xs leading-relaxed line-clamp-2">
           {taskProps.description}
         </p>
+        {taskIsOverdue && taskProps.dueDateTime && (
+          <p className="text-red-600 dark:text-red-400 text-xs font-semibold flex items-center gap-1">
+            ⚠️ Overdue: {formatDateTime(taskProps.dueDateTime)}
+          </p>
+        )}
         <p className="text-muted-foreground text-xs">{taskProps.project}</p>
       </div>
 
@@ -851,9 +899,16 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
       </div>
 
       <div className="flex flex-col gap-2 text-sm">
-        <Badge className={`${statusStyles[taskProps.status]} px-2 py-0.5 text-xs`}>
-          {taskProps.status}
-        </Badge>
+        <div className="flex flex-col gap-1">
+          <Badge className={`${statusStyles[taskProps.status]} px-2 py-0.5 text-xs`}>
+            {taskProps.status}
+          </Badge>
+          {taskIsOverdue && (
+            <Badge className="border-red-600 bg-red-600 text-white px-2 py-0.5 text-xs">
+              OVERDUE
+            </Badge>
+          )}
+        </div>
         <span className={`text-xs ${priorityStyles[taskProps.priority].text}`}>
           {taskProps.priority} priority
         </span>

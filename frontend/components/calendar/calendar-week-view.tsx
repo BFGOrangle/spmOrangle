@@ -6,8 +6,9 @@
 import React from 'react';
 import { format, isToday, isSameDay } from 'date-fns';
 import { CalendarViewProps, CalendarEvent } from '../../types/calendar';
-import { getWeekDays, filterEventsForWeekView, groupEventsByDateForWeekView } from '../../lib/calendar-utils';
+import { getWeekDays, filterEventsForWeekView, groupEventsByDateForWeekView, isTaskOverdue } from '../../lib/calendar-utils';
 import { Card } from '../ui/card';
+import { cn } from '@/lib/utils';
 
 // Constants for responsive event display
 const MOBILE_BREAKPOINT = 640;
@@ -72,28 +73,47 @@ export const CalendarWeekView: React.FC<WeekViewProps> = ({
                 onClick={() => onDateClick(day)}
               >
                 <div className="space-y-1">
-                  {dayEvents.slice(0, window.innerWidth < MOBILE_BREAKPOINT ? MOBILE_MAX_EVENTS : DESKTOP_MAX_EVENTS).map((event: CalendarEvent) => (
-                    <Card
-                      key={event.id}
-                      className={`p-1 sm:p-2 cursor-pointer hover:shadow-md transition-shadow ${event.color} text-white text-xs`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEventClick(event);
-                      }}
-                    >
-                      <div className="font-medium truncate">{event.title}</div>
-                      <div className="text-xs opacity-90 mt-1 hidden sm:block">
-                        {event.dueDate && (
-                          <span className="mr-1">
-                            {format(event.dueDate, 'HH:mm')}
-                          </span>
+                  {dayEvents.slice(0, window.innerWidth < MOBILE_BREAKPOINT ? MOBILE_MAX_EVENTS : DESKTOP_MAX_EVENTS).map((event: CalendarEvent) => {
+                    // Check if event is overdue
+                    const eventIsOverdue = event.dueDate 
+                      ? isTaskOverdue({ 
+                          dueDateTime: event.dueDate.toISOString(), 
+                          status: event.status 
+                        })
+                      : false;
+                    
+                    return (
+                      <Card
+                        key={event.id}
+                        className={cn(
+                          "p-1 sm:p-2 cursor-pointer hover:shadow-md transition-shadow text-white text-xs",
+                          eventIsOverdue 
+                            ? "bg-red-600 ring-2 ring-red-600 ring-offset-1" 
+                            : event.color
                         )}
-                        <span className="bg-white/20 px-1 rounded">
-                          {event.taskType}
-                        </span>
-                      </div>
-                    </Card>
-                  ))}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEventClick(event);
+                        }}
+                        title={eventIsOverdue ? `${event.title} (OVERDUE)` : event.title}
+                      >
+                        <div className="font-medium truncate">
+                          {eventIsOverdue && <span className="font-bold">⚠️ </span>}
+                          {event.title}
+                        </div>
+                        <div className="text-xs opacity-90 mt-1 hidden sm:block">
+                          {event.dueDate && (
+                            <span className={cn("mr-1", eventIsOverdue && "font-bold")}>
+                              {format(event.dueDate, 'HH:mm')}
+                            </span>
+                          )}
+                          <span className="bg-white/20 px-1 rounded">
+                            {event.taskType}
+                          </span>
+                        </div>
+                      </Card>
+                    );
+                  })}
                   
                   {dayEvents.length > (window.innerWidth < MOBILE_BREAKPOINT ? MOBILE_MAX_EVENTS : DESKTOP_MAX_EVENTS) && (
                     <div className="text-xs text-muted-foreground text-center py-1">

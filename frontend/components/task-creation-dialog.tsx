@@ -115,6 +115,17 @@ export function TaskCreationDialog({
   // Due date state
   const [dueDate, setDueDate] = useState<string>('');
 
+  // Get current datetime in local format for min attribute
+  const getCurrentLocalDateTime = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   const isManager = currentUser?.role === 'MANAGER';
   const isPersonalTask = selectedProjectId === null || selectedProjectId === 0;
   const canAssignToOthers = isManager && !isPersonalTask; // Only managers can assign project tasks to others
@@ -393,6 +404,12 @@ export function TaskCreationDialog({
 
     if (!formData.taskType) {
       setError('Task type is required');
+      return;
+    }
+
+    // Validate due date is not in the past
+    if (dueDate && new Date(dueDate) < new Date()) {
+      setError('Due date cannot be in the past');
       return;
     }
 
@@ -773,8 +790,17 @@ export function TaskCreationDialog({
               id="dueDate"
               type="datetime-local"
               value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              min={new Date().toISOString().slice(0, 16)}
+              onChange={(e) => {
+                const selectedDate = e.target.value;
+                // Validate that selected date is not in the past
+                if (selectedDate && new Date(selectedDate) < new Date()) {
+                  setError('Due date cannot be in the past');
+                  return;
+                }
+                setError(null);
+                setDueDate(selectedDate);
+              }}
+              min={getCurrentLocalDateTime()}
               placeholder="Select due date and time (optional)"
               className={dueDate ? 'pr-10' : ''}
             />
@@ -804,7 +830,7 @@ export function TaskCreationDialog({
           )}
           
           <p className="text-xs text-muted-foreground">
-            Set a deadline for this task (optional)
+            Due date must be in the future
           </p>
         </div>
 

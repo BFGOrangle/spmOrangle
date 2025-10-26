@@ -142,10 +142,13 @@ describe('TaskUpdateDialog - Due Date Features', () => {
     render(<TaskUpdateDialog {...defaultProps} />);
     
     const dueDateInput = screen.getByDisplayValue(expectedValues.datetimeLocal);
-    await user.clear(dueDateInput);
-    await user.type(dueDateInput, '2024-12-25T14:00');
     
-    expect(dueDateInput).toHaveValue('2024-12-25T14:00');
+    // Use fireEvent.change instead of user.type for datetime-local inputs
+    // because userEvent.type doesn't work well with datetime-local format
+    // Use a far future date to ensure it doesn't become invalid
+    fireEvent.change(dueDateInput, { target: { value: '2099-12-25T14:00' } });
+    
+    expect(dueDateInput).toHaveValue('2099-12-25T14:00');
   });
 
   test('allows clearing the due date', async () => {

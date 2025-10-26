@@ -9,6 +9,8 @@ import { TimelineViewProps as TimelineProps, CalendarEvent } from '../../types/c
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { isTaskOverdue } from '../../lib/calendar-utils';
+import { cn } from '@/lib/utils';
 
 // Constants for timeline display
 const MIN_EVENT_WIDTH_PERCENT = 2;
@@ -173,10 +175,23 @@ export const CalendarTimelineView: React.FC<TimelineProps> = ({
                   {/* Events */}
                   {(projectEvents as CalendarEvent[]).map((event, index) => {
                     const position = getEventPosition(event);
+                    // Check if event is overdue
+                    const eventIsOverdue = event.dueDate 
+                      ? isTaskOverdue({ 
+                          dueDateTime: event.dueDate.toISOString(), 
+                          status: event.status 
+                        })
+                      : false;
+                    
                     return (
                       <Card
                         key={event.id}
-                        className={`absolute cursor-pointer hover:shadow-md transition-shadow ${event.color} text-white text-xs p-1 sm:p-2`}
+                        className={cn(
+                          "absolute cursor-pointer hover:shadow-md transition-shadow text-white text-xs p-1 sm:p-2",
+                          eventIsOverdue 
+                            ? "bg-red-600 ring-2 ring-red-600 ring-offset-1" 
+                            : event.color
+                        )}
                         style={{
                           left: position.left,
                           width: position.width,
@@ -185,9 +200,10 @@ export const CalendarTimelineView: React.FC<TimelineProps> = ({
                           minWidth: '40px',
                         }}
                         onClick={() => onEventClick(event)}
-                        title={`${event.title} - Due: ${event.dueDate ? format(event.dueDate, 'MMM d, yyyy HH:mm') : 'No due date'}`}
+                        title={`${event.title}${eventIsOverdue ? ' (OVERDUE)' : ''} - Due: ${event.dueDate ? format(event.dueDate, 'MMM d, yyyy HH:mm') : 'No due date'}`}
                       >
                         <div className="truncate font-medium text-xs">
+                          {eventIsOverdue && <span className="font-bold">⚠️ </span>}
                           {event.title}
                         </div>
                       </Card>
