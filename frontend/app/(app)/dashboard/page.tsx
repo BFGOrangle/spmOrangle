@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { LayoutDashboard } from "lucide-react";
 import { projectService, ProjectResponse, TaskResponse } from "@/services/project-service";
 
 const formatDate = (value: string) =>
@@ -149,25 +150,16 @@ export default function Dashboard() {
 
   return (
     <SidebarInset>
-      <div className="flex flex-1 flex-col gap-8 p-6 pb-12 lg:p-10">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <SidebarTrigger className="-ml-1" />
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">
-                My Analytics
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                A single view of delivery health across projects, priorities,
-                and owners.
-              </p>
-            </div>
-          </div>
-          <Button size="sm" variant="outline">
-            Share update
-          </Button>
-        </header>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <div className="flex items-center gap-2">
+          <LayoutDashboard className="h-5 w-5" />
+          <h1 className="text-lg font-semibold">Dashboard</h1>
+        </div>
+      </header>
 
+      <div className="flex flex-1 flex-col gap-8 p-6 pb-12 lg:p-10">
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Card>
             <CardHeader>
