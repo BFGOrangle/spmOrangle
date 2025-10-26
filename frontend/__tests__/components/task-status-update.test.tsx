@@ -81,7 +81,7 @@ jest.mock('../../components/ui/select', () => ({
     );
   },
   SelectTrigger: ({ children, id }: any) => <>{children}</>,
-  SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
+  SelectValue: ({ placeholder }: any) => null,
   SelectContent: ({ children }: any) => <>{children}</>,
   SelectItem: ({ value, children }: any) => <option value={value}>{children}</option>,
 }));
@@ -194,11 +194,19 @@ describe('Task Status Updates with Time Tracking', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Mock the current date to be before the due date
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2025-10-20T12:00:00Z'));
+    
     mockGetTags.mockResolvedValue([
       { id: 1, tagName: 'testing' },
       { id: 2, tagName: 'urgent' },
     ]);
     mockGetProjectMembers.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   describe('Status Transitions that Trigger Time Tracking', () => {
