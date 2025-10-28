@@ -41,6 +41,9 @@ export const taskToEvent: TaskToEventConverter = (task, project) => {
     displayDate = new Date(task.createdAt);
   }
 
+  // Check if task is overdue
+  const taskIsOverdue = isTaskOverdue(task);
+
   const event = {
     id: task.id,
     title: task.title,

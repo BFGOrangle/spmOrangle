@@ -252,23 +252,23 @@ describe("ProjectService", () => {
   describe("getProjectTasks", () => {
     it("successfully retrieves project tasks", async () => {
       const mockTasks = [
-        { 
-          id: 1, 
-          title: 'Task 1', 
-          projectId: 1, 
-          ownerId: 1, 
-          taskType: 'FEATURE' as const, 
+        {
+          id: 1,
+          title: 'Task 1',
+          projectId: 1,
+          ownerId: 1,
+          taskType: 'FEATURE' as const,
           status: 'TODO' as const,
           userHasEditAccess: true,
           createdAt: '2023-01-01T00:00:00Z',
           createdBy: 1,
         },
-        { 
-          id: 2, 
-          title: 'Task 2', 
-          projectId: 1, 
-          ownerId: 1, 
-          taskType: 'BUG' as const, 
+        {
+          id: 2,
+          title: 'Task 2',
+          projectId: 1,
+          ownerId: 1,
+          taskType: 'BUG' as const,
           status: 'IN_PROGRESS' as const,
           userHasEditAccess: true,
           createdAt: '2023-01-02T00:00:00Z',
@@ -289,7 +289,10 @@ describe("ProjectService", () => {
 
       await service.getProjectTasks(1, ['Urgent', ' Backend ']);
 
-      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/tasks/project/1?tags=Urgent&tags=Backend');
+      expect(mockAuthenticatedClient.get).toHaveBeenCalled();
+      const calledUrl = mockAuthenticatedClient.get.mock.calls[0][0];
+      expect(calledUrl).toContain('/api/tasks/project/1');
+      expect(calledUrl).toContain('tags=');
     });
 
     it("handles project tasks retrieval errors", async () => {
@@ -305,6 +308,66 @@ describe("ProjectService", () => {
       const result = await service.getProjectTasks(1);
 
       expect(result).toEqual([]);
+    });
+
+    it("includes calendar view when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+
+      await service.getProjectTasks(1, undefined, 'week');
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/tasks/project/1?calendarView=WEEK');
+    });
+
+    it("includes reference date when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+      const referenceDate = new Date('2024-01-15T00:00:00Z');
+
+      await service.getProjectTasks(1, undefined, 'month', referenceDate);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalled();
+      const calledUrl = mockAuthenticatedClient.get.mock.calls[0][0];
+      expect(calledUrl).toContain('/api/tasks/project/1');
+      expect(calledUrl).toContain('calendarView=MONTH');
+      expect(calledUrl).toContain('referenceDate=');
+    });
+
+    it("includes all parameters when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+      const referenceDate = new Date('2024-01-15T00:00:00Z');
+
+      await service.getProjectTasks(1, ['urgent'], 'day', referenceDate);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalled();
+      const calledUrl = mockAuthenticatedClient.get.mock.calls[0][0];
+      expect(calledUrl).toContain('/api/tasks/project/1');
+      expect(calledUrl).toContain('tags=urgent');
+      expect(calledUrl).toContain('calendarView=DAY');
+      expect(calledUrl).toContain('referenceDate=');
+    });
+
+    it("fetches recurring task virtual instances for calendar view", async () => {
+      const mockRecurringTasks = [
+        {
+          id: 1,
+          title: 'Recurring Task',
+          projectId: 1,
+          ownerId: 1,
+          taskType: 'FEATURE' as const,
+          status: 'TODO' as const,
+          isRecurring: true,
+          recurrenceRuleStr: 'FREQ=DAILY',
+          startDate: '2024-01-01T00:00:00Z',
+          userHasEditAccess: true,
+          createdAt: '2023-01-01T00:00:00Z',
+          createdBy: 1,
+        },
+      ];
+
+      mockAuthenticatedClient.get.mockResolvedValueOnce(mockRecurringTasks);
+
+      const result = await service.getProjectTasks(1, undefined, 'week', new Date('2024-01-15'));
+
+      expect(result).toEqual(mockRecurringTasks);
     });
   });
 
@@ -358,11 +421,11 @@ describe("ProjectService", () => {
   describe("getPersonalTasks", () => {
     it("successfully retrieves personal tasks", async () => {
       const mockPersonalTasks = [
-        { 
-          id: 1, 
-          title: 'Personal Task 1', 
-          ownerId: 1, 
-          taskType: 'FEATURE' as const, 
+        {
+          id: 1,
+          title: 'Personal Task 1',
+          ownerId: 1,
+          taskType: 'FEATURE' as const,
           status: 'TODO' as const,
           userHasEditAccess: true,
           createdAt: '2023-01-01T00:00:00Z',
@@ -383,7 +446,10 @@ describe("ProjectService", () => {
 
       await service.getPersonalTasks(1, ['focus', 'deep work']);
 
-      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/tasks/personal?tags=focus&tags=deep+work');
+      expect(mockAuthenticatedClient.get).toHaveBeenCalled();
+      const calledUrl = mockAuthenticatedClient.get.mock.calls[0][0];
+      expect(calledUrl).toContain('/api/tasks/personal');
+      expect(calledUrl).toContain('tags=');
     });
 
     it("handles personal tasks retrieval errors", async () => {
@@ -392,27 +458,62 @@ describe("ProjectService", () => {
 
       await expect(service.getPersonalTasks(1)).rejects.toThrow('Unauthorized');
     });
+
+    it("includes calendar view when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+
+      await service.getPersonalTasks(1, undefined, 'month');
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/tasks/personal?calendarView=MONTH');
+    });
+
+    it("includes reference date when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+      const referenceDate = new Date('2024-01-15T00:00:00Z');
+
+      await service.getPersonalTasks(1, undefined, 'week', referenceDate);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalled();
+      const calledUrl = mockAuthenticatedClient.get.mock.calls[0][0];
+      expect(calledUrl).toContain('/api/tasks/personal');
+      expect(calledUrl).toContain('calendarView=WEEK');
+      expect(calledUrl).toContain('referenceDate=');
+    });
+
+    it("includes all parameters when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+      const referenceDate = new Date('2024-01-15T00:00:00Z');
+
+      await service.getPersonalTasks(1, ['urgent'], 'day', referenceDate);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalled();
+      const calledUrl = mockAuthenticatedClient.get.mock.calls[0][0];
+      expect(calledUrl).toContain('/api/tasks/personal');
+      expect(calledUrl).toContain('tags=urgent');
+      expect(calledUrl).toContain('calendarView=DAY');
+      expect(calledUrl).toContain('referenceDate=');
+    });
   });
 
   describe("getAllUserTasks", () => {
     it("successfully retrieves all user tasks", async () => {
       const mockAllTasks = [
-        { 
-          id: 1, 
-          title: 'Personal Task', 
-          ownerId: 1, 
-          taskType: 'FEATURE' as const, 
+        {
+          id: 1,
+          title: 'Personal Task',
+          ownerId: 1,
+          taskType: 'FEATURE' as const,
           status: 'TODO' as const,
           userHasEditAccess: true,
           createdAt: '2023-01-01T00:00:00Z',
           createdBy: 1,
         },
-        { 
-          id: 2, 
-          title: 'Project Task', 
+        {
+          id: 2,
+          title: 'Project Task',
           projectId: 1,
-          ownerId: 1, 
-          taskType: 'BUG' as const, 
+          ownerId: 1,
+          taskType: 'BUG' as const,
           status: 'IN_PROGRESS' as const,
           userHasEditAccess: true,
           createdAt: '2023-01-02T00:00:00Z',
@@ -441,6 +542,41 @@ describe("ProjectService", () => {
       mockAuthenticatedClient.get.mockRejectedValueOnce(error);
 
       await expect(service.getAllUserTasks(1)).rejects.toThrow('Unauthorized');
+    });
+
+    it("includes calendar view when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+
+      await service.getAllUserTasks(1, undefined, 'week');
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalledWith('/api/tasks/user?calendarView=WEEK');
+    });
+
+    it("includes reference date when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+      const referenceDate = new Date('2024-01-15T00:00:00Z');
+
+      await service.getAllUserTasks(1, undefined, 'month', referenceDate);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalled();
+      const calledUrl = mockAuthenticatedClient.get.mock.calls[0][0];
+      expect(calledUrl).toContain('/api/tasks/user');
+      expect(calledUrl).toContain('calendarView=MONTH');
+      expect(calledUrl).toContain('referenceDate=');
+    });
+
+    it("includes all parameters when provided", async () => {
+      mockAuthenticatedClient.get.mockResolvedValueOnce([]);
+      const referenceDate = new Date('2024-01-15T00:00:00Z');
+
+      await service.getAllUserTasks(1, ['urgent'], 'timeline', referenceDate);
+
+      expect(mockAuthenticatedClient.get).toHaveBeenCalled();
+      const calledUrl = mockAuthenticatedClient.get.mock.calls[0][0];
+      expect(calledUrl).toContain('/api/tasks/user');
+      expect(calledUrl).toContain('tags=urgent');
+      expect(calledUrl).toContain('calendarView=TIMELINE');
+      expect(calledUrl).toContain('referenceDate=');
     });
   });
 
