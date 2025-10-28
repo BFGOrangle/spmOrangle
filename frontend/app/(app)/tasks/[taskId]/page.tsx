@@ -37,6 +37,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { isTaskOverdue } from "@/lib/calendar-utils";
+import { cn } from "@/lib/utils";
 
 // Status and priority styles
 const statusStyles: Record<TaskStatus, string> = {
@@ -409,6 +411,12 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
   const status = mapBackendStatus(task.status);
   const priority = mapTaskTypeToPriority(task.taskType);
   const key = `TASK-${task.id}`;
+  
+  // Check if task is overdue
+  const taskIsOverdue = isTaskOverdue({
+    dueDateTime: task.dueDateTime,
+    status: task.status
+  });
 
   return (
     <SidebarInset>
@@ -425,7 +433,18 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
             <SidebarTrigger className="-ml-1" />
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-xl font-semibold tracking-tight">{task.title}</h1>
+                <h1 className={cn(
+                  "text-xl font-semibold tracking-tight",
+                  taskIsOverdue && "text-red-600 dark:text-red-400"
+                )}>{task.title}</h1>
+                {taskIsOverdue && (
+                  <Badge
+                    variant="outline"
+                    className="border-red-600 bg-red-600 text-white px-2 py-0.5 text-xs"
+                  >
+                    OVERDUE
+                  </Badge>
+                )}
                 <Badge
                   variant="outline"
                   className={`border-none px-2 py-0.5 text-xs ${priorityStyles[priority].badge}`}
@@ -433,7 +452,10 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
                   {priority}
                 </Badge>
               </div>
-              <p className="text-muted-foreground text-sm">
+              <p className={cn(
+                "text-sm",
+                taskIsOverdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
+              )}>
                 {key} • {task.projectId ? `Project ${task.projectId}` : 'Personal Task'}
               </p>
             </div>
@@ -632,10 +654,22 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
                 
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Due Date Time</p>
-                  <div className="flex items-center gap-2 text-sm">
-                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                  <div className={cn(
+                    "flex items-center gap-2 text-sm",
+                    taskIsOverdue && "text-red-600 dark:text-red-400 font-semibold"
+                  )}>
+                    <CalendarDays className={cn(
+                      "h-4 w-4",
+                      taskIsOverdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
+                    )} />
+                    {taskIsOverdue && <span>⚠️</span>}
                     <span>{task.dueDateTime ? formatDateTime(task.dueDateTime) : 'No due date set'}</span>
                   </div>
+                  {taskIsOverdue && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-semibold">
+                      This task is overdue
+                    </p>
+                  )}
                 </div>
                 
                 {task.updatedAt && (

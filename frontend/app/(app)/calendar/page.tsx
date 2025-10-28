@@ -18,6 +18,8 @@ import { useCurrentUser } from '../../../contexts/user-context';
 
 // Components
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { CalendarControls } from '../../../components/calendar/calendar-controls';
 import { CalendarDayView } from '../../../components/calendar/calendar-day-view';
 import { CalendarWeekView } from '../../../components/calendar/calendar-week-view';
@@ -376,22 +378,18 @@ export default function CalendarPage() {
 
   return (
     <SidebarInset>
-    <div className="flex flex-1 flex-col gap-8 px-6 pt-12">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-                <SidebarTrigger className="-ml-1" />
-                <div>
-                <h1 className="text-2xl font-semibold tracking-tight">
-                    My Schedule
-                </h1>
-                </div>
-            </div>
-        </header>
-    </div>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="h-5 w-5" />
+          <h1 className="text-lg font-semibold">Calendar</h1>
+        </div>
+      </header>
 
-    <div className="w-full min-h-screen p-1 mx-auto bg-background text-foreground" >
-      {/* Calendar Controls */}
-      <CalendarControls
+      <div className="w-full min-h-screen p-2 mx-auto bg-background text-foreground">
+        {/* Calendar Controls */}
+        <CalendarControls
         currentView={currentView}
         currentDate={currentDate}
         projects={projects}

@@ -110,6 +110,17 @@ export function TaskUpdateDialog({
   const [pendingUpdate, setPendingUpdate] = useState<UpdateTaskRequest | null>(null);
   const [selectedRecurrenceMode, setSelectedRecurrenceMode] = useState<RecurrenceEditMode | null>(null);
 
+  // Get current datetime in local format for min attribute
+  const getCurrentLocalDateTime = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   // Due date state - convert UTC to local datetime-local format
   const [dueDate, setDueDate] = useState<string>(() => {
     if (task.dueDateTime) {
@@ -389,10 +400,10 @@ export function TaskUpdateDialog({
 
   const formatDueDateTime = (localDateTime: string): string | undefined => {
     if (!localDateTime) return undefined;
-    
+
     // JavaScript automatically handles the conversion
     const date = new Date(localDateTime);
-    
+
     // Send as ISO string - backend handles it perfectly
     return date.toISOString();
     // Input: "2025-10-06T14:30" (local)
@@ -403,6 +414,14 @@ export function TaskUpdateDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsSubmitting(true);
+
+    // Validate due date is not in the past
+    if (dueDate && new Date(dueDate) < new Date()) {
+      setError('Due date cannot be in the past');
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       // Build update request with only changed fields
@@ -754,8 +773,17 @@ export function TaskUpdateDialog({
                 id="dueDate"
                 type="datetime-local"
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                min={new Date().toISOString().slice(0, 16)}
+                onChange={(e) => {
+                  const selectedDate = e.target.value;
+                  // Validate that selected date is not in the past
+                  if (selectedDate && new Date(selectedDate) < new Date()) {
+                    setError('Due date cannot be in the past');
+                    return;
+                  }
+                  setError(null);
+                  setDueDate(selectedDate);
+                }}
+                min={getCurrentLocalDateTime()}
                 placeholder="Select due date and time (optional)"
                 className={dueDate ? 'pr-10' : ''}
               />
@@ -785,7 +813,7 @@ export function TaskUpdateDialog({
             )}
             
             <p className="text-xs text-muted-foreground">
-              Set a deadline for this task (optional)
+              Due date must be in the future
             </p>
           </div>
 

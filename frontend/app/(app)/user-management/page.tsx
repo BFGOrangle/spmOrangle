@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Select,
   SelectContent,
@@ -38,6 +40,7 @@ import {
   Shield,
   Search,
   RefreshCcw,
+  Users,
 } from "lucide-react";
 import { useCurrentUser } from "@/contexts/user-context";
 import { userManagementService } from "@/services/user-management-service";
@@ -308,23 +311,32 @@ export default function UserManagementPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">User Management</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage users, roles, and permissions
-          </p>
+    <SidebarInset>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <div className="flex items-center gap-2">
+          <Users className="h-5 w-5" />
+          <h1 className="text-lg font-semibold">User Management</h1>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Create User
-        </Button>
-      </div>
+      </header>
 
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
+      <div className="flex flex-1 flex-col gap-6 p-6 pb-12 lg:p-10">
+        <div className="flex justify-between items-center">
+          <div>
+            <p className="text-muted-foreground">
+              Manage users, roles, and permissions
+            </p>
+          </div>
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Create User
+          </Button>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
             <CardTitle>Users</CardTitle>
             <div className="flex gap-2">
               <div className="relative">
@@ -618,6 +630,7 @@ export default function UserManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </SidebarInset>
   );
 }
