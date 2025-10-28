@@ -10,15 +10,25 @@ import { ProjectResponse } from '../services/project-service';
 // Convert task to calendar event
 export const taskToEvent: TaskToEventConverter = (task, project) => {
   const startDate = new Date(task.createdAt);
-  const endDate = task.dueDateTime ? new Date(task.dueDateTime) : new Date(task.createdAt);
-  
-  return {
+
+  // Use most relevant date for display filtering: dueDateTime > startDate > createdAt
+  // This determines which day the task appears on in the calendar
+  let displayDate: Date;
+  if (task.dueDateTime) {
+    displayDate = new Date(task.dueDateTime);
+  } else if (task.startDate) {
+    displayDate = new Date(task.startDate);  // For recurring tasks without due date
+  } else {
+    displayDate = new Date(task.createdAt);
+  }
+
+  const event = {
     id: task.id,
     title: task.title,
     description: task.description,
     startDate,
-    endDate,
-    dueDate: task.dueDateTime ? new Date(task.dueDateTime) : undefined,
+    endDate: displayDate,  // Used for filtering which day to show the task
+    dueDate: task.dueDateTime ? new Date(task.dueDateTime) : undefined,  // Only set if task has actual due date
     taskType: task.taskType,
     status: task.status,
     projectId: task.projectId,
@@ -28,6 +38,21 @@ export const taskToEvent: TaskToEventConverter = (task, project) => {
     ownerId: task.ownerId,
     color: generateEventColor(task.taskType, task.status),
   };
+
+  // Log virtual instances for debugging
+  if (task.isRecurring && !task.dueDateTime) {
+    console.log('Converting virtual recurring task without due date:', {
+      id: task.id,
+      title: task.title,
+      dueDateTime: task.dueDateTime,
+      startDate: task.startDate,
+      createdAt: task.createdAt,
+      endDate: displayDate,
+      eventDueDate: event.dueDate,
+    });
+  }
+
+  return event;
 };
 
 // Generate color for events based on task type and status
@@ -90,38 +115,53 @@ export const filterEventsByDateRange = (events: CalendarEvent[], startDate: Date
   });
 };
 
-// Filter events for week view - shows tasks with due dates in the week OR active tasks without due dates
+// Filter events for week view - uses endDate for tasks without due dates
 export const filterEventsForWeekView = (events: CalendarEvent[], startDate: Date, endDate: Date) => {
   return events.filter(event => {
-    // If task has a due date, check if it's in the week range
-    if (event.dueDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      return event.dueDate >= start && event.dueDate <= end;
-    }
-    
-    // If task has no due date, show it if it's not completed
-    return event.status !== 'COMPLETED';
+    // Use dueDate if available, otherwise use endDate (which contains the occurrence date)
+    const eventDate = event.dueDate || event.endDate;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    return eventDate >= start && eventDate <= end;
   });
 };
 
-// Filter events for month view - shows tasks with due dates in the month OR active tasks without due dates
+// Filter events for month view - uses endDate for tasks without due dates
 export const filterEventsForMonthView = (events: CalendarEvent[], startDate: Date, endDate: Date) => {
-  return events.filter(event => {
-    // If task has a due date, check if it's in the month range
-    if (event.dueDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      return event.dueDate >= start && event.dueDate <= end;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  console.log('=== filterEventsForMonthView ===');
+  console.log('Date range:', start, 'to', end);
+  console.log('Total events to filter:', events.length);
+
+  const filtered = events.filter(event => {
+    // Use dueDate if available, otherwise use endDate (which contains the occurrence date)
+    const eventDate = event.dueDate || event.endDate;
+    const passes = eventDate >= start && eventDate <= end;
+
+    // Log recurring tasks without due dates
+    if (!event.dueDate && event.title.includes('Test')) {
+      console.log('Filtering task:', {
+        title: event.title,
+        dueDate: event.dueDate,
+        endDate: event.endDate,
+        eventDate,
+        start,
+        end,
+        passes
+      });
     }
-    
-    // If task has no due date, show it if it's not completed
-    return event.status !== 'COMPLETED';
+
+    return passes;
   });
+
+  console.log('Filtered events:', filtered.length);
+  return filtered;
 };
 
 // Filter events by user assignment or ownership
@@ -157,28 +197,13 @@ export const groupEventsByDate = (events: CalendarEvent[]) => {
   }, {} as Record<string, CalendarEvent[]>);
 };
 
-// Group events by date for week view - tasks without due dates go to today
+// Group events by date for week view - uses endDate for tasks without due dates
 export const groupEventsByDateForWeekView = (events: CalendarEvent[], weekDays: Date[]) => {
-  const today = new Date();
-  const todayKey = format(today, 'yyyy-MM-dd');
-  
   return events.reduce((groups, event) => {
-    let dateKey: string;
-    
-    if (event.dueDate) {
-      // Use due date if available
-      dateKey = format(event.dueDate, 'yyyy-MM-dd');
-    } else {
-      // For tasks without due dates, put them on today if today is in the week range
-      const isThisWeek = weekDays.some(day => format(day, 'yyyy-MM-dd') === todayKey);
-      if (isThisWeek) {
-        dateKey = todayKey;
-      } else {
-        // If today is not in this week, put them on the first day of the week
-        dateKey = format(weekDays[0], 'yyyy-MM-dd');
-      }
-    }
-    
+    // Use dueDate if available, otherwise use endDate (which contains the occurrence date)
+    const eventDate = event.dueDate || event.endDate;
+    const dateKey = format(eventDate, 'yyyy-MM-dd');
+
     if (!groups[dateKey]) {
       groups[dateKey] = [];
     }
@@ -187,34 +212,36 @@ export const groupEventsByDateForWeekView = (events: CalendarEvent[], weekDays: 
   }, {} as Record<string, CalendarEvent[]>);
 };
 
-// Group events by date for month view - tasks without due dates go to today
+// Group events by date for month view - uses endDate for tasks without due dates
 export const groupEventsByDateForMonthView = (events: CalendarEvent[], monthDays: Date[]) => {
-  const today = new Date();
-  const todayKey = format(today, 'yyyy-MM-dd');
-  
-  return events.reduce((groups, event) => {
-    let dateKey: string;
-    
-    if (event.dueDate) {
-      // Use due date if available
-      dateKey = format(event.dueDate, 'yyyy-MM-dd');
-    } else {
-      // For tasks without due dates, put them on today if today is in the month range
-      const isThisMonth = monthDays.some(day => format(day, 'yyyy-MM-dd') === todayKey);
-      if (isThisMonth) {
-        dateKey = todayKey;
-      } else {
-        // If today is not in this month, put them on the first day of the month
-        dateKey = format(monthDays[0], 'yyyy-MM-dd');
-      }
+  console.log('=== groupEventsByDateForMonthView ===');
+  console.log('Events to group:', events.length);
+
+  const groups = events.reduce((groups, event) => {
+    // Use dueDate if available, otherwise use endDate (which contains the occurrence date)
+    const eventDate = event.dueDate || event.endDate;
+    const dateKey = format(eventDate, 'yyyy-MM-dd');
+
+    // Log recurring tasks without due dates
+    if (!event.dueDate && event.title.includes('Test')) {
+      console.log('Grouping task:', {
+        title: event.title,
+        dueDate: event.dueDate,
+        endDate: event.endDate,
+        eventDate,
+        dateKey
+      });
     }
-    
+
     if (!groups[dateKey]) {
       groups[dateKey] = [];
     }
     groups[dateKey].push(event);
     return groups;
   }, {} as Record<string, CalendarEvent[]>);
+
+  console.log('Grouped into', Object.keys(groups).length, 'days');
+  return groups;
 };
 
 // Format date for display

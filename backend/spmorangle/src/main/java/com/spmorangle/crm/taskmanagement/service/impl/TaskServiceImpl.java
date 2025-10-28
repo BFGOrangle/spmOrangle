@@ -5,6 +5,7 @@ import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.crm.projectmanagement.dto.ProjectResponseDto;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
 import com.spmorangle.crm.taskmanagement.dto.*;
+import com.spmorangle.crm.taskmanagement.enums.CalendarView;
 import com.spmorangle.crm.taskmanagement.enums.RecurrenceEditMode;
 import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
@@ -166,19 +167,62 @@ public class TaskServiceImpl implements TaskService {
     public List<TaskResponseDto> getProjectTasks(Long userId, Long projectId) {
         log.info("Getting tasks for project: {}", projectId);
         List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
+
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
         Long projectOwnerId = projectService.getOwnerId(projectId);
 
         Map<Long, String> projectNames = resolveProjectNames(Collections.singleton(projectId));
         Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
 
-        return tasks.stream()
-                .map((task) -> {
-                    boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
-                    boolean userHasDeleteAccess = userId.equals(projectOwnerId);
-                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, projectNames, ownerDetails, userId);
-                })
-                .toList();
+        List<TaskResponseDto> result = new ArrayList<>();
+
+        for(Task task : tasks) {
+            boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
+            boolean userHasDeleteAccess = userId.equals(projectOwnerId);
+
+            result.add(mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, projectNames, ownerDetails, userId));
+        }
+
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskResponseDto> getProjectTasksForCalendar(Long userId, Long projectId, CalendarView calendarView, OffsetDateTime referenceDate) {
+        log.info("Getting tasks for project on calendar view: {}", projectId);
+        List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
+
+        Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
+        Long projectOwnerId = projectService.getOwnerId(projectId);
+
+        Map<Long, String> projectNames = resolveProjectNames(Collections.singleton(projectId));
+        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+
+        List<TaskResponseDto> result = new ArrayList<>();
+
+        for(Task task : tasks) {
+            boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
+            boolean userHasDeleteAccess = userId.equals(projectOwnerId);
+
+            // Return recurring virtual tasks (but not if completed - avoid duplicates)
+            if(Boolean.TRUE.equals(task.getIsRecurring()) && task.getStatus() != Status.COMPLETED) {
+                List<TaskResponseDto> virtualInstances = expandRecurringTaskForDisplay(
+                    task,
+                    userHasWriteAccess,
+                    userHasDeleteAccess,
+                    projectNames,
+                    ownerDetails,
+                    userId,
+                    calendarView,
+                    referenceDate
+                );
+                result.addAll(virtualInstances);
+            } else {
+                result.add(mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, projectNames, ownerDetails, userId));
+            }
+        }
+
+        return result;
     }
 
     @Override
@@ -205,9 +249,42 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting personal tasks for user: {}", userId);
         List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
         Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+
         return tasks.stream()
                 .map(task -> mapToTaskResponseDto(task, true, true, Collections.emptyMap(), ownerDetails, userId))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskResponseDto> getPersonalTasksForCalendar(Long userId, CalendarView calendarView, OffsetDateTime referenceDate) {
+        log.info("Getting personal tasks for user: {}", userId);
+        List<Task> tasks = taskRepository.findPersonalTasksByOwnerIdAndNotDeleted(userId);
+        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+
+        List<TaskResponseDto> result = new ArrayList<>();
+
+        for(Task task : tasks) {
+            // Return recurring virtual tasks
+            if(Boolean.TRUE.equals(task.getIsRecurring())) {
+                List<TaskResponseDto> virtualInstances = expandRecurringTaskForDisplay(
+                    task,
+                    true,
+                    true,
+                    Collections.emptyMap(),
+                    ownerDetails,
+                    userId,
+                    calendarView,
+                    referenceDate
+                );
+                result.addAll(virtualInstances);
+            } else {
+                result.add(mapToTaskResponseDto(task, true, true, Collections.emptyMap(), ownerDetails, userId));
+            }
+        }
+
+        return result;
+
     }
 
     @Override
@@ -233,6 +310,54 @@ public class TaskServiceImpl implements TaskService {
                 })
                 .collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskResponseDto> getAllUserTasksForCalendar(Long userId, CalendarView calendarView, OffsetDateTime referenceDate) {
+        log.info("Getting all tasks for user: {}", userId);
+        List<Task> tasks = taskRepository.findUserTasks(userId);
+
+        Set<Long> projectIds = tasks.stream()
+                .map(Task::getProjectId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<Long, Long> projectOwnerMap = projectService.getProjectOwners(projectIds);
+        Map<Long, String> projectNames = resolveProjectNames(projectIds);
+        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+
+        Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
+
+        List<TaskResponseDto> result = new ArrayList<>();
+
+        for(Task task : tasks) {
+
+            // Long projectOwnerId = projectService.getOwnerId(task.getProjectId());
+
+            boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
+            boolean userHasDeleteAccess = task.getProjectId() != null ? userId.equals(projectOwnerMap.get(task.getProjectId())) : task.getOwnerId().equals(userId);
+
+            // Return recurring virtual tasks (but not if completed - avoid duplicates)
+            if(Boolean.TRUE.equals(task.getIsRecurring()) && task.getStatus() != Status.COMPLETED) {
+                List<TaskResponseDto> virtualInstances = expandRecurringTaskForDisplay(
+                    task,
+                    userHasWriteAccess,
+                    userHasDeleteAccess,
+                    projectNames,
+                    ownerDetails,
+                    userId,
+                    calendarView,
+                    referenceDate
+                );
+                result.addAll(virtualInstances);
+            } else {
+                result.add(mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, projectNames, ownerDetails, userId));
+            }
+        }
+
+        return result;
+    }
+
     /*
     * This function serves to show tasks that users have members from their department as collaborators in tasks
     * in another project
@@ -372,9 +497,11 @@ public class TaskServiceImpl implements TaskService {
             throw new RuntimeException("Only task owner or collaborators can update the task");
         }
 
+        // Capture old status before any updates (needed for logic below)
+        Status oldStatus = task.getStatus();
+
         // Handle time tracking for status transitions (before any updates)
         if (updateTaskDto.getStatus() != null) {
-            Status oldStatus = task.getStatus();
             Status newStatus = updateTaskDto.getStatus();
             handleTimeTracking(task.getId(), currentUserId, oldStatus, newStatus);
 
@@ -393,26 +520,96 @@ public class TaskServiceImpl implements TaskService {
             handleRecurringTaskEdit(task, updateTaskDto, currentUserId);
         }
 
-        // Generate next instance of task if marked completed
-        else if (updateTaskDto.getStatus() == Status.COMPLETED && Boolean.TRUE.equals(task.getIsRecurring())) {
-            // Apply all field updates to current task before creating next instance
+        // Handle reverting a recurring task from COMPLETED back to TODO/IN_PROGRESS
+        else if (oldStatus == Status.COMPLETED &&
+                 (updateTaskDto.getStatus() == Status.TODO || updateTaskDto.getStatus() == Status.IN_PROGRESS) &&
+                 Boolean.TRUE.equals(task.getIsRecurring())) {
+            log.info("Recurring task moved from COMPLETED back to {}, checking for duplicate next instance", updateTaskDto.getStatus());
+
+            // Apply field updates first
             applyFieldUpdates(task, updateTaskDto, currentUserId);
 
-            // Check if task has recurrence rule and required dates configured
-            if (task.getRecurrenceRuleStr() != null && task.getDueDateTime() != null && task.getStartDate() != null && task.getEndDate() != null) {
+            // Try to find and delete the "next instance" that was created
+            // Look for a task with same title, recurrence rule, created very recently (last 5 minutes)
+            try {
+                OffsetDateTime fiveMinutesAgo = OffsetDateTime.now().minusMinutes(5);
+                List<Task> potentialDuplicates = taskRepository.findAll().stream()
+                    .filter(t -> !Objects.equals(t.getId(), task.getId())) // Not the same task
+                    .filter(t -> Boolean.TRUE.equals(t.getIsRecurring())) // Is recurring
+                    .filter(t -> t.getTitle().equals(task.getTitle())) // Same title
+                    .filter(t -> t.getRecurrenceRuleStr() != null &&
+                                 t.getRecurrenceRuleStr().equals(task.getRecurrenceRuleStr())) // Same recurrence rule
+                    .filter(t -> t.getStatus() == Status.TODO) // Status is TODO
+                    .filter(t -> t.getCreatedAt().isAfter(fiveMinutesAgo)) // Created recently
+                    .filter(t -> t.getProjectId() != null ?
+                                 t.getProjectId().equals(task.getProjectId()) :
+                                 task.getProjectId() == null) // Same project (or both null)
+                    .toList();
+
+                if (!potentialDuplicates.isEmpty()) {
+                    // Delete the most recently created duplicate (likely the auto-generated next instance)
+                    Task duplicate = potentialDuplicates.stream()
+                        .max((t1, t2) -> t1.getCreatedAt().compareTo(t2.getCreatedAt()))
+                        .orElse(null);
+
+                    if (duplicate != null) {
+                        log.info("Found and deleting duplicate next instance: {}", duplicate.getId());
+                        taskRepository.delete(duplicate);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to clean up duplicate next instance: {}", e.getMessage());
+                // Don't fail the update if cleanup fails
+            }
+        }
+
+        // Generate next instance of task if marked completed
+        else if (updateTaskDto.getStatus() == Status.COMPLETED && Boolean.TRUE.equals(task.getIsRecurring())) {
+            log.info("Task marked completed, trying to generate new instance");
+            // Apply all field updates to current task before creating next instance
+            applyFieldUpdates(task, updateTaskDto, currentUserId);
+            log.info("After apply field updates");
+
+            // Check if task has recurrence rule (only required field)
+            if (task.getRecurrenceRuleStr() != null) {
+                log.info("Task has recurrence rule, calculating next instance");
                 try {
-                    // Calculate next occurrence starting from day after current due date
-                    OffsetDateTime nextStart = task.getDueDateTime().plusDays(1);
+                    // Determine reference date for calculating next occurrence
+                    // Priority: dueDateTime > startDate > now (immediate start)
+                    OffsetDateTime referenceDate;
+                    if (task.getDueDateTime() != null) {
+                        referenceDate = task.getDueDateTime();
+                        log.info("Using dueDateTime as reference: {}", referenceDate);
+                    } else if (task.getStartDate() != null) {
+                        referenceDate = task.getStartDate();
+                        log.info("Using startDate as reference: {}", referenceDate);
+                    } else {
+                        referenceDate = OffsetDateTime.now();
+                        log.info("No dates set, starting immediately from: {}", referenceDate);
+                    }
+
+                    // Calculate next occurrence from day after reference
+                    OffsetDateTime nextStart = referenceDate.plusDays(1);
+
+                    // Determine effective end date for recurrence generation
+                    // If endDate is null, use 1 year ahead (only affects this single next instance lookup)
+                    OffsetDateTime effectiveEndDate = task.getEndDate() != null
+                        ? task.getEndDate()
+                        : OffsetDateTime.now().plusYears(1);
+
+                    log.info("Generating next occurrence from {} to {}", nextStart, effectiveEndDate);
+
                     List<OffsetDateTime> nextOccurrences = recurrenceService.generateOccurrence(
                         task.getRecurrenceRuleStr(),
                         nextStart,
-                        task.getEndDate()
+                        effectiveEndDate
                     );
 
                     // Only create next task if there are future occurrences
                     if (!nextOccurrences.isEmpty()) {
                         // Get the first future occurrence
-                        OffsetDateTime nextDueDate = nextOccurrences.get(0);
+                        OffsetDateTime nextOccurrence = nextOccurrences.get(0);
+                        log.info("Next occurrence calculated: {}", nextOccurrence);
 
                         // Prep inputs for DTO
                         List<String> tagNames = task.getTags() != null
@@ -421,6 +618,15 @@ public class TaskServiceImpl implements TaskService {
 
                         // Get assigned user IDs from current task to replicate collaborators
                         List<Long> assignedUserIds = collaboratorService.getCollaboratorIdsByTaskId(task.getId());
+
+                        // IMPORTANT: Preserve the dueDateTime behavior
+                        // - If original task had dueDateTime, set next task's dueDateTime to nextOccurrence
+                        // - If original task had NO dueDateTime (null), keep next task's dueDateTime as null
+                        OffsetDateTime nextDueDateTime = task.getDueDateTime() != null
+                            ? nextOccurrence  // Set to calculated occurrence
+                            : null;            // Keep as null
+
+                        log.info("Next task dueDateTime: {}", nextDueDateTime);
 
                         // Create next task with same properties
                         CreateTaskDto recurringTaskDto = new CreateTaskDto(
@@ -432,22 +638,25 @@ public class TaskServiceImpl implements TaskService {
                             task.getTaskType(),
                             tagNames,
                             assignedUserIds,
-                            nextDueDate,
+                            nextDueDateTime,     // null if original had null, otherwise nextOccurrence
                             task.getIsRecurring(),
                             task.getRecurrenceRuleStr(),
-                            task.getStartDate(),
-                            task.getEndDate()
+                            nextOccurrence,      // startDate always set to the occurrence
+                            task.getEndDate()    // Preserve original endDate (can be null)
                         );
 
                         this.createTask(recurringTaskDto, task.getOwnerId(), currentUserId);
-                        log.info("Created recurring task instance with due date: {} for task: {}", nextDueDate, task.getId());
+                        log.info("✅ Created recurring task instance with startDate: {} and dueDateTime: {} for task: {}",
+                            nextOccurrence, nextDueDateTime, task.getId());
                     } else {
                         log.info("No more occurrences for recurring task: {}", task.getId());
                     }
                 } catch (Exception e) {
-                    log.error("Failed to create next recurring task instance for task {}: {}", task.getId(), e.getMessage(), e);
+                    log.error("❌ Failed to create next recurring task instance for task {}: {}", task.getId(), e.getMessage(), e);
                     // Don't fail the update if recurring task creation fails
                 }
+            } else {
+                log.warn("Cannot create next recurring instance for task {}: missing recurrenceRuleStr", task.getId());
             }
         }
 
@@ -1016,5 +1225,134 @@ public class TaskServiceImpl implements TaskService {
             log.error("Failed to publish status change notification for task ID: {} - Error: {}",
                  task.getId(), e.getMessage(), e);
         }
+    }
+
+    // Expand recurring task template into virtual instances
+    private List<TaskResponseDto> expandRecurringTaskForDisplay(
+        Task template,
+        boolean userHasWriteAccess,
+        boolean userHasDeleteAccess,
+        Map<Long, String> projectNames,
+        Map<Long, User> ownerDetails,
+        Long userId,
+        CalendarView calendarView,
+        OffsetDateTime referenceDate
+    ) {
+        List<TaskResponseDto> virtualInstances = new ArrayList<>();
+
+        // Get proper calendar view window using the provided reference date (or now if null)
+        OffsetDateTime refDate = referenceDate != null ? referenceDate : OffsetDateTime.now();
+        CalendarView.CalendarViewWindow viewWindow = calendarView.getCalendarViewWindow(refDate);
+        OffsetDateTime windowStart = viewWindow.getStart();
+        OffsetDateTime windowEnd = viewWindow.getEnd();
+
+        OffsetDateTime effectiveEnd = template.getEndDate();
+        if(effectiveEnd == null || effectiveEnd.isAfter(windowEnd)) {
+            effectiveEnd = windowEnd;
+        }
+
+        // Determine effective start date for generating occurrences
+        // Priority: template.startDate > template.dueDateTime > now()
+        OffsetDateTime effectiveStart;
+        if(template.getStartDate() != null) {
+            effectiveStart = template.getStartDate();
+        } else if(template.getDueDateTime() != null) {
+            effectiveStart = template.getDueDateTime();
+        } else {
+            effectiveStart = OffsetDateTime.now();
+        }
+
+        // Adjust to calendar window if needed
+        if(effectiveStart.isBefore(windowStart)) {
+            effectiveStart = windowStart;
+        }
+
+        // Skip task if range doesnt overlap with view window
+        if(effectiveStart.isAfter(effectiveEnd)) {
+            log.info("Task {} range doesn't overlap with calendar view window", template.getId());
+            return virtualInstances;
+        }
+
+        // Get dates that are appropriate
+        try {
+            log.info("Generating occurrences for task {} from {} to {}", template.getId(), effectiveStart, effectiveEnd);
+            List<OffsetDateTime> occurrences = recurrenceService.generateOccurrence(template.getRecurrenceRuleStr(), effectiveStart, effectiveEnd);
+            log.info("Generated {} occurrences for task {}", occurrences.size(), template.getId());
+
+            for(OffsetDateTime occurrence : occurrences) {
+                TaskResponseDto virtualDto = createVirtualInstanceDto(
+                template,
+                occurrence,
+                userHasWriteAccess,
+                userHasDeleteAccess,
+                projectNames,
+                ownerDetails,
+                userId
+                );
+                log.info("Created virtual instance: dueDateTime={}, startDate={}", virtualDto.getDueDateTime(), virtualDto.getStartDate());
+                virtualInstances.add(virtualDto);
+            }
+
+            log.info("Expanded recurring task {} into {} virtual instances", template.getId(), virtualInstances.size());
+        } catch (Exception e) {
+            log.error("Failed to expand recurring task {}: {}", template.getId(), e.getMessage(), e);
+        }
+
+        return virtualInstances;
+
+
+    }
+
+    private TaskResponseDto createVirtualInstanceDto(
+        Task template,
+        OffsetDateTime occurrence,
+        boolean userHasWriteAccess,
+        boolean userHasDeleteAccess,
+        Map<Long, String> projectNames,
+        Map<Long, User> ownerDetails,
+        Long userId
+    ) {
+        List<SubtaskResponseDto> subtasks = subtaskService.getSubtasksByTaskId(template.getId(), userId);
+        List<Long> assignedUserIds = collaboratorService.getCollaboratorIdsByTaskId(template.getId());
+
+        User owner = ownerDetails != null ? ownerDetails.get(template.getOwnerId()) : null;
+        String projectName = null;
+        if(projectNames != null && template.getProjectId() != null) {
+            projectName = projectNames.get(template.getProjectId());
+        }
+
+        // Build DTO for virtual instance
+        // - dueDateTime: Only set if template has a due date (null otherwise)
+        // - startDate: Always set to occurrence (determines which calendar day to show task)
+        OffsetDateTime virtualDueDateTime = template.getDueDateTime() != null ? occurrence : null;
+
+        return TaskResponseDto.builder()
+            .id(template.getId())
+            .projectId(template.getProjectId())
+            .projectName(projectName)
+            .ownerId(template.getOwnerId())
+            .ownerName(owner != null ? owner.getUserName() : null)
+            .ownerDepartment(owner != null ? owner.getDepartment() : null)
+            .taskType(template.getTaskType())
+            .title(template.getTitle())
+            .description(template.getDescription())
+            .status(template.getStatus())
+            .tags(template.getTags() != null
+                    ? template.getTags().stream().map(Tag::getTagName).toList()
+                    : null)
+            .assignedUserIds(assignedUserIds)
+            .userHasEditAccess(userHasWriteAccess)
+            .userHasDeleteAccess(userHasDeleteAccess)
+            .createdAt(template.getCreatedAt())
+            .updatedAt(template.getUpdatedAt())
+            .createdBy(template.getCreatedBy())
+            .updatedBy(template.getUpdatedBy())
+            .dueDateTime(virtualDueDateTime)  // Null if template has no due date
+            .subtasks(subtasks)
+            .isRecurring(true)
+            .recurrenceRuleStr(template.getRecurrenceRuleStr())
+            .startDate(occurrence)  // Always set to occurrence for calendar day filtering
+            .endDate(template.getEndDate())
+            .build();
     }
 }

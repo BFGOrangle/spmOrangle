@@ -160,34 +160,115 @@ export class ProjectService {
 
   /**
    * Get tasks for a specific project
+   * @param projectId - The project ID
+   * @param tags - Optional tags to filter by
+   * @param calendarView - Optional calendar view mode ('day' | 'week' | 'month') for expanding recurring tasks
+   * @param referenceDate - Optional reference date for calendar view (defaults to now on backend)
    */
-  async getProjectTasks(projectId: number, tags?: string[]): Promise<TaskResponse[]> {
-    const query = this.buildTagsQuery(tags);
-    const endpoint = query
-      ? `/api/tasks/project/${projectId}?${query}`
+  async getProjectTasks(
+    projectId: number,
+    tags?: string[],
+    calendarView?: 'day' | 'week' | 'month' | 'timeline',
+    referenceDate?: Date
+  ): Promise<TaskResponse[]> {
+    const params = new URLSearchParams();
+
+    // Add tags if provided
+    if (tags && tags.length > 0) {
+      params.append('tags', tags.join(','));
+    }
+
+    // Add calendarView if provided (convert to uppercase for backend)
+    if (calendarView) {
+      params.append('calendarView', calendarView.toUpperCase());
+    }
+
+    // Add referenceDate if provided (ISO 8601 format)
+    if (referenceDate) {
+      params.append('referenceDate', referenceDate.toISOString());
+    }
+
+    const queryString = params.toString();
+    const endpoint = queryString
+      ? `/api/tasks/project/${projectId}?${queryString}`
       : `/api/tasks/project/${projectId}`;
+
     return this.authenticatedClient.get(endpoint);
   }
 
   /**
    * Get personal tasks (not associated with any project)
+   * @param userId - The user ID
+   * @param tags - Optional tags to filter by
+   * @param calendarView - Optional calendar view mode ('day' | 'week' | 'month') for expanding recurring tasks
+   * @param referenceDate - Optional reference date for calendar view (defaults to now on backend)
    */
-  async getPersonalTasks(userId: number, tags?: string[]): Promise<TaskResponse[]> {
-    const query = this.buildTagsQuery(tags);
-    const endpoint = query
-      ? `/api/tasks/personal?${query}`
+  async getPersonalTasks(
+    userId: number,
+    tags?: string[],
+    calendarView?: 'day' | 'week' | 'month' | 'timeline',
+    referenceDate?: Date
+  ): Promise<TaskResponse[]> {
+    const params = new URLSearchParams();
+
+    // Add tags if provided
+    if (tags && tags.length > 0) {
+      params.append('tags', tags.join(','));
+    }
+
+    // Add calendarView if provided (convert to uppercase for backend)
+    if (calendarView) {
+      params.append('calendarView', calendarView.toUpperCase());
+    }
+
+    // Add referenceDate if provided (ISO 8601 format)
+    if (referenceDate) {
+      params.append('referenceDate', referenceDate.toISOString());
+    }
+
+    const queryString = params.toString();
+    const endpoint = queryString
+      ? `/api/tasks/personal?${queryString}`
       : `/api/tasks/personal`;
+
     return this.authenticatedClient.get(endpoint);
   }
 
   /**
    * Get all tasks for a user (both personal and project tasks)
+   * @param userId - The user ID
+   * @param tags - Optional tags to filter by
+   * @param calendarView - Optional calendar view mode ('day' | 'week' | 'month') for expanding recurring tasks
+   * @param referenceDate - Optional reference date for calendar view (defaults to now on backend)
    */
-  async getAllUserTasks(userId: number, tags?: string[]): Promise<TaskResponse[]> {
-    const query = this.buildTagsQuery(tags);
-    const endpoint = query
-      ? `/api/tasks/user?${query}`
+  async getAllUserTasks(
+    userId: number,
+    tags?: string[],
+    calendarView?: 'day' | 'week' | 'month' | 'timeline',
+    referenceDate?: Date
+  ): Promise<TaskResponse[]> {
+    const params = new URLSearchParams();
+
+    // Add tags if provided
+    if (tags && tags.length > 0) {
+      params.append('tags', tags.join(','));
+    }
+
+    // Add calendarView if provided (convert to uppercase for backend)
+    if (calendarView) {
+      params.append('calendarView', calendarView.toUpperCase());
+    }
+
+    // Add referenceDate if provided (ISO 8601 format)
+    if (referenceDate) {
+      params.append('referenceDate', referenceDate.toISOString());
+    }
+
+    const queryString = params.toString();
+    const endpoint = queryString
+      ? `/api/tasks/user?${queryString}`
       : `/api/tasks/user`;
+
     return this.authenticatedClient.get(endpoint);
   }
 

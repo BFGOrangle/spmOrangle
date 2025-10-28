@@ -56,6 +56,10 @@ export interface TaskResponseDto {
   updatedBy?: number;
   subtasks?: SubtaskResponseDto[];
   dueDateTime?: string;
+  isRecurring?: boolean;
+  recurrenceRuleStr?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 // UI-specific interfaces for project and task management

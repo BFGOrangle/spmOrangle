@@ -8,6 +8,7 @@ import com.spmorangle.crm.taskmanagement.dto.CreateTaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.TaskResponseDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateTaskDto;
 import com.spmorangle.crm.taskmanagement.dto.UpdateTaskResponseDto;
+import com.spmorangle.crm.taskmanagement.enums.CalendarView;
 
 public interface TaskService {
 
@@ -21,13 +22,7 @@ public interface TaskService {
      */
     CreateTaskResponseDto createTask(CreateTaskDto createTaskDto, Long taskOwnerId, Long currentUserId);
 
-    List<TaskResponseDto> getProjectTasks(Long userId, Long projectId);
-
-    TaskResponseDto getTaskById(Long taskId, Long currentUserId);
-    
-    List<TaskResponseDto> getPersonalTasks(Long userId);
-    
-    List<TaskResponseDto> getAllUserTasks(Long userId);
+    TaskResponseDto getTaskById(Long taskId, Long currentUserId);    
 
     List<TaskResponseDto> getRelatedTasks(Long userId);
 
@@ -42,5 +37,16 @@ public interface TaskService {
     List<TaskResponseDto> getUserTasksDueTmr(Long userId, OffsetDateTime startOfDay, OffsetDateTime endOfDay);
 
     List<TaskResponseDto> getUserTasksDueTomorrowForDigest(Long userId, OffsetDateTime startOfDay, OffsetDateTime endOfDay);
+
+    // kanban view methods
+    List<TaskResponseDto> getProjectTasks(Long userId, Long projectId);
+    List<TaskResponseDto> getPersonalTasks(Long userId);
+    List<TaskResponseDto> getAllUserTasks(Long userId);
+
+    // calendar view methods
+    List<TaskResponseDto> getProjectTasksForCalendar(Long userId, Long projectId, CalendarView calendarView, OffsetDateTime referenceDate);
+    List<TaskResponseDto> getPersonalTasksForCalendar(Long userId, CalendarView calendarView, OffsetDateTime referenceDate);
+    List<TaskResponseDto> getAllUserTasksForCalendar(Long userId, CalendarView calendarView, OffsetDateTime referenceDate);
+
 
 }
