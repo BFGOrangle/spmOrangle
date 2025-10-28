@@ -32,6 +32,8 @@ import {
   Users
 } from "lucide-react";
 import { StaffBreakdownTable } from "@/components/staff-breakdown-table";
+import { TaskStatusPieChart } from "@/components/charts/task-status-pie-chart";
+import { TimeAnalyticsBarChart } from "@/components/charts/time-analytics-bar-chart";
 import { reportService } from "@/services/report-service";
 import {
   ReportFilterDto,
@@ -458,62 +460,22 @@ export default function ReportsPage() {
                     </CardContent>
                   </Card>
                 </div>
+                {/* Charts Section */}
+                <div className="space-y-4">
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <BarChart3 className="h-6 w-6" />
+                    Visual Analytics
+                  </h2>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <TaskStatusPieChart data={taskSummary} loading={loading} />
+                    {timeAnalytics && (
+                      <TimeAnalyticsBarChart data={timeAnalytics} loading={loading} />
+                    )}
+                  </div>
+                </div>
 
-                {/* Tasks by Status Breakdown */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Task Status Distribution</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">To Do</span>
-                          <Badge variant="secondary">
-                            {taskSummary.todoTasks}
-                          </Badge>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {taskSummary.todoPercentage?.toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">In Progress</span>
-                          <Badge variant="default">
-                            {taskSummary.inProgressTasks}
-                          </Badge>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {taskSummary.inProgressPercentage?.toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Completed</span>
-                          <Badge variant="outline" className="bg-green-50">
-                            {taskSummary.completedTasks}
-                          </Badge>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {taskSummary.completedPercentage?.toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Blocked</span>
-                          <Badge variant="destructive">
-                            {taskSummary.blockedTasks}
-                          </Badge>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {taskSummary.blockedPercentage?.toFixed(1)}%
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
+
             )}
 
             {/* Time Analytics Section */}

@@ -6,17 +6,30 @@ import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
 import com.itextpdf.layout.element.Cell;
+import com.itextpdf.layout.element.Image;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
+import com.itextpdf.io.image.ImageDataFactory;
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartUtils;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.plot.CategoryPlot;
+import org.jfree.chart.plot.PiePlot;
+import org.jfree.data.category.DefaultCategoryDataset;
+import org.jfree.data.general.DefaultPieDataset;
+
+import java.awt.*;
+import java.io.ByteArrayOutputStream;
 import com.spmorangle.crm.reporting.dto.ReportFilterDto;
 import com.spmorangle.crm.reporting.dto.StaffBreakdownDto;
 import com.spmorangle.crm.reporting.dto.TaskSummaryReportDto;
 import com.spmorangle.crm.reporting.dto.TimeAnalyticsReportDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
+import org.jfree.chart.labels.StandardPieSectionLabelGenerator;
+import java.text.NumberFormat;
 import java.io.ByteArrayOutputStream;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -49,14 +62,23 @@ public class PdfReportExporter implements ReportExporter {
             // Add title and metadata
             addReportHeader(document, reportData, filters);
 
-            // Add Task Summary section
+            // Add Charts section
             TaskSummaryReportDto taskSummary = (TaskSummaryReportDto) reportData.get("taskSummary");
+            TimeAnalyticsReportDto timeAnalytics = (TimeAnalyticsReportDto) reportData.get("timeAnalytics");
+            
+            boolean hasTaskData = taskSummary != null && taskSummary.getTotalTasks() != null && taskSummary.getTotalTasks() > 0;
+            boolean hasTimeData = timeAnalytics != null && timeAnalytics.getHoursByDepartment() != null && !timeAnalytics.getHoursByDepartment().isEmpty();
+            
+            if (hasTaskData || hasTimeData) {
+                addChartsSection(document, taskSummary, timeAnalytics);
+            }
+
+            // Add Task Summary section
             if (taskSummary != null) {
                 addTaskSummarySection(document, taskSummary);
             }
 
             // Add Time Analytics section
-            TimeAnalyticsReportDto timeAnalytics = (TimeAnalyticsReportDto) reportData.get("timeAnalytics");
             if (timeAnalytics != null) {
                 addTimeAnalyticsSection(document, timeAnalytics);
             }
@@ -132,7 +154,6 @@ public class PdfReportExporter implements ReportExporter {
         summaryTable.addHeaderCell(createHeaderCell("Percentage"));
 
         // Data rows
-        addSummaryRow(summaryTable, "Total Tasks", taskSummary.getTotalTasks(), 100.0);
         addSummaryRow(summaryTable, "Completed", taskSummary.getCompletedTasks(), taskSummary.getCompletedPercentage());
         addSummaryRow(summaryTable, "In Progress", taskSummary.getInProgressTasks(), taskSummary.getInProgressPercentage());
         addSummaryRow(summaryTable, "To Do", taskSummary.getTodoTasks(), taskSummary.getTodoPercentage());
@@ -328,5 +349,172 @@ public class PdfReportExporter implements ReportExporter {
     @Override
     public String getFileExtension() {
         return "pdf";
+    }
+
+    /**
+     * Add charts section to the PDF document
+     */
+    private void addChartsSection(Document document, TaskSummaryReportDto taskSummary, TimeAnalyticsReportDto timeAnalytics) {
+        addSectionTitle(document, "Visual Analytics");
+
+        try {
+            // Create a table to hold both charts side by side
+            Table chartsTable = new Table(UnitValue.createPercentArray(new float[]{50, 50}))
+                    .useAllAvailableWidth()
+                    .setMarginBottom(20);
+
+            // Add pie chart for task status
+            if (taskSummary != null && taskSummary.getTotalTasks() > 0) {
+                byte[] pieChartBytes = generateTaskStatusPieChart(taskSummary);
+                if (pieChartBytes != null) {
+                    Image pieChartImage = new Image(ImageDataFactory.create(pieChartBytes))
+                            .setWidth(250)
+                            .setHeight(200);
+                    Cell pieChartCell = new Cell()
+                            .add(pieChartImage)
+                            .setTextAlignment(TextAlignment.CENTER);
+                    chartsTable.addCell(pieChartCell);
+                } else {
+                    chartsTable.addCell(new Cell().add(new Paragraph("Task Status Chart\n(No data available)")));
+                }
+            } else {
+                chartsTable.addCell(new Cell().add(new Paragraph("Task Status Chart\n(No data available)")));
+            }
+
+            // Add bar chart for time analytics
+            if (timeAnalytics != null && timeAnalytics.getHoursByDepartment() != null && !timeAnalytics.getHoursByDepartment().isEmpty()) {
+                byte[] barChartBytes = generateTimeAnalyticsBarChart(timeAnalytics);
+                if (barChartBytes != null) {
+                    Image barChartImage = new Image(ImageDataFactory.create(barChartBytes))
+                            .setWidth(250)
+                            .setHeight(200);
+                    Cell barChartCell = new Cell()
+                            .add(barChartImage)
+                            .setTextAlignment(TextAlignment.CENTER);
+                    chartsTable.addCell(barChartCell);
+                } else {
+                    chartsTable.addCell(new Cell().add(new Paragraph("Time Analytics Chart\n(No data available)")));
+                }
+            } else {
+                chartsTable.addCell(new Cell().add(new Paragraph("Time Analytics Chart\n(No data available)")));
+            }
+
+            document.add(chartsTable);
+
+        } catch (Exception e) {
+            log.warn("Failed to generate charts for PDF report", e);
+            // Add fallback text if chart generation fails
+            Paragraph fallback = new Paragraph("Charts could not be generated for this report.")
+                    .setFontSize(10)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginBottom(20);
+            document.add(fallback);
+        }
+    }
+
+    /**
+     * Generate pie chart for task status distribution
+     */
+    private byte[] generateTaskStatusPieChart(TaskSummaryReportDto taskSummary) {
+        try {
+            DefaultPieDataset<String> dataset = new DefaultPieDataset<>();
+            
+            if (taskSummary.getCompletedTasks() > 0) {
+                dataset.setValue("Completed", taskSummary.getCompletedTasks());
+            }
+            if (taskSummary.getInProgressTasks() > 0) {
+                dataset.setValue("In Progress", taskSummary.getInProgressTasks());
+            }
+            if (taskSummary.getTodoTasks() > 0) {
+                dataset.setValue("To Do", taskSummary.getTodoTasks());
+            }
+            if (taskSummary.getBlockedTasks() > 0) {
+                dataset.setValue("Blocked", taskSummary.getBlockedTasks());
+            }
+
+            JFreeChart chart = ChartFactory.createPieChart(
+                    "Task Status Distribution",
+                    dataset,
+                    true,  // legend
+                    false, // tooltips
+                    false  // URLs
+            );
+
+            // Customize chart appearance
+            chart.setBackgroundPaint(Color.WHITE);
+            PiePlot plot = (PiePlot) chart.getPlot();
+            plot.setBackgroundPaint(Color.WHITE);
+            plot.setOutlineStroke(null);
+            
+            // Set colors to match frontend
+            plot.setSectionPaint("Completed", new Color(34, 197, 94));    // Green
+            plot.setSectionPaint("In Progress", new Color(59, 130, 246)); // Blue
+            plot.setSectionPaint("To Do", new Color(234, 179, 8));        // Yellow
+            plot.setSectionPaint("Blocked", new Color(239, 68, 68));      // 
+            
+            // Show labels with values on pie chart segments
+            plot.setLabelGenerator(new StandardPieSectionLabelGenerator(
+                "{0}: {1} ({2})", // Format: "Category: Value (Percentage)"
+                NumberFormat.getIntegerInstance(),
+                NumberFormat.getPercentInstance()
+            ));
+            plot.setLabelFont(new Font("SansSerif", Font.PLAIN, 10));
+            plot.setLabelPaint(Color.BLACK);
+            plot.setLabelBackgroundPaint(Color.WHITE);
+            plot.setLabelOutlinePaint(Color.LIGHT_GRAY);
+            plot.setLabelShadowPaint(null);
+
+            // Generate image
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ChartUtils.writeChartAsPNG(outputStream, chart, 400, 300);
+            return outputStream.toByteArray();
+
+        } catch (Exception e) {
+            log.error("Failed to generate pie chart", e);
+            return null;
+        }
+    }
+
+    /**
+     * Generate bar chart for time analytics
+     */
+    private byte[] generateTimeAnalyticsBarChart(TimeAnalyticsReportDto timeAnalytics) {
+        try {
+            DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+
+            // Add data from hours by department
+            if (timeAnalytics.getHoursByDepartment() != null) {
+                timeAnalytics.getHoursByDepartment().forEach((dept, hours) -> {
+                    if (hours != null && hours.doubleValue() > 0) {
+                        dataset.addValue(hours.doubleValue(), "Hours", dept);
+                    }
+                });
+            }
+
+            JFreeChart chart = ChartFactory.createBarChart(
+                    "Hours by Department",
+                    "Department",
+                    "Hours",
+                    dataset
+            );
+
+            // Customize chart appearance
+            chart.setBackgroundPaint(Color.WHITE);
+            CategoryPlot plot = chart.getCategoryPlot();
+            plot.setBackgroundPaint(Color.WHITE);
+            plot.setDomainGridlinesVisible(false);
+            plot.setRangeGridlinesVisible(true);
+            plot.setRangeGridlinePaint(Color.LIGHT_GRAY);
+            plot.getRenderer().setSeriesPaint(0, new Color(59, 130, 246)); // Blue
+
+            // Generate image
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ChartUtils.writeChartAsPNG(outputStream, chart, 400, 300);
+            return outputStream.toByteArray();
+
+        } catch (Exception e) {
+            log.error("Failed to generate bar chart", e);
+            return null;
+        }
     }
 }
