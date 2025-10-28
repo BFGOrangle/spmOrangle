@@ -1,4 +1,4 @@
-import { UpdateTaskRequest } from '../../types/project';
+import { UpdateTaskRequest } from '../../services/project-service';
 
 // Helper function to test status-only updates (extracted from task-update-dialog.tsx)
 function isStatusOnlyUpdate(updateRequest: UpdateTaskRequest): boolean {

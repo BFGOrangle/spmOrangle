@@ -5,6 +5,7 @@ import { CalendarEvent } from '../../types/calendar';
 
 describe('CalendarDayView', () => {
   const mockOnEventClick = jest.fn();
+  const mockOnDateClick = jest.fn();
   const mockDate = new Date('2024-01-15T00:00:00Z');
 
   const createTimedEvent = (id: number, hour: number): CalendarEvent => ({
@@ -51,6 +52,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={[]}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -70,6 +72,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={events}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -93,6 +96,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={events}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -108,6 +112,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={events}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -129,6 +134,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={events}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -146,6 +152,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={events}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -163,6 +170,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={events}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -180,6 +188,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={events}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -194,6 +203,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={events}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -213,6 +223,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={[event]}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -230,6 +241,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={[event]}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -242,6 +254,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={[]}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -265,6 +278,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={events}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -290,6 +304,7 @@ describe('CalendarDayView', () => {
         currentDate={mockDate}
         events={[event]}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -304,6 +319,7 @@ describe('CalendarDayView', () => {
         currentDate={januaryDate}
         events={[]}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 
@@ -316,6 +332,7 @@ describe('CalendarDayView', () => {
         currentDate={decemberDate}
         events={[]}
         onEventClick={mockOnEventClick}
+        onDateClick={mockOnDateClick}
       />
     );
 

@@ -72,16 +72,20 @@ describe('calendar-utils', () => {
       tags: ['tag1'],
       assignedUserIds: [1, 2],
       ownerId: 1,
+      userHasEditAccess: true,
+      userHasDeleteAccess: true,
+      createdBy: 1,
     };
 
     const project: ProjectResponse = {
       id: 1,
       name: 'Test Project',
       description: 'Test Description',
-      status: 'ACTIVE',
-      visibility: 'PUBLIC',
       createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
       ownerId: 1,
+      taskCount: 0,
+      completedTaskCount: 0,
     };
 
     it('converts task with due date to calendar event', () => {
@@ -417,8 +421,8 @@ describe('calendar-utils', () => {
       projectId: 1,
       projectName: 'Test',
       tags: [],
-      assignedUserIds,
-      ownerId,
+      assignedUserIds: assignedUserIds || [],
+      ownerId: ownerId || 0,
       color: 'bg-blue-500',
     });
 
