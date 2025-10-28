@@ -94,7 +94,8 @@ class PdfReportExporterTest {
         assertNotNull(result);
         String pdfContent = extractTextFromPdf(result);
         assertTrue(pdfContent.contains("Task Summary"));
-        assertFalse(pdfContent.contains("Time Analytics"));
+        assertFalse(pdfContent.contains("Task Status Distribution"));
+        assertFalse(pdfContent.contains("Hours by Department"));
     }
 
     @Test

@@ -138,7 +138,7 @@ export function TimeAnalyticsBarChart({ data, loading = false }: TimeAnalyticsBa
         callbacks: {
           label: function(context) {
             const value = context.parsed.y;
-            return `${value.toFixed(2)} hours`;
+            return `${value != null ? value.toFixed(2) : '0.00'} hours`;
           },
         },
       },

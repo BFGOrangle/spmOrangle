@@ -65,7 +65,11 @@ public class PdfReportExporter implements ReportExporter {
             // Add Charts section
             TaskSummaryReportDto taskSummary = (TaskSummaryReportDto) reportData.get("taskSummary");
             TimeAnalyticsReportDto timeAnalytics = (TimeAnalyticsReportDto) reportData.get("timeAnalytics");
-            if (taskSummary != null || timeAnalytics != null) {
+            
+            boolean hasTaskData = taskSummary != null && taskSummary.getTotalTasks() != null && taskSummary.getTotalTasks() > 0;
+            boolean hasTimeData = timeAnalytics != null && timeAnalytics.getHoursByDepartment() != null && !timeAnalytics.getHoursByDepartment().isEmpty();
+            
+            if (hasTaskData || hasTimeData) {
                 addChartsSection(document, taskSummary, timeAnalytics);
             }
 
