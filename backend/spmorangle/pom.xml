@@ -126,6 +126,13 @@
 			<type>pom</type>
 		</dependency>
 
+		<!-- Chart Generation for PDF -->
+		<dependency>
+			<groupId>org.jfree</groupId>
+			<artifactId>jfreechart</artifactId>
+			<version>1.5.4</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.mapstruct</groupId>
 			<artifactId>mapstruct</artifactId>
