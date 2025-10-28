@@ -75,6 +75,16 @@ const TASK_TYPE_OPTIONS = [
   { value: 'RESEARCH', label: 'Research' },
 ];
 
+function isStatusOnlyUpdate(updateRequest: UpdateTaskRequest): boolean {
+  const fields = Object.keys(updateRequest).filter(
+    key => key !== 'taskId'
+  );
+  
+  // Status-only if the only field is 'status'
+  return fields.length === 1 && fields[0] === 'status';
+}
+
+
 export function TaskUpdateDialog({
   task,
   open,
@@ -468,9 +478,8 @@ export function TaskUpdateDialog({
       // Use the flag instead of comparing values (RecurrenceSelector causes timezone shifts)
       const recurrenceChanged = userModifiedRecurrence;
 
-      console.log('🔍 RECURRENCE DEBUG:');
-      console.log('  userModifiedRecurrence:', userModifiedRecurrence);
-      console.log('  task.isRecurring:', task.isRecurring);
+      // Check if is a status-only change
+      const isStatusOnlyChange = isStatusOnlyUpdate(updateRequest);
 
       if (recurrenceChanged) {
         updateRequest.isRecurring = recurrenceData.isRecurring;
@@ -481,19 +490,14 @@ export function TaskUpdateDialog({
 
       const isEditingRecurringTask = task.isRecurring === true && !recurrenceChanged;
 
-      console.log('🔍 DEBUG: task.isRecurring =', task.isRecurring);
-      console.log('🔍 DEBUG: recurrenceChanged =', recurrenceChanged);
-      console.log('🔍 DEBUG: isEditingRecurringTask =', isEditingRecurringTask);
-      console.log('🔍 DEBUG: updateRequest =', updateRequest);
-
-      if(isEditingRecurringTask) {
-        console.log('✅ Showing recurrence dialog!');
-        // Store the update request and show the dialog
+      if(isEditingRecurringTask && !isStatusOnlyChange) {
+        console.log("Showing recurrence dialog for field changes")
         setPendingUpdate(updateRequest);
         setShowRecurrenceDialog(true);
         return;
       }
-      console.log('❌ NOT showing recurrence dialog - updating directly');
+
+      console.log(isStatusOnlyChange ? "Status only change" : "Not showing recurrence dialog");
 
       setIsSubmitting(true);
 

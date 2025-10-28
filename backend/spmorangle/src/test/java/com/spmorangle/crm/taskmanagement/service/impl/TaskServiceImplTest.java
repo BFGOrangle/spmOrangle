@@ -2644,7 +2644,8 @@ class TaskServiceImplTest {
             taskService.updateTask(updateDto, userId);
 
             // Then - Verify generateOccurrence is called with nextStart = dueDate + 1 day
-            verify(recurrenceService).generateOccurrence(
+            // Note: Called twice - once for validation in applyFieldUpdates, once for next occurrence calculation
+            verify(recurrenceService, times(2)).generateOccurrence(
                 eq("FREQ=DAILY;COUNT=5"),
                 argThat(nextStart -> nextStart.isEqual(expectedNextStart)),
                 eq(recurringTask.getEndDate())

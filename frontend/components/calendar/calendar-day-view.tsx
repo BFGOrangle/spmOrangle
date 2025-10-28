@@ -33,16 +33,14 @@ export const CalendarDayView: React.FC<DayViewProps> = ({
     };
   });
 
-  // Group events by hour (based on due time if available, otherwise show at top)
-  const eventsByHour = dayEvents.reduce((acc, event) => {
-    let hour = 0; // Default to beginning of day
-    
-    if (event.dueDate) {
-      hour = event.dueDate.getHours();
-    } else if (event.endDate) {
-      hour = event.endDate.getHours();
-    }
-    
+  // Separate events into timed and all-day events
+  const timedEvents = dayEvents.filter(event => event.dueDate !== undefined);
+  const allDayEvents = dayEvents.filter(event => event.dueDate === undefined);
+
+  // Group timed events by hour
+  const eventsByHour = timedEvents.reduce((acc, event) => {
+    const hour = event.dueDate!.getHours();
+
     if (!acc[hour]) {
       acc[hour] = [];
     }
@@ -134,56 +132,38 @@ export const CalendarDayView: React.FC<DayViewProps> = ({
 </div>
 
       {/* All day events section */}
-      {dayEvents.filter(event => !event.dueDate || event.dueDate.getHours() === 0).length > 0 && (
+      {allDayEvents.length > 0 && (
         <div className="border-t border-border p-4">
           <h3 className="text-sm font-medium text-foreground mb-2">All Day</h3>
           <div className="grid gap-2">
-            {dayEvents
-              .filter(event => !event.dueDate || event.dueDate.getHours() === 0)
-              .map((event) => {
-                // Check if event is overdue
-                const eventIsOverdue = event.dueDate 
-                  ? isTaskOverdue({ 
-                      dueDateTime: event.dueDate.toISOString(), 
-                      status: event.status 
-                    })
-                  : false;
-                
-                return (
-                  <Card
-                    key={event.id}
-                    className={cn(
-                      "p-3 cursor-pointer hover:shadow-md transition-shadow text-white",
-                      eventIsOverdue 
-                        ? "bg-red-600 ring-2 ring-red-600 ring-offset-1" 
-                        : event.color,
-                      getSearchHighlightClasses(event.isHighlighted || false, !!searchKeyword)
-                    )}
-                    onClick={() => onEventClick(event)}
-                    title={eventIsOverdue ? `${event.title} (OVERDUE)` : event.title}
-                  >
-                    <div className="font-medium">
-                      {eventIsOverdue && <span className="font-bold">⚠️ </span>}
-                      {searchKeyword ? highlightSearchTerm(event.title, searchKeyword) : event.title}
-                    </div>
-                    <div className="text-sm opacity-90 mt-1">
-                      {event.projectName && (
-                        <span className="mr-2">
-                          {searchKeyword ? highlightSearchTerm(event.projectName, searchKeyword) : event.projectName}
-                        </span>
-                      )}
-                      <span className="bg-white/20 px-2 py-1 rounded text-xs">
-                        {event.taskType} • {event.status}
-                      </span>
-                    </div>
-                    {event.description && (
-                      <div className="text-sm opacity-80 mt-1 line-clamp-2">
-                        {searchKeyword ? highlightSearchTerm(event.description, searchKeyword) : event.description}
-                      </div>
-                    )}
-                  </Card>
-                );
-              })}
+            {allDayEvents.map((event) => (
+              <Card
+                key={event.id}
+                className={`p-3 cursor-pointer hover:shadow-md transition-shadow ${event.color} text-white ${
+                  getSearchHighlightClasses(event.isHighlighted || false, !!searchKeyword)
+                }`}
+                onClick={() => onEventClick(event)}
+              >
+                <div className="font-medium">
+                  {searchKeyword ? highlightSearchTerm(event.title, searchKeyword) : event.title}
+                </div>
+                <div className="text-sm opacity-90 mt-1">
+                  {event.projectName && (
+                    <span className="mr-2">
+                      {searchKeyword ? highlightSearchTerm(event.projectName, searchKeyword) : event.projectName}
+                    </span>
+                  )}
+                  <span className="bg-white/20 px-2 py-1 rounded text-xs">
+                    {event.taskType} • {event.status}
+                  </span>
+                </div>
+                {event.description && (
+                  <div className="text-sm opacity-80 mt-1 line-clamp-2">
+                    {searchKeyword ? highlightSearchTerm(event.description, searchKeyword) : event.description}
+                  </div>
+                )}
+              </Card>
+            ))}
           </div>
         </div>
       )}

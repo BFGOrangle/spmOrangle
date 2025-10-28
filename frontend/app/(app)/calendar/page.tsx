@@ -55,41 +55,38 @@ export default function CalendarPage() {
     queryFn: () => projectService.getUserProjects(currentUserId || 0),
   });
 
-  // Fetch all tasks for calendar
-  const { 
-    data: allTasks = [], 
-    isLoading: isLoadingTasks, 
+  // Fetch all tasks for calendar with virtual instance expansion
+  const {
+    data: allTasks = [],
+    isLoading: isLoadingTasks,
     error: tasksError,
     refetch: refetchTasks
   } = useQuery({
-    queryKey: ['calendar-tasks', selectedProjectId, selectedTaskType],
+    queryKey: ['calendar-tasks', selectedProjectId, selectedTaskType, currentView, currentDate.toISOString()],
     queryFn: async () => {
       const userId = currentUserId;
       let tasksData: TaskResponse[] = [];
 
+      // Pass calendar view to backend for recurring task expansion
+      const backendCalendarView = currentView;
+
       if (selectedTaskType === "Personal Tasks") {
-        console.log('=== FETCHING PERSONAL TASKS ===');
-        console.log('userId:', userId);
-        console.log('Calling projectService.getPersonalTasks...');
-        tasksData = await projectService.getPersonalTasks(userId);
-        console.log('Personal tasks fetched:', tasksData);
-        console.log('Number of personal tasks:', tasksData.length);
-        console.log('=== END PERSONAL TASKS FETCH ===');
+        tasksData = await projectService.getPersonalTasks(userId, undefined, backendCalendarView, currentDate);
       } else if (selectedProjectId) {
-        // Fetch tasks for specific project
-        tasksData = await projectService.getProjectTasks(selectedProjectId);
+        // Fetch tasks for specific project with virtual instances
+        tasksData = await projectService.getProjectTasks(selectedProjectId, undefined, backendCalendarView, currentDate);
       } else {
-        // Fetch all tasks from all projects
+        // Fetch all tasks from all projects with virtual instances
         for (const project of projects) {
           try {
-            const tasks = await projectService.getProjectTasks(project.id);
+            const tasks = await projectService.getProjectTasks(project.id, undefined, backendCalendarView, currentDate);
             tasksData.push(...tasks);
           } catch (error) {
-            console.warn(`Failed to fetch tasks for project ${project.id}:`, error);
+            console.warn('Failed to fetch tasks for project:', error);
           }
         }
       }
-      
+
       return tasksData;
     },
     enabled: projects.length > 0 || selectedTaskType === "Personal Tasks",
@@ -242,9 +239,6 @@ export default function CalendarPage() {
 
     // First, filter by user access (assigned or owner)
     filtered = filterEventsByUserAccess(filtered, currentUser?.backendStaffId);
-
-    // Filter out tasks without due dates
-    filtered = filtered.filter(event => event.dueDate !== undefined && event.dueDate !== null);
 
     // If searching, only show matching events (highlighted ones)
     if (searchKeyword.trim()) {

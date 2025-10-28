@@ -1,7 +1,9 @@
 package com.spmorangle.crm.taskmanagement.controller;
 
+import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -10,6 +12,7 @@ import java.util.stream.Collectors;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.taskmanagement.dto.*;
+import com.spmorangle.crm.taskmanagement.enums.CalendarView;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.CommentService;
 import com.spmorangle.crm.taskmanagement.service.TaskService;
@@ -51,11 +54,16 @@ public class TaskManagementController {
      * @return CreateTaskResponseDto
      */
     @PostMapping
-    public ResponseEntity<CreateTaskResponseDto> createTask(
+    public ResponseEntity<?> createTask(
             @Valid @RequestBody CreateTaskDto createTaskDto) {
-        User user = userContextService.getRequestingUser();
-        CreateTaskResponseDto response = taskService.createTask(createTaskDto, user.getId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        try {
+            User user = userContextService.getRequestingUser();
+            CreateTaskResponseDto response = taskService.createTask(createTaskDto, user.getId());
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (RuntimeException e) {
+            log.error("Error creating task: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        }
     }
 
     @PreAuthorize("hasRole('MANAGER')")
@@ -115,16 +123,33 @@ public class TaskManagementController {
 
     /**
      * Get tasks for a project
+     * Option B: Single endpoint with optional calendarView parameter
+     * - When calendarView is null: Returns Kanban view (templates only)
+     * - When calendarView is present: Returns Calendar view (expanded virtual instances)
      * @param projectId
+     * @param tags Optional tags for filtering
+     * @param calendarView Optional calendar view (DAY, WEEK, MONTH)
      * @return List<TaskResponseDto>
      */
     @GetMapping("/project/{projectId}")
     public ResponseEntity<List<TaskResponseDto>> getProjectTasks(
             @PathVariable Long projectId,
-            @RequestParam(value = "tags", required = false) List<String> tags) {
+            @RequestParam(value = "tags", required = false) List<String> tags,
+            @RequestParam(value = "calendarView", required = false) CalendarView calendarView,
+            @RequestParam(value = "referenceDate", required = false) OffsetDateTime referenceDate
+            ) {
         User user = userContextService.getRequestingUser();
         log.info("Getting tasks for project: {}", projectId);
-        List<TaskResponseDto> tasks = taskService.getProjectTasks(user.getId(), projectId);
+
+        List<TaskResponseDto> tasks;
+        if (calendarView != null) {
+            // Calendar view - expand recurring tasks into virtual instances
+            tasks = taskService.getProjectTasksForCalendar(user.getId(), projectId, calendarView, referenceDate);
+        } else {
+            // Kanban view - return task templates only
+            tasks = taskService.getProjectTasks(user.getId(), projectId);
+        }
+
         List<TaskResponseDto> filteredTasks = filterTasksByTags(tasks, tags);
         return ResponseEntity.ok(filteredTasks);
     }
@@ -139,28 +164,63 @@ public class TaskManagementController {
 
     /**
      * Get personal tasks
+     * Option B: Single endpoint with optional calendarView parameter
+     * - When calendarView is null: Returns Kanban view (templates only)
+     * - When calendarView is present: Returns Calendar view (expanded virtual instances)
+     * @param tags Optional tags for filtering
+     * @param calendarView Optional calendar view (DAY, WEEK, MONTH)
      * @return List<TaskResponseDto>
      */
     @GetMapping("/personal")
     public ResponseEntity<List<TaskResponseDto>> getPersonalTasks(
-            @RequestParam(value = "tags", required = false) List<String> tags) {
+            @RequestParam(value = "tags", required = false) List<String> tags,
+            @RequestParam(value = "calendarView", required = false) CalendarView calendarView,
+            @RequestParam(value = "referenceDate", required = false) OffsetDateTime referenceDate
+            ) {
         User user = userContextService.getRequestingUser();
-        log.info("Fetching tasks for user {}", user.getId());
-        List<TaskResponseDto> tasks = taskService.getPersonalTasks(user.getId());
+        log.info("Fetching personal tasks for user {}", user.getId());
+
+        List<TaskResponseDto> tasks;
+        if (calendarView != null) {
+            // Calendar view - expand recurring tasks into virtual instances
+            tasks = taskService.getPersonalTasksForCalendar(user.getId(), calendarView, referenceDate);
+        } else {
+            // Kanban view - return task templates only
+            tasks = taskService.getPersonalTasks(user.getId());
+        }
+
         List<TaskResponseDto> filteredTasks = filterTasksByTags(tasks, tags);
         return ResponseEntity.ok(filteredTasks);
     }
 
     /**
      * Get all tasks for a user
+     * Option B: Single endpoint with optional calendarView parameter
+     * - When calendarView is null: Returns Kanban view (templates only)
+     * - When calendarView is present: Returns Calendar view (expanded virtual instances)
+     * @param tags Optional tags for filtering
+     * @param calendarView Optional calendar view (DAY, WEEK, MONTH)
+     * @param referenceDate Optional reference date for calendar view (defaults to now on backend)
      * @return List<TaskResponseDto>
      */
     @GetMapping("/user")
     public ResponseEntity<List<TaskResponseDto>> getAllUserTasks(
-            @RequestParam(value = "tags", required = false) List<String> tags) {
+            @RequestParam(value = "tags", required = false) List<String> tags,
+            @RequestParam(value = "calendarView", required = false) CalendarView calendarView,
+            @RequestParam(value = "referenceDate", required = false) OffsetDateTime referenceDate
+            ) {
         User user = userContextService.getRequestingUser();
         log.info("Getting all tasks for user: {}", user.getId());
-        List<TaskResponseDto> tasks = taskService.getAllUserTasks(user.getId());
+
+        List<TaskResponseDto> tasks;
+        if (calendarView != null) {
+            // Calendar view - expand recurring tasks into virtual instances
+            tasks = taskService.getAllUserTasksForCalendar(user.getId(), calendarView, referenceDate);
+        } else {
+            // Kanban view - return task templates only
+            tasks = taskService.getAllUserTasks(user.getId());
+        }
+
         List<TaskResponseDto> filteredTasks = filterTasksByTags(tasks, tags);
         return ResponseEntity.ok(filteredTasks);
     }
