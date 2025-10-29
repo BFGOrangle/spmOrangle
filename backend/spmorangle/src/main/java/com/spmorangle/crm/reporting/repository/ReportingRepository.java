@@ -19,8 +19,8 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
         FROM Task t 
         JOIN User u ON t.ownerId = u.id 
         WHERE (:department = '' OR u.department = :department)
-        AND (FUNCTION('DATE', t.createdAt) >= :startDate)
-        AND (FUNCTION('DATE', t.createdAt) <= :endDate)
+        AND (CAST(t.createdAt AS DATE) >= :startDate)
+        AND (CAST(t.createdAt AS DATE) <= :endDate)
         AND t.deleteInd = false
         GROUP BY t.status
         """)
@@ -34,8 +34,8 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
         SELECT u.department, t.status, COUNT(t) 
         FROM Task t 
         JOIN User u ON t.ownerId = u.id 
-        WHERE (FUNCTION('DATE', t.createdAt) >= :startDate)
-        AND (FUNCTION('DATE', t.createdAt) <= :endDate)
+        WHERE (CAST(t.createdAt AS DATE) >= :startDate)
+        AND (CAST(t.createdAt AS DATE) <= :endDate)
         AND t.deleteInd = false
         AND u.department IS NOT NULL
         GROUP BY u.department, t.status
@@ -52,8 +52,8 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
         JOIN User u ON t.ownerId = u.id 
         WHERE (:department = '' OR u.department = :department)
         AND t.projectId IN :projectIds
-        AND (FUNCTION('DATE', t.createdAt) >= :startDate)
-        AND (FUNCTION('DATE', t.createdAt) <= :endDate)
+        AND (CAST(t.createdAt AS DATE) >= :startDate)
+        AND (CAST(t.createdAt AS DATE) <= :endDate)
         AND t.deleteInd = false
         AND t.projectId IS NOT NULL
         GROUP BY p.name, t.status
@@ -75,8 +75,8 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
         JOIN Project p ON t.projectId = p.id 
         JOIN User u ON t.ownerId = u.id 
         WHERE (:department = '' OR u.department = :department)
-        AND (FUNCTION('DATE', t.createdAt) >= :startDate)
-        AND (FUNCTION('DATE', t.createdAt) <= :endDate)
+        AND (CAST(t.createdAt AS DATE) >= :startDate)
+        AND (CAST(t.createdAt AS DATE) <= :endDate)
         AND t.deleteInd = false
         AND t.projectId IS NOT NULL
         GROUP BY p.name, t.status
@@ -136,8 +136,8 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
         SELECT t.status, COUNT(DISTINCT t.id)
         FROM Task t
         WHERE t.deleteInd = false
-        AND (FUNCTION('DATE', t.createdAt) >= :startDate)
-        AND (FUNCTION('DATE', t.createdAt) <= :endDate)
+        AND (CAST(t.createdAt AS DATE) >= :startDate)
+        AND (CAST(t.createdAt AS DATE) <= :endDate)
         AND (:projectIds IS NULL OR t.projectId IN :projectIds)
         AND (t.ownerId = :userId OR EXISTS (
             SELECT 1 FROM TaskAssignee ta WHERE ta.taskId = t.id AND ta.userId = :userId
@@ -156,12 +156,19 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
      * Filters by project if projectIds are provided
      */
     @Query("""
-        SELECT COALESCE(SUM(ttt.totalHours), 0)
+        SELECT COALESCE(SUM(
+        CASE 
+            WHEN ttt.completedAt IS NOT NULL THEN ttt.totalHours
+            WHEN ttt.startedAt IS NOT NULL THEN 
+                (CAST(FUNCTION('timestampdiff', SECOND, ttt.startedAt, CURRENT_TIMESTAMP) AS double) / 3600.0)
+            ELSE 0
+        END
+        ), 0)
         FROM TaskTimeTracking ttt
         JOIN Task t ON ttt.taskId = t.id
         WHERE ttt.userId = :userId
-        AND (FUNCTION('DATE', ttt.startedAt) >= :startDate)
-        AND (FUNCTION('DATE', ttt.startedAt) <= :endDate)
+        AND (CAST(ttt.startedAt AS DATE) >= :startDate)
+        AND (CAST(ttt.startedAt AS DATE) <= :endDate)
         AND (:projectIds IS NULL OR t.projectId IN :projectIds)
         """)
     BigDecimal getLoggedHoursForUser(

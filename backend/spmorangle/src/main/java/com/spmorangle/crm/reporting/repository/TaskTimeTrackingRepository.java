@@ -21,13 +21,20 @@ public interface TaskTimeTrackingRepository extends JpaRepository<TaskTimeTracki
     List<TaskTimeTracking> findByUserId(Long userId);
     
     @Query("""
-        SELECT SUM(ttt.totalHours) 
+        SELECT COALESCE(SUM(
+            CASE 
+                WHEN ttt.completedAt IS NOT NULL THEN ttt.totalHours
+                WHEN ttt.startedAt IS NOT NULL THEN 
+                    (CAST(FUNCTION('timestampdiff', SECOND, ttt.startedAt, CURRENT_TIMESTAMP) AS double) / 3600.0)
+                ELSE 0
+            END
+        ), 0)
         FROM TaskTimeTracking ttt 
         JOIN Task t ON ttt.taskId = t.id 
         JOIN User u ON ttt.userId = u.id 
         WHERE (:department = '' OR u.department = :department)
-        AND (FUNCTION('DATE', ttt.startedAt) >= :startDate)
-        AND (FUNCTION('DATE', ttt.completedAt) <= :endDate OR (ttt.completedAt IS NULL AND FUNCTION('DATE', ttt.startedAt) <= :endDate))
+        AND (CAST(ttt.startedAt AS DATE) >= :startDate)
+        AND (CAST(ttt.completedAt AS DATE) <= :endDate OR (ttt.completedAt IS NULL AND CAST(ttt.startedAt AS DATE) <= :endDate))
         """)
     BigDecimal getTotalHoursByDepartmentAndDateRange(
         @Param("department") String department,
@@ -36,12 +43,19 @@ public interface TaskTimeTrackingRepository extends JpaRepository<TaskTimeTracki
     );
     
     @Query("""
-        SELECT u.department, SUM(ttt.totalHours) 
+        SELECT u.department, SUM(
+            CASE 
+                WHEN ttt.completedAt IS NOT NULL THEN ttt.totalHours
+                WHEN ttt.startedAt IS NOT NULL THEN 
+                    (CAST(FUNCTION('timestampdiff', SECOND, ttt.startedAt, CURRENT_TIMESTAMP) AS double) / 3600.0)
+                ELSE 0
+            END
+        ) 
         FROM TaskTimeTracking ttt 
         JOIN Task t ON ttt.taskId = t.id 
         JOIN User u ON ttt.userId = u.id 
-        WHERE (FUNCTION('DATE', ttt.startedAt) >= :startDate)
-        AND (FUNCTION('DATE', ttt.completedAt) <= :endDate OR (ttt.completedAt IS NULL AND FUNCTION('DATE', ttt.startedAt) <= :endDate))
+        WHERE (CAST(ttt.startedAt AS DATE) >= :startDate)
+        AND (CAST(ttt.completedAt AS DATE) <= :endDate OR (ttt.completedAt IS NULL AND CAST(ttt.startedAt AS DATE) <= :endDate))
         AND u.department IS NOT NULL
         AND (:department = '' OR u.department = :department)
         AND (:projectIds IS NULL OR t.projectId IN :projectIds)
@@ -55,15 +69,22 @@ public interface TaskTimeTrackingRepository extends JpaRepository<TaskTimeTracki
     );
     
     @Query("""
-        SELECT p.name, SUM(ttt.totalHours) 
+        SELECT p.name, SUM(
+            CASE 
+                WHEN ttt.completedAt IS NOT NULL THEN ttt.totalHours
+                WHEN ttt.startedAt IS NOT NULL THEN 
+                    (CAST(FUNCTION('timestampdiff', SECOND, ttt.startedAt, CURRENT_TIMESTAMP) AS double) / 3600.0)
+                ELSE 0
+            END
+        )   
         FROM TaskTimeTracking ttt 
         JOIN Task t ON ttt.taskId = t.id 
         JOIN Project p ON t.projectId = p.id 
         JOIN User u ON ttt.userId = u.id 
         WHERE (:department = '' OR u.department = :department)
         AND (:projectIds IS NULL OR t.projectId IN :projectIds)
-        AND (FUNCTION('DATE', ttt.startedAt) >= :startDate)
-        AND (FUNCTION('DATE', ttt.completedAt) <= :endDate OR (ttt.completedAt IS NULL AND FUNCTION('DATE', ttt.startedAt) <= :endDate))
+        AND (CAST(ttt.startedAt AS DATE) >= :startDate)
+        AND (CAST(ttt.completedAt AS DATE) <= :endDate OR (ttt.completedAt IS NULL AND CAST(ttt.startedAt AS DATE) <= :endDate))
         AND t.projectId IS NOT NULL
         GROUP BY p.name
         """)
@@ -75,17 +96,24 @@ public interface TaskTimeTrackingRepository extends JpaRepository<TaskTimeTracki
     );
     
     @Query("""
-        SELECT p.name, u.department, SUM(ttt.totalHours),
-               COUNT(DISTINCT CASE WHEN t.status = 'COMPLETED' THEN t.id END),
-               COUNT(DISTINCT CASE WHEN t.status = 'IN_PROGRESS' THEN t.id END)
+        SELECT p.name, u.department, SUM(
+            CASE 
+                WHEN ttt.completedAt IS NOT NULL THEN ttt.totalHours
+                WHEN ttt.startedAt IS NOT NULL THEN 
+                    (CAST(FUNCTION('timestampdiff', SECOND, ttt.startedAt, CURRENT_TIMESTAMP) AS double) / 3600.0)
+                ELSE 0
+            END
+        ),
+        COUNT(DISTINCT CASE WHEN t.status = 'COMPLETED' THEN t.id END),
+        COUNT(DISTINCT CASE WHEN t.status = 'IN_PROGRESS' THEN t.id END)
         FROM TaskTimeTracking ttt 
         JOIN Task t ON ttt.taskId = t.id 
         JOIN Project p ON t.projectId = p.id 
         JOIN User u ON t.ownerId = u.id 
         WHERE (:department = '' OR u.department = :department)
         AND (:projectIds IS NULL OR t.projectId IN :projectIds)
-        AND (FUNCTION('DATE', ttt.startedAt) >= :startDate)
-        AND (FUNCTION('DATE', ttt.completedAt) <= :endDate OR (ttt.completedAt IS NULL AND FUNCTION('DATE', ttt.startedAt) <= :endDate))
+        AND (CAST(ttt.startedAt AS DATE) >= :startDate)
+        AND (CAST(ttt.completedAt AS DATE) <= :endDate OR (ttt.completedAt IS NULL AND CAST(ttt.startedAt AS DATE) <= :endDate))
         AND t.projectId IS NOT NULL
         GROUP BY p.name, u.department
         """)
