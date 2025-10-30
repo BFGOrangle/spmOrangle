@@ -23,5 +23,4 @@ public interface DepartmentQueryService {
 
     boolean exists(Long id);
 
-    List<String> getPathNames(Long id, boolean includeSelf);
 }

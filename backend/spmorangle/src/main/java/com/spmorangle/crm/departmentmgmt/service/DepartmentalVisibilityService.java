@@ -8,5 +8,5 @@ public interface DepartmentalVisibilityService {
 
     boolean canUserSeeTask(Set<Long> userDepartments, Long leafDept);
 
-    Set<Long> precomputeAudienceDepartmentIds(Long leafDept);
+    Set<Long> getChildDepartmentIds(Long leafDept);
 }
