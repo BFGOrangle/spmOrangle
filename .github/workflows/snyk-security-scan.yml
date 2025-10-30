@@ -1,0 +1,227 @@
+name: Snyk Security Scan
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/spmorangle/**"
+      - "frontend/**"
+      - ".github/workflows/snyk-security-scan.yml"
+
+env:
+  JAVA_VERSION: 21
+  NODE_VERSION: "20.x"
+
+jobs:
+  snyk-scan:
+    name: Snyk Security Scan (Frontend & Backend)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Backend Setup and Scan
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: maven
+
+      - name: Resolve backend dependencies
+        working-directory: ./backend/spmorangle
+        run: mvn -q dependency:go-offline
+
+      - name: Snyk test (backend)
+        working-directory: ./backend/spmorangle
+        run: |
+          chmod +x mvnw || true
+          npx snyk test --severity-threshold=high --json-file-output=../../backend-snyk.json
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+        shell: bash
+
+      # Frontend Setup and Scan
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package.json
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci --ignore-scripts
+
+      - name: Snyk test (frontend)
+        uses: snyk/actions/node@master
+        with:
+          command: test
+          args: --file=frontend/package.json --severity-threshold=high --json-file-output=frontend-snyk.json
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+
+      # Generate Combined PR Comment
+      - name: Generate combined PR comment
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Parse Backend Results
+            let backendResults = { total: 0, sevCounts: { critical: 0, high: 0, medium: 0, low: 0 }, projects: [] };
+            const backendPath = 'backend-snyk.json';
+            if (fs.existsSync(backendPath)) {
+              try {
+                const raw = fs.readFileSync(backendPath, 'utf8').trim();
+                if (raw) {
+                  const data = JSON.parse(raw);
+                  const results = Array.isArray(data) ? data : [data];
+                  for (const r of results) {
+                    if (r.projectName) backendResults.projects.push(r.projectName);
+                    if (r.vulnerabilities) {
+                      backendResults.total += r.vulnerabilities.length;
+                      for (const v of r.vulnerabilities) {
+                        const s = (v.severity || '').toLowerCase();
+                        if (backendResults.sevCounts[s] !== undefined) backendResults.sevCounts[s]++;
+                      }
+                    }
+                  }
+                }
+              } catch (e) {
+                core.warning('Failed to parse backend Snyk results: ' + e);
+              }
+            } else {
+              core.warning('No backend Snyk JSON output found.');
+            }
+
+            // Parse Frontend Results
+            let frontendResults = { total: 0, sevCounts: { critical: 0, high: 0, medium: 0, low: 0 }, projects: [] };
+            const frontendPath = 'frontend-snyk.json';
+            if (fs.existsSync(frontendPath)) {
+              try {
+                const raw = fs.readFileSync(frontendPath, 'utf8').trim();
+                if (raw) {
+                  const data = JSON.parse(raw);
+                  const results = Array.isArray(data) ? data : [data];
+                  for (const r of results) {
+                    if (r.projectName) frontendResults.projects.push(r.projectName);
+                    if (r.vulnerabilities) {
+                      frontendResults.total += r.vulnerabilities.length;
+                      for (const v of r.vulnerabilities) {
+                        const s = (v.severity || '').toLowerCase();
+                        if (frontendResults.sevCounts[s] !== undefined) frontendResults.sevCounts[s]++;
+                      }
+                    }
+                  }
+                }
+              } catch (e) {
+                core.warning('Failed to parse frontend Snyk results: ' + e);
+              }
+            } else {
+              core.warning('No frontend Snyk JSON output found.');
+            }
+
+            // Calculate totals
+            const totalIssues = backendResults.total + frontendResults.total;
+            const totalCritical = backendResults.sevCounts.critical + frontendResults.sevCounts.critical;
+            const totalHigh = backendResults.sevCounts.high + frontendResults.sevCounts.high;
+            const totalMedium = backendResults.sevCounts.medium + frontendResults.sevCounts.medium;
+            const totalLow = backendResults.sevCounts.low + frontendResults.sevCounts.low;
+
+            // Create status emoji
+            const statusEmoji = totalCritical > 0 ? '🔴' : totalHigh > 0 ? '🟡' : '🟢';
+
+            // Build comment body
+            const body = `<!-- SNYK_COMBINED_REPORT -->
+            ### 🔐 Snyk Security Scan Results ${statusEmoji}
+
+            #### 📊 Overall Summary
+            | Metric | Count |
+            |--------|-------|
+            | **Total Issues** | **${totalIssues}** |
+            | Critical | ${totalCritical} |
+            | High | ${totalHigh} |
+            | Medium | ${totalMedium} |
+            | Low | ${totalLow} |
+
+            ---
+
+            #### 🖥️ Backend (Spring Boot)
+            | Metric | Count |
+            |--------|-------|
+            | Total Issues | ${backendResults.total} |
+            | Critical | ${backendResults.sevCounts.critical} |
+            | High | ${backendResults.sevCounts.high} |
+            | Medium | ${backendResults.sevCounts.medium} |
+            | Low | ${backendResults.sevCounts.low} |
+
+            **Projects:** ${[...new Set(backendResults.projects)].join(', ') || 'N/A'}
+
+            ---
+
+            #### 🎨 Frontend (Next.js)
+            | Metric | Count |
+            |--------|-------|
+            | Total Issues | ${frontendResults.total} |
+            | Critical | ${frontendResults.sevCounts.critical} |
+            | High | ${frontendResults.sevCounts.high} |
+            | Medium | ${frontendResults.sevCounts.medium} |
+            | Low | ${frontendResults.sevCounts.low} |
+
+            **Projects:** ${[...new Set(frontendResults.projects)].join(', ') || 'N/A'}
+
+            ---
+
+            > 💡 This comment is automatically updated on each workflow run.
+            > For detailed vulnerability information, check the [Snyk dashboard](https://app.snyk.io).`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            // Find existing comment
+            const existing = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const prev = existing.find(c => c.body && c.body.startsWith('<!-- SNYK_COMBINED_REPORT -->'));
+
+            if (prev) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: prev.id, body });
+              core.info('Updated existing Snyk comment');
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+              core.info('Created new Snyk comment');
+            }
+
+      # Monitor on main branch pushes
+      - name: Snyk monitor (backend)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        working-directory: ./backend/spmorangle
+        run: |
+          chmod +x mvnw || true
+          npx snyk monitor
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+        shell: bash
+
+      - name: Snyk monitor (frontend)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: snyk/actions/node@master
+        with:
+          command: monitor
+          args: --file=frontend/package.json
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
