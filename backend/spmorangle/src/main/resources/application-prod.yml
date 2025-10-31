@@ -46,3 +46,7 @@ supabase:
 overdue:
   check:
     rate-ms: 60000
+
+predue:
+  check:
+    rate-ms: 60000
