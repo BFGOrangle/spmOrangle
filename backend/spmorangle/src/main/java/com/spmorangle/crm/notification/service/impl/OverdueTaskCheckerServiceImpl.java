@@ -25,6 +25,8 @@ public class OverdueTaskCheckerServiceImpl implements OverdueTaskCheckerService 
     private final TaskAssigneeRepository taskAssigneeRepository;
     private final OverdueTaskEmailService overdueTaskEmailService;
 
+    private static final Long SYSTEM_USER_ID = -1L;
+
     @Override
     @Scheduled(fixedRateString = "${overdue.check.rate-ms:60000}")
     @Transactional
@@ -73,6 +75,7 @@ public class OverdueTaskCheckerServiceImpl implements OverdueTaskCheckerService 
             // Mark as sent only if all emails were sent successfully
             if (emailSentSuccessfully) {
                 task.setHasSentOverdue(true);
+                task.setUpdatedBy(SYSTEM_USER_ID);
                 taskRepository.save(task);
                 log.info("Marked task {} as overdue notification sent", task.getId());
             }

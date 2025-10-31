@@ -998,29 +998,19 @@ public class TaskServiceImpl implements TaskService {
         // Note: We update the due date regardless of whether it's null or not
         // This allows clearing the due date if needed
         OffsetDateTime newDueDate = updateTaskDto.getDueDateTime();
-
-        // Capture previous due date so we can detect changes
-        OffsetDateTime oldDueDate = task.getDueDateTime();
-
-        // Apply the new due date
         task.setDueDateTime(newDueDate);
 
-        // If the due date actually changed, mark as rescheduled and reset notification flags so
-        // the scheduler will cancel previous reminders and schedule a new 12-hour-before reminder.
-        if (!Objects.equals(oldDueDate, newDueDate)) {
-            if (newDueDate != null) {
-                task.setIsRescheduled(true);
-                // Reset pre-due and overdue flags so new notifications can be sent
-                task.setHasSentPreDue(false);
-                task.setHasSentOverdue(false);
-                log.info("Due date changed for task {} - marked as rescheduled and reset notifications (old={}, new={})", task.getId(), oldDueDate, newDueDate);
-            } else {
-                // If due date was cleared, clear rescheduled flag and reset notifications
-                task.setIsRescheduled(false);
-                task.setHasSentPreDue(false);
-                task.setHasSentOverdue(false);
-                log.info("Due date cleared for task {} - cleared rescheduled flag and reset notifications (old={})", task.getId(), oldDueDate);
-            }
+        // Reset overdue notification flag if due date is moved to the future
+        // This ensures the task can receive a new notification if it becomes overdue again
+        if (newDueDate != null && newDueDate.isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
+            task.setHasSentOverdue(false);
+            log.info("Reset hasSentOverdue flag for task {} - new due date is in the future", task.getId());
+        }
+
+        if (newDueDate != null) {
+            task.setIsRescheduled(true);
+            task.setHasSentPreDue(false);
+            log.info("Reset hasSentPreDue flag & set isRescheduled flag for task {} to true", task.getId());
         }
 
         // Track if any recurrence fields are being updated

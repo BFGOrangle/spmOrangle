@@ -51,7 +51,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByDueDateTimeBefore(@Param("threshold") OffsetDateTime threshold);
 
     // Find tasks that were marked as rescheduled and have dueDateTime before a looser window
-    // (used so we can consider tasks whose 12-hour pre-due falls within the scheduler window)
-    @Query("SELECT t FROM Task t WHERE t.deleteInd = false AND t.isRescheduled = true AND t.dueDateTime < :thresholdPlus12")
-    List<Task> findRescheduledTasksDueBefore(@Param("thresholdPlus12") OffsetDateTime thresholdPlus12);
+    @Query("SELECT t FROM Task t WHERE t.deleteInd = false AND t.isRescheduled = true AND t.dueDateTime < :threshold")
+    List<Task> findRescheduledTasksDueBefore(@Param("threshold") OffsetDateTime threshold);
 }
