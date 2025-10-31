@@ -1023,6 +1023,12 @@ public class TaskServiceImpl implements TaskService {
             }
         }
 
+        if (newDueDate != null) {
+            task.setIsRescheduled(true);
+            task.setHasSentPreDue(false);
+            log.info("Reset hasSentPreDue flag & set isRescheduled flag for task {} to true", task.getId());
+        }
+
         // Track if any recurrence fields are being updated
         boolean recurrenceFieldsUpdated = false;
 
