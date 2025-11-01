@@ -55,6 +55,7 @@ export interface TaskResponse {
   updatedBy?: number;
   subtasks?: SubtaskResponse[];
   dueDateTime?: string;
+  priority?: number; // Priority from 1 (lowest) to 10 (highest)
   isRecurring?: boolean;
   recurrenceRuleStr?: string;
   startDate?: string;
@@ -71,6 +72,7 @@ export interface CreateTaskRequest {
   tags?: string[];
   assignedUserIds?: number[];
   dueDateTime?: string;
+  priority?: number; // Priority from 1 (lowest) to 10 (highest)
   // Recurrence fields
   isRecurring?: boolean;
   recurrenceRuleStr?: string;
@@ -102,6 +104,7 @@ export interface UpdateTaskRequest {
   taskType?: 'BUG' | 'FEATURE' | 'CHORE' | 'RESEARCH';
   tags?: string[];
   dueDateTime?: string;
+  priority?: number; // Priority from 1 (lowest) to 10 (highest)
   // Recurrence fields
   isRecurring?: boolean;
   recurrenceRuleStr?: string;

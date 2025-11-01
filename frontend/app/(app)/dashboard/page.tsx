@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { LayoutDashboard } from "lucide-react";
 import { projectService, ProjectResponse, TaskResponse } from "@/services/project-service";
+import { useCurrentUser } from "@/contexts/user-context";
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString(undefined, {
@@ -55,6 +56,7 @@ const mapTaskTypeToPriority = (taskType: string): string => {
 };
 
 export default function Dashboard() {
+  const { currentUser, isLoading: userLoading } = useCurrentUser();
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [tasks, setTasks] = useState<TaskResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,15 +64,20 @@ export default function Dashboard() {
 
   useEffect(() => {
     const loadDashboardData = async () => {
+      // Wait for user context to load
+      if (userLoading || !currentUser?.backendStaffId) {
+        return;
+      }
+
       try {
         setLoading(true);
-        const userId = 1; // TODO: Get from auth context
-        
+        const userId = currentUser.backendStaffId;
+
         const [projectsData, tasksData] = await Promise.all([
           projectService.getUserProjects(userId),
           projectService.getAllUserTasks(userId)
         ]);
-        
+
         setProjects(projectsData);
         setTasks(tasksData);
       } catch (err) {
@@ -82,9 +89,9 @@ export default function Dashboard() {
     };
 
     loadDashboardData();
-  }, []);
+  }, [currentUser, userLoading]);
 
-  if (loading) {
+  if (loading || userLoading) {
     return (
       <SidebarInset>
         <div className="flex flex-1 flex-col gap-8 p-6 pb-12 lg:p-10">
@@ -124,19 +131,24 @@ export default function Dashboard() {
       // Tasks with dueDateTime come first
       if (a.dueDateTime && !b.dueDateTime) return -1;
       if (!a.dueDateTime && b.dueDateTime) return 1;
-      
+
       // If both have dueDateTime, sort by due date
       if (a.dueDateTime && b.dueDateTime) {
         return new Date(a.dueDateTime).getTime() - new Date(b.dueDateTime).getTime();
       }
-      
+
       // If neither has dueDateTime, sort by creation date
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     })
     .slice(0, 5);
 
-  // Get high priority tasks (BUG type tasks are considered high priority)
-  const highPriorityTasks = tasks.filter(task => task.taskType === 'BUG');
+  // Get high priority tasks (blocked tasks OR priority 8-10 OR bug type)
+  const highPriorityTasks = tasks.filter(task => {
+    const isBlocked = task.status === 'BLOCKED';
+    const isHighPriority = task.priority && task.priority >= 8;
+    const isBug = task.taskType === 'BUG';
+    return isBlocked || isHighPriority || isBug;
+  });
 
   // Calculate team load based on task owners
   const teamLoad = Object.entries(
@@ -147,6 +159,9 @@ export default function Dashboard() {
   )
     .sort(([, aCount], [, bCount]) => bCount - aCount)
     .slice(0, 4);
+
+  // Check if current user is STAFF to hide Team Load widget
+  const isStaffUser = currentUser?.role === 'STAFF';
 
   return (
     <SidebarInset>
@@ -336,38 +351,40 @@ export default function Dashboard() {
           </Card>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold">Team load</CardTitle>
-              <CardDescription>
-                Who is carrying the most tasks right now.
-              </CardDescription>
-            </CardHeader>
-            <Separator className="mx-6" />
-            <CardContent className="flex flex-col gap-3 py-4">
-              {teamLoad.length === 0 ? (
-                <div className="py-4 text-center text-muted-foreground">
-                  No team data available
-                </div>
-              ) : (
-                teamLoad.map(([ownerId, count]) => (
-                  <div
-                    key={ownerId}
-                    className="flex items-center justify-between text-sm"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 text-center font-medium leading-8 text-primary">
-                        U
-                      </div>
-                      <span className="font-medium">User {ownerId}</span>
-                    </div>
-                    <span className="text-muted-foreground">{count} tasks</span>
+        <section className={`grid gap-4 ${isStaffUser ? 'xl:grid-cols-1' : 'xl:grid-cols-[1fr_1fr]'}`}>
+          {!isStaffUser && (
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold">Team load</CardTitle>
+                <CardDescription>
+                  Who is carrying the most tasks right now.
+                </CardDescription>
+              </CardHeader>
+              <Separator className="mx-6" />
+              <CardContent className="flex flex-col gap-3 py-4">
+                {teamLoad.length === 0 ? (
+                  <div className="py-4 text-center text-muted-foreground">
+                    No team data available
                   </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+                ) : (
+                  teamLoad.map(([ownerId, count]) => (
+                    <div
+                      key={ownerId}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 text-center font-medium leading-8 text-primary">
+                          U
+                        </div>
+                        <span className="font-medium">User {ownerId}</span>
+                      </div>
+                      <span className="text-muted-foreground">{count} tasks</span>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader className="pb-4">
