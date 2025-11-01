@@ -1,5 +1,47 @@
 import { render, screen } from "@testing-library/react";
 import Dashboard from "../../../../app/(app)/dashboard/page";
+import { UserProvider } from "@/contexts/user-context";
+
+// Mock AWS Amplify
+jest.mock("@aws-amplify/core", () => ({
+  Hub: {
+    listen: jest.fn(() => jest.fn()),
+  },
+}));
+
+jest.mock("aws-amplify/auth", () => ({
+  fetchAuthSession: jest.fn().mockResolvedValue({ tokens: null }),
+  getCurrentUser: jest.fn().mockResolvedValue({ username: "testuser" }),
+  fetchUserAttributes: jest.fn().mockResolvedValue({
+    email: "test@example.com",
+    given_name: "Test",
+    family_name: "User",
+    name: "Test User",
+  }),
+  signOut: jest.fn().mockResolvedValue(undefined),
+}));
+
+// Mock user management service
+jest.mock("@/services/user-management-service", () => ({
+  userManagementService: {
+    getUserByCognitoSub: jest.fn().mockResolvedValue({
+      id: 1,
+      firstName: "Test",
+      lastName: "User",
+      email: "test@example.com",
+    }),
+  },
+}));
+
+// Mock project service
+jest.mock("@/services/project-service", () => ({
+  projectService: {
+    getUserProjects: jest.fn().mockResolvedValue([]),
+    getAllUserTasks: jest.fn().mockResolvedValue([]),
+  },
+  ProjectResponse: {},
+  TaskResponse: {},
+}));
 
 // Mock ThemeToggle component
 jest.mock("@/components/theme-toggle", () => ({
@@ -140,15 +182,23 @@ jest.mock("@/components/ui/separator", () => ({
   ),
 }));
 
-
+describe("Dashboard", () => {
   it("renders within SidebarInset", () => {
-    render(<Dashboard />);
+    render(
+      <UserProvider>
+        <Dashboard />
+      </UserProvider>
+    );
 
     expect(screen.getByTestId("sidebar-inset")).toBeInTheDocument();
   });
 
   it("renders without crashing", () => {
-    expect(() => render(<Dashboard />)).not.toThrow();
+    expect(() => render(
+      <UserProvider>
+        <Dashboard />
+      </UserProvider>
+    )).not.toThrow();
   });
 
   it("exports default function correctly", () => {
@@ -158,11 +208,19 @@ jest.mock("@/components/ui/separator", () => ({
   });
 
   it("has stable rendering - multiple renders produce same result", () => {
-    const { unmount, container: container1 } = render(<Dashboard />);
+    const { unmount, container: container1 } = render(
+      <UserProvider>
+        <Dashboard />
+      </UserProvider>
+    );
     const html1 = container1.innerHTML;
     unmount();
 
-    const { container: container2 } = render(<Dashboard />);
+    const { container: container2 } = render(
+      <UserProvider>
+        <Dashboard />
+      </UserProvider>
+    );
     const html2 = container2.innerHTML;
 
     expect(html1).toBe(html2);
@@ -170,6 +228,11 @@ jest.mock("@/components/ui/separator", () => ({
 
   it("renders with no props required", () => {
     // Verify component doesn't require any props
-    expect(() => render(<Dashboard />)).not.toThrow();
+    expect(() => render(
+      <UserProvider>
+        <Dashboard />
+      </UserProvider>
+    )).not.toThrow();
   });
+});
 

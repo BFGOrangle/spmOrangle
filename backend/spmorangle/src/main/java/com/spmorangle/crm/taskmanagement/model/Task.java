@@ -95,4 +95,7 @@ public class Task {
     @Column(name = "is_rescheduled", nullable = false)
     @ColumnDefault("false")
     private Boolean isRescheduled = false;
+
+    @Column(name = "priority")
+    private Integer priority;
 }

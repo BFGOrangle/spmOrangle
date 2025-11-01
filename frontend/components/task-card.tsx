@@ -110,6 +110,17 @@ const mapBackendStatus = (status: string): TaskStatus => {
   }
 };
 
+// Map numeric priority (1-10) to display priority
+const mapPriorityToDisplay = (priority?: number): TaskPriority => {
+  if (!priority) return 'Medium'; // Default to Medium if no priority
+
+  if (priority >= 1 && priority <= 3) return 'Low';    // 1-3: Low
+  if (priority >= 4 && priority <= 7) return 'Medium'; // 4-7: Medium
+  if (priority >= 8 && priority <= 10) return 'High';  // 8-10: High
+
+  return 'Medium'; // Fallback
+};
+
 // Helper function to get task properties safely for both TaskSummary and TaskResponse
 const getTaskProperties = (task: TaskSummary | TaskResponse) => {
   const isTaskSummary = 'key' in task && 'collaborators' in task;
@@ -122,7 +133,7 @@ const getTaskProperties = (task: TaskSummary | TaskResponse) => {
     userHasDeleteAccess: task.userHasDeleteAccess,
     status: isTaskSummary ? task.status : mapBackendStatus((task as TaskResponse).status),
     key: isTaskSummary ? (task as TaskSummary).key : `TASK-${task.id}`,
-    priority: isTaskSummary ? (task as TaskSummary).priority : 'Medium' as TaskPriority,
+    priority: isTaskSummary ? (task as TaskSummary).priority : mapPriorityToDisplay((task as TaskResponse).priority),
     owner: isTaskSummary ? (task as TaskSummary).owner : `User ${(task as TaskResponse).ownerId}`,
     collaborators: isTaskSummary ? (task as TaskSummary).collaborators : [],
     dueDateTime: isTaskSummary ? (task as TaskSummary).dueDateTime : (task as TaskResponse).dueDateTime,

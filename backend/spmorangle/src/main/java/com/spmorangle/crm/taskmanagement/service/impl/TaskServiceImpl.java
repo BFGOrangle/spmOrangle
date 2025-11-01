@@ -68,12 +68,15 @@ public class TaskServiceImpl implements TaskService {
         task.setTitle(createTaskDto.getTitle());
         task.setDescription(createTaskDto.getDescription());
         task.setStatus(createTaskDto.getStatus());
-        
+
+        // Set priority, defaulting to 5 (medium) if not provided
+        task.setPriority(createTaskDto.getPriority() != null ? createTaskDto.getPriority() : 5);
+
         // Convert tag strings to Tag entities
         if (createTaskDto.getTags() != null && !createTaskDto.getTags().isEmpty()) {
             task.setTags(tagService.findOrCreateTags(createTaskDto.getTags()));
         }
-        
+
         task.setCreatedBy(taskOwnerId);
         task.setCreatedAt(OffsetDateTime.now());
         task.setDueDateTime(createTaskDto.getDueDateTime());
@@ -159,6 +162,7 @@ public class TaskServiceImpl implements TaskService {
                 .recurrenceRuleStr(savedTask.getRecurrenceRuleStr())
                 .startDate(savedTask.getStartDate())
                 .endDate(savedTask.getEndDate())
+                .priority(savedTask.getPriority())
                 .build();
     }
 
@@ -642,7 +646,8 @@ public class TaskServiceImpl implements TaskService {
                             task.getIsRecurring(),
                             task.getRecurrenceRuleStr(),
                             nextOccurrence,      // startDate always set to the occurrence
-                            task.getEndDate()    // Preserve original endDate (can be null)
+                            task.getEndDate(),   // Preserve original endDate (can be null)
+                            task.getPriority()   // Preserve priority from completed task
                         );
 
                         this.createTask(recurringTaskDto, task.getOwnerId(), currentUserId);
@@ -662,11 +667,12 @@ public class TaskServiceImpl implements TaskService {
 
         else {
             // Regular task update - apply all field updates
+            log.info("Priority {} - applying regular field updates", updateTaskDto.getPriority());
             applyFieldUpdates(task, updateTaskDto, currentUserId);
         }
 
         Task updatedTask = taskRepository.save(task);
-        log.info("Task {} updated successfully", updatedTask.getId());
+        log.info("Task {} updated successfully, priority {}", updatedTask.getId(), updatedTask.getPriority());
 
         return UpdateTaskResponseDto.builder()
                 .id(updatedTask.getId())
@@ -688,6 +694,7 @@ public class TaskServiceImpl implements TaskService {
                 .recurrenceRuleStr(updatedTask.getRecurrenceRuleStr())
                 .startDate(updatedTask.getStartDate())
                 .endDate(updatedTask.getEndDate())
+                .priority(updatedTask.getPriority())
                 .build();
     }
 
@@ -828,6 +835,7 @@ public class TaskServiceImpl implements TaskService {
                 .recurrenceRuleStr(task.getRecurrenceRuleStr())
                 .startDate(task.getStartDate())
                 .endDate(task.getEndDate())
+                .priority(task.getPriority())
                 .build();
     }
 
@@ -938,6 +946,7 @@ public class TaskServiceImpl implements TaskService {
                 .recurrenceRuleStr(task.getRecurrenceRuleStr())
                 .startDate(task.getStartDate())
                 .endDate(task.getEndDate())
+                .priority(task.getPriority())
                 .build();
     }
     
@@ -987,6 +996,10 @@ public class TaskServiceImpl implements TaskService {
 
         if (updateTaskDto.getTaskType() != null) {
             task.setTaskType(updateTaskDto.getTaskType());
+        }
+
+        if (updateTaskDto.getPriority() != null) {
+            task.setPriority(updateTaskDto.getPriority());
         }
 
         if (updateTaskDto.getTags() != null) {
@@ -1101,7 +1114,8 @@ public class TaskServiceImpl implements TaskService {
                             false,
                             null,
                             null,
-                            null);
+                            null,
+                            updateTaskDto.getPriority() != null ? updateTaskDto.getPriority() : task.getPriority());
                 this.createTask(standaloneTaskDto, task.getOwnerId(), currentUserId);
 
             }
@@ -1153,7 +1167,8 @@ public class TaskServiceImpl implements TaskService {
                             false,
                             rrule,
                             null,
-                            null);
+                            null,
+                            updateTaskDto.getPriority() != null ? updateTaskDto.getPriority() : task.getPriority());
                 this.createTask(standaloneTaskDto, task.getOwnerId(), currentUserId);
                 log.info("Create new recurring task starting from: {}", updateTaskDto.getInstanceDate());
 
@@ -1384,6 +1399,7 @@ public class TaskServiceImpl implements TaskService {
             .recurrenceRuleStr(template.getRecurrenceRuleStr())
             .startDate(occurrence)  // Always set to occurrence for calendar day filtering
             .endDate(template.getEndDate())
+            .priority(template.getPriority())
             .build();
     }
 }
