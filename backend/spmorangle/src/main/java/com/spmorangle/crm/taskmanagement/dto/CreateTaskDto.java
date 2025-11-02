@@ -44,4 +44,6 @@ public class CreateTaskDto {
     private final OffsetDateTime startDate;
 
     private final OffsetDateTime endDate;
+
+    private final Integer priority;
 }

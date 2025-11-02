@@ -74,6 +74,19 @@ const TASK_STATUSES = [
   { value: 'COMPLETED', label: 'Completed' },
 ] as const;
 
+const PRIORITY_OPTIONS = [
+  { value: 10, label: '10 - Highest' },
+  { value: 9, label: '9' },
+  { value: 8, label: '8' },
+  { value: 7, label: '7' },
+  { value: 6, label: '6' },
+  { value: 5, label: '5 - Medium' },
+  { value: 4, label: '4' },
+  { value: 3, label: '3' },
+  { value: 2, label: '2' },
+  { value: 1, label: '1 - Lowest' },
+] as const;
+
 export function TaskCreationDialog({ 
   open, 
   onOpenChange, 
@@ -91,6 +104,7 @@ export function TaskCreationDialog({
     tags: [],
     assignedUserIds: [],
     projectId,
+    priority: 5, // Default to medium priority
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +201,7 @@ export function TaskCreationDialog({
         taskType: 'FEATURE',
         tags: [],
         assignedUserIds: [],
+        priority: 5, // Reset to medium priority
       });
       setDueDate('');
       setSelectedProjectId(projectId || null);
@@ -492,6 +507,7 @@ export function TaskCreationDialog({
         tags: [],
         assignedUserIds: [],
         projectId,
+        priority: 5, // Reset to medium priority
       });
       setSelectedFiles(null);
       setSelectedAssignee(null);
@@ -743,6 +759,28 @@ export function TaskCreationDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="priority">Priority</Label>
+            <Select
+              value={formData.priority?.toString() || '5'}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, priority: parseInt(value) }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select priority" />
+              </SelectTrigger>
+              <SelectContent>
+                {PRIORITY_OPTIONS.map((priority) => (
+                  <SelectItem key={priority.value} value={priority.value.toString()}>
+                    {priority.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              1 = Lowest priority, 10 = Highest priority (Default: 5)
+            </p>
           </div>
 
           <div className="space-y-2">

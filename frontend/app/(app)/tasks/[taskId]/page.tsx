@@ -108,15 +108,12 @@ const mapBackendStatus = (status: string): TaskStatus => {
   }
 };
 
-// Map backend task type to priority (simplified)
-const mapTaskTypeToPriority = (taskType: string): TaskPriority => {
-  switch (taskType) {
-    case 'BUG': return 'High';
-    case 'FEATURE': return 'Medium';
-    case 'CHORE': return 'Low';
-    case 'RESEARCH': return 'Medium';
-    default: return 'Medium';
-  }
+// Map task priority number to priority label
+const mapTaskPriority = (priority: number | null | undefined): TaskPriority => {
+  const priorityValue = priority ?? 5;
+  if (priorityValue >= 8) return 'High';
+  if (priorityValue >= 4) return 'Medium';
+  return 'Low';
 };
 
 export default function TaskDetailPage({ params }: { params: Promise<{ taskId: string }> }) {
@@ -409,7 +406,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
   }
 
   const status = mapBackendStatus(task.status);
-  const priority = mapTaskTypeToPriority(task.taskType);
+  const priority = mapTaskPriority(task.priority);
   const key = `TASK-${task.id}`;
   
   // Check if task is overdue
@@ -489,7 +486,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
               </CardContent>
             </Card>
 
-            {task.projectId && (
+            {task.projectId != null && (
               <Card>
                 <CardHeader>
                   <h2 className="text-lg font-semibold">Subtasks</h2>

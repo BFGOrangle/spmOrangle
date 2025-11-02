@@ -1,14 +1,13 @@
 package com.spmorangle.crm.notification.service.impl;
 
-import org.springframework.stereotype.Service;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
 import com.spmorangle.crm.notification.service.EmailService;
-import com.spmorangle.crm.notification.service.OverdueTaskEmailService;
-import com.spmorangle.crm.usermanagement.service.UserManagementService;
+import com.spmorangle.crm.notification.service.PreDueTaskEmailService;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
+import com.spmorangle.crm.usermanagement.service.UserManagementService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -17,7 +16,7 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
+public class PreDueTaskEmailServiceImpl implements PreDueTaskEmailService {
 
     private final EmailService emailService; // Uses composition
     private final UserManagementService userManagementService;
@@ -25,11 +24,10 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
             DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm:ss");
     private static final ZoneId SINGAPORE_ZONE = ZoneId.of("Asia/Singapore"); // UTC+8
 
-
     @Override
-    public void sendOverdueTaskEmail(Task task, TaskAssignee assignee) {
-        String subject = String.format("Overdue Task: %s", task.getTitle());
-        String htmlBody = buildOverdueTaskEmailHtml(task, assignee);
+    public void sendPreDueTaskEmail(Task task, TaskAssignee assignee, int hoursUntilDue) {
+        String subject = String.format("Pre Due Task: %s", task.getTitle());
+        String htmlBody = buildPreDueTaskEmailHtml(task, assignee, hoursUntilDue);
 
         String assigneeEmail = userManagementService.getAssigneeEmail(assignee);
 
@@ -37,63 +35,68 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
             // Wait for async email to complete - this will throw if email fails
             emailService.sendHtmlEmail(assigneeEmail, subject, htmlBody).join();
 
-            log.info("Sent overdue task email for task {} to {}",
-                    task.getId(), assigneeEmail);
+            log.info("Sent pre due task email ({} hours) for task {} to {}",
+                    hoursUntilDue, task.getId(), assigneeEmail);
         } catch (Exception e) {
-            log.error("Failed to send overdue task email for task {} to {}: {}",
+            log.error("Failed to send pre due task email for task {} to {}: {}",
                     task.getId(), assigneeEmail, e.getMessage());
             throw e; // Re-throw so checker knows email failed
         }
     }
 
     @Override
-    public void sendMultipleOverdueTasksEmail(List<Task> tasks, TaskAssignee assignee) {
+    public void sendMultiplePreDueTasksEmail(List<Task> tasks, TaskAssignee assignee) {
         if (tasks.isEmpty()) {
             return;
         }
 
         String assigneeEmail = userManagementService.getAssigneeEmail(assignee);
 
-        String subject = String.format("You have %d overdue tasks", tasks.size());
-        String htmlBody = buildMultipleOverdueTasksEmailHtml(tasks, assignee);
+        String subject = String.format("You have %d pre due tasks", tasks.size());
+        String htmlBody = buildMultiplePreDueTasksEmailHtml(tasks, assignee);
 
         try {
             // Wait for async email to complete
             emailService.sendHtmlEmail(assigneeEmail, subject, htmlBody).join();
 
-            log.info("Sent overdue tasks summary email ({} tasks) to {}",
+            log.info("Sent pre due tasks summary email ({} tasks) to {}",
                     tasks.size(), assigneeEmail);
         } catch (Exception e) {
-            log.error("Failed to send overdue tasks summary email ({} tasks) to {}: {}",
+            log.error("Failed to send pre due tasks summary email ({} tasks) to {}: {}",
                     tasks.size(), assigneeEmail, e.getMessage());
             throw e;
         }
     }
 
-    private String buildOverdueTaskEmailHtml(Task task, TaskAssignee assignee) {
+    private String buildPreDueTaskEmailHtml(Task task, TaskAssignee assignee, int hoursUntilDue) {
         // Convert UTC time to Singapore time (UTC+8)
         String formattedDueDate = task.getDueDateTime()
                 .atZoneSameInstant(SINGAPORE_ZONE)
                 .format(DATE_FORMATTER);
 
+        String dueTimeMessage = hoursUntilDue == 12
+                ? "due in 12 hours (rescheduled)"
+                : "due in 24 hours";
+
         return String.format("""
-            <html>
-            <body style="font-family: Arial, sans-serif;">
-                <h2 style="color: #dc3545;">Task Overdue Reminder</h2>
-                <p>Hi %s,</p>
-                <p>The following task is overdue:</p>
-                <div style="border-left: 4px solid #dc3545; padding-left: 15px; margin: 20px 0; background-color: #fff3cd; padding: 15px;">
-                    <h3 style="margin-top: 0;">%s</h3>
-                    <p><strong>Due Date:</strong> %s</p>
-                    <p><strong>Status:</strong> %s</p>
-                    %s
-                </div>
-                <p>Please take action as soon as possible.</p>
-                <p>Best regards,<br><strong>SPM Orange Team</strong></p>
-            </body>
-            </html>
-            """,
+        <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h2 style="color: #dc3545;">Task Pre Due Reminder</h2>
+            <p>Hi %s,</p>
+            <p>The following task is %s:</p>
+            <div style="border-left: 4px solid #dc3545; padding-left: 15px; margin: 20px 0; background-color: #fff3cd; padding: 15px;">
+                <h3 style="margin-top: 0;">%s</h3>
+                <p><strong>Due Date:</strong> %s</p>
+                <p><strong>Status:</strong> %s</p>
+                %s
+            </div>
+            <p>Please prioritise this task.</p>
+            <p>Best regards,<br><strong>SPM Orange Team</strong></p>
+        </body>
+        </html>
+        """,
                 userManagementService.getAssigneeName(assignee),
+                dueTimeMessage,
                 task.getTitle(),
                 formattedDueDate,
                 task.getStatus(),
@@ -103,7 +106,7 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
         );
     }
 
-    private String buildMultipleOverdueTasksEmailHtml(List<Task> tasks, TaskAssignee assignee) {
+    private String buildMultiplePreDueTasksEmailHtml(List<Task> tasks, TaskAssignee assignee) {
         StringBuilder taskList = new StringBuilder();
 
         for (Task task : tasks) {
@@ -128,9 +131,9 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
         return String.format("""
             <html>
             <body style="font-family: Arial, sans-serif;">
-                <h2 style="color: #dc3545;">Multiple Tasks Overdue</h2>
+                <h2 style="color: #dc3545;">Multiple Tasks Due in 24 Hours</h2>
                 <p>Hi %s,</p>
-                <p>You have <strong>%d overdue tasks</strong> that require your attention:</p>
+                <p>You have <strong>%d pre due tasks</strong> that require your attention:</p>
                 <div style="margin: 20px 0;">
                     %s
                 </div>

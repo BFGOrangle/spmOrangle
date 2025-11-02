@@ -87,4 +87,15 @@ public class Task {
     @Column(name = "has_sent_overdue", nullable = false)
     @ColumnDefault("false")
     private Boolean hasSentOverdue = false;
+
+    @Column(name = "has_sent_predue", nullable = false)
+    @ColumnDefault("false")
+    private Boolean hasSentPreDue = false;
+
+    @Column(name = "is_rescheduled", nullable = false)
+    @ColumnDefault("false")
+    private Boolean isRescheduled = false;
+
+    @Column(name = "priority")
+    private Integer priority;
 }

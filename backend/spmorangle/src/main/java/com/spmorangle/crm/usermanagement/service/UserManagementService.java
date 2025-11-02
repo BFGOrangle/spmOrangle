@@ -1,5 +1,6 @@
 package com.spmorangle.crm.usermanagement.service;
 
+import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
 import com.spmorangle.crm.usermanagement.dto.CreateUserDto;
 import com.spmorangle.crm.usermanagement.dto.UpdateUserRoleDto;
 import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
@@ -20,4 +21,6 @@ public interface UserManagementService {
     List<UserResponseDto> getProjectMembers(Long projectId);
     List<UserResponseDto> getUsersByIds(List<Long> userIds);
     List<UserResponseDto> getAllUsers();
+    String getAssigneeEmail(TaskAssignee assignee);
+    String getAssigneeName(TaskAssignee assignee);
 }

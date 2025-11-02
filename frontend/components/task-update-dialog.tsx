@@ -75,6 +75,19 @@ const TASK_TYPE_OPTIONS = [
   { value: 'RESEARCH', label: 'Research' },
 ];
 
+const PRIORITY_OPTIONS = [
+  { value: 10, label: '10 - Highest' },
+  { value: 9, label: '9' },
+  { value: 8, label: '8' },
+  { value: 7, label: '7' },
+  { value: 6, label: '6' },
+  { value: 5, label: '5 - Medium' },
+  { value: 4, label: '4' },
+  { value: 3, label: '3' },
+  { value: 2, label: '2' },
+  { value: 1, label: '1 - Lowest' },
+] as const;
+
 function isStatusOnlyUpdate(updateRequest: UpdateTaskRequest): boolean {
   const fields = Object.keys(updateRequest).filter(
     key => key !== 'taskId'
@@ -98,6 +111,7 @@ export function TaskUpdateDialog({
   const [taskType, setTaskType] = useState(task.taskType);
   const [tags, setTags] = useState<string[]>(task.tags || []);
   const [tagInput, setTagInput] = useState('');
+  const [priority, setPriority] = useState(task.priority || 5);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
@@ -156,6 +170,7 @@ export function TaskUpdateDialog({
     setTaskType(task.taskType);
     setTags(task.tags || []);
     setCollaboratorIds(task.assignedUserIds ?? []);
+    setPriority(task.priority || 5);
 
     // Reset due date
     if (task.dueDateTime) {
@@ -445,6 +460,10 @@ export function TaskUpdateDialog({
         updateRequest.taskType = taskType;
       }
 
+      if (priority !== task.priority) {
+        updateRequest.priority = priority;
+      }
+
       // Always send tags if they've been modified
       const originalTags = task.tags || [];
       const tagsChanged = tags.length !== originalTags.length ||
@@ -653,6 +672,28 @@ export function TaskUpdateDialog({
                 </SelectContent>
               </Select>
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="priority">Priority</Label>
+          <Select
+            value={priority?.toString() || '5'}
+            onValueChange={(value) => setPriority(parseInt(value))}
+          >
+            <SelectTrigger id="priority">
+              <SelectValue placeholder="Select priority" />
+            </SelectTrigger>
+            <SelectContent>
+              {PRIORITY_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value.toString()}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            1 = Lowest priority, 10 = Highest priority
+          </p>
         </div>
 
         <div className="space-y-2">

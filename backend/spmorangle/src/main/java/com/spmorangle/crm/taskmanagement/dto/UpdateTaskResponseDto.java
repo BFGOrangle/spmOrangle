@@ -30,4 +30,5 @@ public class UpdateTaskResponseDto {
     private final String recurrenceRuleStr;
     private final OffsetDateTime startDate;
     private final OffsetDateTime endDate;
+    private final Integer priority;
 }

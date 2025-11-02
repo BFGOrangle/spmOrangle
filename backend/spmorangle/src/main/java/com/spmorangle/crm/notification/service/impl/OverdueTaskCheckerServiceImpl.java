@@ -1,6 +1,7 @@
 package com.spmorangle.crm.notification.service.impl;
 
 import com.spmorangle.crm.notification.service.OverdueTaskCheckerService;
+import com.spmorangle.crm.notification.service.OverdueTaskEmailService;
 import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
 import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
@@ -22,7 +23,9 @@ public class OverdueTaskCheckerServiceImpl implements OverdueTaskCheckerService 
 
     private final TaskRepository taskRepository;
     private final TaskAssigneeRepository taskAssigneeRepository;
-    private final OverdueTaskEmailServiceImpl overdueTaskEmailService;
+    private final OverdueTaskEmailService overdueTaskEmailService;
+
+    private static final Long SYSTEM_USER_ID = -1L;
 
     @Override
     @Scheduled(fixedRateString = "${overdue.check.rate-ms:60000}")
@@ -72,6 +75,7 @@ public class OverdueTaskCheckerServiceImpl implements OverdueTaskCheckerService 
             // Mark as sent only if all emails were sent successfully
             if (emailSentSuccessfully) {
                 task.setHasSentOverdue(true);
+                task.setUpdatedBy(SYSTEM_USER_ID);
                 taskRepository.save(task);
                 log.info("Marked task {} as overdue notification sent", task.getId());
             }

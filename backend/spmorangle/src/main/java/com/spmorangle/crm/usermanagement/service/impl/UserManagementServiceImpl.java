@@ -4,6 +4,7 @@ import com.spmorangle.common.converter.UserConverter;
 import com.spmorangle.common.enums.UserType;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
 import com.spmorangle.crm.usermanagement.dto.CreateUserDto;
 import com.spmorangle.crm.usermanagement.dto.UpdateUserRoleDto;
 import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
@@ -191,4 +192,17 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .toList();
     }
 
+    @Override
+    public String getAssigneeEmail(TaskAssignee assignee) {
+        long assigneeId = assignee.getUserId();
+        var assigneeProfile = getUserById(assigneeId);
+        return assigneeProfile.email();
+    }
+
+    @Override
+    public String getAssigneeName(TaskAssignee assignee) {
+        long assigneeId = assignee.getUserId();
+        var assigneeProfile = getUserById(assigneeId);
+        return assigneeProfile.username();
+    }
 }

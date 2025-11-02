@@ -66,8 +66,12 @@ class OverdueTaskEmailServiceImplTest {
                 .cognitoSub(UUID.randomUUID())
                 .build();
 
-        // Mock user management service with lenient stubbing
+        // Mock user management service with lenient stubbing for the methods used by implementation/tests
         lenient().when(userManagementService.getUserById(100L)).thenReturn(testUser);
+        lenient().when(userManagementService.getAssigneeEmail(any(TaskAssignee.class)))
+                .thenReturn(testUser.email());
+        lenient().when(userManagementService.getAssigneeName(any(TaskAssignee.class)))
+                .thenReturn(testUser.username());
 
         // Mock email service to return completed future (since sendHtmlEmail is async)
         lenient().when(emailService.sendHtmlEmail(anyString(), anyString(), anyString()))
@@ -107,7 +111,9 @@ class OverdueTaskEmailServiceImplTest {
         assertTrue(body.contains("Oct 23, 2025 05:07:00"), "Email body should contain formatted due date");
 
         // Verify user management service was called
-        verify(userManagementService, times(2)).getUserById(100L); // Once for email, once for name
+        // Now the implementation calls getAssigneeName and getAssigneeEmail directly
+        verify(userManagementService, times(1)).getAssigneeName(any(TaskAssignee.class));
+        verify(userManagementService, times(1)).getAssigneeEmail(any(TaskAssignee.class));
     }
 
     @Test
@@ -231,22 +237,22 @@ class OverdueTaskEmailServiceImplTest {
     @DisplayName("Should get assignee email correctly")
     void shouldGetAssigneeEmail() {
         // Act
-        String email = overdueTaskEmailService.getAssigneeEmail(testAssignee);
+        String email = userManagementService.getAssigneeEmail(testAssignee);
 
         // Assert
         assertEquals("john.doe@example.com", email);
-        verify(userManagementService, times(1)).getUserById(100L);
+        verify(userManagementService, times(1)).getAssigneeEmail(eq(testAssignee));
     }
 
     @Test
     @DisplayName("Should get assignee name correctly")
     void shouldGetAssigneeName() {
         // Act
-        String name = overdueTaskEmailService.getAssigneeName(testAssignee);
+        String name = userManagementService.getAssigneeName(testAssignee);
 
         // Assert
         assertEquals("John Doe", name);
-        verify(userManagementService, times(1)).getUserById(100L);
+        verify(userManagementService, times(1)).getAssigneeName(eq(testAssignee));
     }
 
     @Test

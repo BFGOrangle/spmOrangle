@@ -31,4 +31,5 @@ public class UpdateTaskDto {
     private final OffsetDateTime endDate;
     private final RecurrenceEditMode recurrenceEditMode;
     private final OffsetDateTime instanceDate;
+    private final Integer priority;
 }
