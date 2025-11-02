@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -37,4 +38,12 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     List<User> findUsersInProject(Long projectId);
 
     List<User> findByDepartmentIgnoreCase(String department);
+
+    @Query("""
+            SELECT u FROM User u
+            JOIN Department d ON LOWER(u.department) = LOWER(d.name)
+            WHERE d.id IN :departmentIds
+            AND u.id != :excludeUserId
+            """)
+    List<User> findByDepartmentIds(@Param("departmentIds") Set<Long> departmentIds, @Param("excludeUserId") Long excludeUserId);
 }

@@ -18,12 +18,15 @@ import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentalVisibilityService;
 import com.spmorangle.crm.projectmanagement.dto.CreateProjectDto;
 import com.spmorangle.crm.projectmanagement.dto.ProjectResponseDto;
 import com.spmorangle.crm.projectmanagement.model.Project;
 import com.spmorangle.crm.projectmanagement.repository.ProjectRepository;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
 import com.spmorangle.crm.taskmanagement.enums.Status;
+import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -38,6 +41,8 @@ public class ProjectServiceImpl implements ProjectService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final DepartmentQueryService departmentQueryService;
+    private final DepartmentalVisibilityService departmentalVisibilityService;
 
     @Override
     public List<ProjectResponseDto> getUserProjects(Long userId) {
@@ -47,6 +52,10 @@ public class ProjectServiceImpl implements ProjectService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        
+
+
+
         String userRole = user.getRoleType();
         String userDepartment = user.getDepartment();
 
@@ -55,6 +64,12 @@ public class ProjectServiceImpl implements ProjectService {
         // Get projects where user is a member (owner or collaborator)
         List<Project> memberProjects = projectRepository.findUserProjects(userId);
         log.info("Found {} member projects for user {}", memberProjects.size(), userId);
+
+
+        Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
+        memberProjects = memberProjects.stream()
+            .filter(project -> canUserSeeProjectByDepartment(project, visibleDepartmentIds))
+            .collect(Collectors.toList());
 
         // Initialize result list with member projects
         List<ProjectResponseDto> result = new ArrayList<>();
@@ -69,6 +84,10 @@ public class ProjectServiceImpl implements ProjectService {
             log.info("Manager role detected - fetching related cross-department projects for department: {}", userDepartment);
             List<Project> relatedProjects = projectRepository.findProjectsWithDepartmentStaff(userId, userDepartment);
             log.info("Found {} related cross-department projects", relatedProjects.size());
+
+            relatedProjects = relatedProjects.stream()
+            .filter(project -> canUserSeeProjectByDepartment(project, visibleDepartmentIds))
+            .collect(Collectors.toList());
 
             // Add related projects (isRelated = true)
             for (Project project : relatedProjects) {
@@ -251,5 +270,58 @@ public class ProjectServiceImpl implements ProjectService {
                 .filter(project -> !project.isDeleteInd())
                 .map(this::mapToProjectResponseDto)
                 .toList();
+    }
+
+
+    private Set<Long> getUserVisibleDepartmentIds(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Get department of user
+        String userDepartmentName = user.getDepartment();
+        if (userDepartmentName == null || userDepartmentName.isBlank()) {
+            log.warn("User {} has no department assigned", userId);
+            return Collections.emptySet();
+        }
+
+        // Check if what other departments are visible to our user
+        return departmentQueryService.getByNameCaseInsensitive(userDepartmentName)
+            .map(deptDto -> departmentalVisibilityService.visibilityDepartmentsForAssignedDept(deptDto.getId()))
+            .orElse(Collections.emptySet());
+    }
+
+    private Boolean canUserSeeProjectByDepartment(Project project, Set<Long> userVisibleDepartmentIds) {
+        if (userVisibleDepartmentIds.isEmpty()) {
+            return true;
+        }
+
+        List<ProjectMember> projectMembers = projectMemberRepository.findByProjectId(project.getId());
+        
+        List<Long> memberIds = projectMembers.stream()
+            .map(ProjectMember::getUserId)
+            .collect(Collectors.toList());
+
+        memberIds.add(project.getOwnerId());
+
+
+        for (Long memberId : memberIds) {
+            User member = userRepository.findById(memberId).orElse(null);
+            if (member == null || member.getDepartment() == null) {
+                continue;
+            }
+
+            Long memberDeptId = departmentQueryService.getByNameCaseInsensitive(member.getDepartment())
+                .map(deptDto -> deptDto.getId())
+                .orElse(null);
+
+            if (memberDeptId == null) {
+                continue;
+            }
+
+            if (departmentalVisibilityService.canUserSeeTask(userVisibleDepartmentIds, memberDeptId)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
