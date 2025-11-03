@@ -14,7 +14,8 @@
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:report": "playwright show-report e2e-results/html",
     "test:e2e:codegen": "playwright codegen localhost:3000",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node -e \"if (process.env.VERCEL !== '1' && process.env.CI !== 'true') { require('child_process').execSync('npx playwright install --with-deps chromium', { stdio: 'inherit' }); }\""
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
