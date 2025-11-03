@@ -117,38 +117,37 @@ class ReportServiceTest {
     }
 
     @Test
-    void testGenerateTaskSummaryReport_ManagerUser_RestrictedToDepartment() {
-        // Arrange
+    void testGenerateTaskSummaryReport_ManagerUser_AccessDenied() {
+        // Arrange - Manager users should be denied access to reports (HR-only feature)
         when(userRepository.findById(2L)).thenReturn(Optional.of(managerUser));
 
         ReportFilterDto filters = ReportFilterDto.builder()
-            .department("HR") // Manager tries to access HR department
+            .department("HR") // Manager tries to access any department
             .build();
 
-        // Act & Assert - Should throw exception
+        // Act & Assert - Should throw exception denying access
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             reportService.generateTaskSummaryReport(filters, 2L);
         });
 
-        assertTrue(exception.getMessage().contains("Access denied: Managers can only view reports for their own department"));
-        assertTrue(exception.getMessage().contains("Engineering"));
+        assertEquals("Access denied: Only HR users can access reports", exception.getMessage());
     }
 
     @Test
     void testGenerateTaskSummaryReport_StaffUser_AccessDenied() {
-        // Arrange
+        // Arrange - Staff users should be denied access to reports (HR-only feature)
         when(userRepository.findById(3L)).thenReturn(Optional.of(staffUser));
 
         ReportFilterDto filters = ReportFilterDto.builder()
             .department("Engineering")
             .build();
 
-        // Act & Assert
+        // Act & Assert - Should throw exception denying access
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             reportService.generateTaskSummaryReport(filters, 3L);
         });
-        
-        assertEquals("Access denied: Staff users cannot access reports", exception.getMessage());
+
+        assertEquals("Access denied: Only HR users can access reports", exception.getMessage());
     }
 
     @Test
@@ -169,8 +168,8 @@ class ReportServiceTest {
     }
 
     @Test
-    void testGetAvailableDepartments_ManagerUser_OnlyOwnDepartment() {
-        // Arrange
+    void testGetAvailableDepartments_ManagerUser_EmptyList() {
+        // Arrange - Manager users cannot access reports (HR-only feature)
         when(userRepository.findById(2L)).thenReturn(Optional.of(managerUser));
         when(reportingRepository.getAllDepartments())
             .thenReturn(Arrays.asList("HR", "Engineering", "Marketing"));
@@ -178,9 +177,9 @@ class ReportServiceTest {
         // Act
         List<String> result = reportService.getAvailableDepartments(2L);
 
-        // Assert
-        assertEquals(1, result.size());
-        assertEquals("Engineering", result.get(0));
+        // Assert - Should return empty list (no access to reports)
+        assertEquals(0, result.size());
+        assertTrue(result.isEmpty());
     }
 
     @Test
@@ -357,73 +356,43 @@ class ReportServiceTest {
         }
 
         @Test
-        void testGenerateStaffBreakdown_ManagerUser_RestrictedToOwnDepartment() {
-            // Scenario: Manager of Engineering dept, no filters
-            // Expected: Only Engineering staff (even if requesting empty department)
-            
+        void testGenerateStaffBreakdown_ManagerUser_AccessDenied() {
+            // Scenario: Manager users cannot access staff breakdown reports (HR-only feature)
+
             // Arrange
             when(userRepository.findById(2L)).thenReturn(Optional.of(managerUser));
-            
-            List<Object[]> engineeringStaff = Arrays.asList(
-                new Object[]{4L, "Engineering User 1", "Engineering"},
-                new Object[]{5L, "Engineering User 2", "Engineering"}
-            );
-            
-            when(reportingRepository.getUsersForStaffBreakdown("Engineering", null))
-                .thenReturn(engineeringStaff);
-            
-            when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
-                .thenReturn(Collections.emptyList());
-            
-            when(reportingRepository.getLoggedHoursForUser(any(), any(), any(), any()))
-                .thenReturn(BigDecimal.ZERO);
-            
+
             ReportFilterDto filters = ReportFilterDto.builder()
                 .department("")
                 .projectIds(null)
                 .build();
-            
-            // Act
-            List<StaffBreakdownDto> result = reportService.generateStaffBreakdown(filters, 2L);
-            
-            // Assert
-            assertEquals(2, result.size());
-            assertTrue(result.stream().allMatch(s -> "Engineering".equals(s.getDepartment())));
+
+            // Act & Assert - Should throw exception denying access
+            RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+                reportService.generateStaffBreakdown(filters, 2L);
+            });
+
+            assertEquals("Access denied: Only HR users can access reports", exception.getMessage());
         }
 
         @Test
-        void testGenerateStaffBreakdown_ManagerUser_WithProjectFilter_ReturnsDeptAndProjectMembers() {
-            // Scenario: Manager of Engineering, project filter = [100, 101]
-            // Expected: Engineering staff who are also project members
-            
+        void testGenerateStaffBreakdown_ManagerUser_WithProjectFilter_AccessDenied() {
+            // Scenario: Manager users cannot access staff breakdown reports (HR-only feature)
+
             // Arrange
             when(userRepository.findById(2L)).thenReturn(Optional.of(managerUser));
-            
-            List<Object[]> filteredStaff = Arrays.<Object[]>asList(
-                new Object[]{4L, "Engineering User 1", "Engineering"}
-            );
-            
-            when(reportingRepository.getUsersForStaffBreakdown("Engineering", Arrays.asList(100L, 101L)))
-                .thenReturn(filteredStaff);
-            
-            when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
-                .thenReturn(Collections.emptyList());
-            
-            when(reportingRepository.getLoggedHoursForUser(any(), any(), any(), any()))
-                .thenReturn(BigDecimal.ZERO);
-            
+
             ReportFilterDto filters = ReportFilterDto.builder()
                 .department("Engineering")
                 .projectIds(Arrays.asList(100L, 101L))
                 .build();
-            
-            // Act
-            List<StaffBreakdownDto> result = reportService.generateStaffBreakdown(filters, 2L);
-            
-            // Assert
-            assertEquals(1, result.size());
-            assertEquals("Engineering", result.get(0).getDepartment());
-            assertEquals(4L, result.get(0).getUserId());
+
+            // Act & Assert - Should throw exception denying access
+            RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+                reportService.generateStaffBreakdown(filters, 2L);
+            });
+
+            assertEquals("Access denied: Only HR users can access reports", exception.getMessage());
         }
 
         @Test

@@ -283,17 +283,13 @@ public class ReportServiceImpl implements ReportService {
             .orElseThrow(() -> new RuntimeException("User not found"));
         
         List<String> allDepartments = reportingRepository.getAllDepartments();
-        
-        // HR can see all departments, Managers only their own
+
+        // Only HR can access reports and see all departments
         if (UserType.HR.getCode().equals(currentUser.getRoleType())) {
             return allDepartments;
-        } else if (UserType.MANAGER.getCode().equals(currentUser.getRoleType())) {
-            return allDepartments.stream()
-                .filter(dept -> dept.equals(currentUser.getDepartment()))
-                .toList();
         }
-        
-        return List.of(); // Staff cannot access reports
+
+        return List.of(); // Non-HR users cannot access reports
     }
     
     @Override
@@ -483,30 +479,18 @@ public class ReportServiceImpl implements ReportService {
     
     private String applyDepartmentFilter(String requestedDepartment, User currentUser) {
         if (UserType.HR.getCode().equals(currentUser.getRoleType())) {
-            // HR can filter by any department or see all
+            // Only HR can access reports and filter by any department or see all
             return requestedDepartment;
-        } else if (UserType.MANAGER.getCode().equals(currentUser.getRoleType())) {
-            // Managers can only see their own department
-            // Treat empty string as null (no specific department requested)
-            if (requestedDepartment != null && !requestedDepartment.isEmpty() 
-                && !requestedDepartment.equals(currentUser.getDepartment())) {
-                throw new RuntimeException(
-                    "Access denied: Managers can only view reports for their own department (" 
-                    + currentUser.getDepartment() + ")");
-            }
-            // If null, empty, or matches their department, return their department
-            return currentUser.getDepartment();
         }
-        
-        // Staff cannot access reports
-        throw new RuntimeException("Access denied: Staff users cannot access reports");
+
+        // Non-HR users cannot access reports
+        throw new RuntimeException("Access denied: Only HR users can access reports");
     }
     
     private boolean canAccessDepartment(String department, User currentUser) {
+        // Only HR can access reports
         if (UserType.HR.getCode().equals(currentUser.getRoleType())) {
             return true;
-        } else if (UserType.MANAGER.getCode().equals(currentUser.getRoleType())) {
-            return department.equals(currentUser.getDepartment());
         }
         return false;
     }

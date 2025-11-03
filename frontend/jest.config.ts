@@ -31,6 +31,7 @@ const config: Config = {
     "<rootDir>/node_modules/",
     "<rootDir>/.next/",
     "<rootDir>/__tests__/test-utils.tsx",
+    "<rootDir>/e2e/", // TODO: Only on local for now to ignore e2e tests until we have a way to run them
   ],
   transformIgnorePatterns: ["/node_modules/(?!(@tanstack)/)"],
   coverageProvider: "v8",
