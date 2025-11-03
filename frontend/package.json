@@ -14,7 +14,8 @@
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:report": "playwright show-report e2e-results/html",
     "test:e2e:codegen": "playwright codegen localhost:3000",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "playwright install --with-deps chromium"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
