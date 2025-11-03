@@ -700,7 +700,7 @@ class ProjectServiceImplTest {
 
             when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
             when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
-            when(projectRepository.findProjectsWithDepartmentStaff(managerId, "Engineering"))
+            when(projectRepository.findProjectsWithDepartmentStaff(managerId, List.of("ENGINEERING")))
                     .thenReturn(relatedProjects);
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
 
@@ -724,7 +724,7 @@ class ProjectServiceImplTest {
 
             when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
             when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
-            when(projectRepository.findProjectsWithDepartmentStaff(managerId, "Engineering"))
+            when(projectRepository.findProjectsWithDepartmentStaff(managerId, List.of("ENGINEERING")))
                     .thenReturn(relatedProjects);
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
 
@@ -809,7 +809,7 @@ class ProjectServiceImplTest {
 
             when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
             when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
-            when(projectRepository.findProjectsWithDepartmentStaff(managerId, "Engineering"))
+            when(projectRepository.findProjectsWithDepartmentStaff(managerId, List.of("ENGINEERING")))
                     .thenReturn(relatedProjects);
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
 

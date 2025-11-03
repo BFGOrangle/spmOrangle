@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
@@ -30,7 +31,6 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -105,7 +105,7 @@ class DepartmentDashboardServiceImplTest {
         when(taskAssigneeRepository.findByTaskIdIn(Set.of(101L, 102L)))
                 .thenReturn(List.of(taskAssignee));
 
-        when(userRepository.findByIdIn(anyCollection()))
+        when(userRepository.findByIdIn(Mockito.<List<Long>>any()))
                 .thenReturn(List.of(staffA, staffB));
 
         Project project = new Project();
