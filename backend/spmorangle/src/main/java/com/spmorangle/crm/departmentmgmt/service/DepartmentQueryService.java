@@ -12,6 +12,6 @@ public interface DepartmentQueryService {
 
     List<DepartmentDto> getSubDepartments(Long id);
 
-    DepartmentDto getParentDepartment(Long id, boolean includeSelf);
+    Optional<DepartmentDto> getParentDepartment(Long id, boolean includeSelf);
 
 }

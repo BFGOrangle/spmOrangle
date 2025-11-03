@@ -56,6 +56,9 @@ class ReportServiceTest {
     @Mock
     private com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository taskAssigneeRepository;
 
+    @Mock
+    private com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService departmentQueryService;
+
     @InjectMocks
     private ReportServiceImpl reportService;
 
@@ -68,17 +71,34 @@ class ReportServiceTest {
         hrUser = new User();
         hrUser.setId(1L);
         hrUser.setRoleType(UserType.HR.getCode());
-        hrUser.setDepartment("HR");
+        hrUser.setDepartmentId(1L); // HR department ID
 
         managerUser = new User();
         managerUser.setId(2L);
         managerUser.setRoleType(UserType.MANAGER.getCode());
-        managerUser.setDepartment("Engineering");
+        managerUser.setDepartmentId(2L); // Engineering department ID
 
         staffUser = new User();
         staffUser.setId(3L);
         staffUser.setRoleType(UserType.STAFF.getCode());
-        staffUser.setDepartment("Engineering");
+        staffUser.setDepartmentId(2L); // Engineering department ID
+
+        // Setup common department query service mocks (lenient to avoid unnecessary stubbing errors)
+        lenient().when(departmentQueryService.getById(1L))
+            .thenReturn(Optional.of(com.spmorangle.crm.departmentmgmt.dto.DepartmentDto.builder()
+                .id(1L).name("HR").build()));
+        lenient().when(departmentQueryService.getById(2L))
+            .thenReturn(Optional.of(com.spmorangle.crm.departmentmgmt.dto.DepartmentDto.builder()
+                .id(2L).name("Engineering").build()));
+        lenient().when(departmentQueryService.getById(3L))
+            .thenReturn(Optional.of(com.spmorangle.crm.departmentmgmt.dto.DepartmentDto.builder()
+                .id(3L).name("Marketing").build()));
+        lenient().when(departmentQueryService.getById(4L))
+            .thenReturn(Optional.of(com.spmorangle.crm.departmentmgmt.dto.DepartmentDto.builder()
+                .id(4L).name("Software").build()));
+        lenient().when(departmentQueryService.getById(5L))
+            .thenReturn(Optional.of(com.spmorangle.crm.departmentmgmt.dto.DepartmentDto.builder()
+                .id(5L).name("Sales").build()));
     }
 
     @Test
@@ -97,7 +117,7 @@ class ReportServiceTest {
             .thenReturn(mockResults);
 
         ReportFilterDto filters = ReportFilterDto.builder()
-            .department("Engineering")
+            .departmentId(2L) // Engineering department ID
             .build();
 
         // Act
@@ -122,7 +142,7 @@ class ReportServiceTest {
         when(userRepository.findById(2L)).thenReturn(Optional.of(managerUser));
 
         ReportFilterDto filters = ReportFilterDto.builder()
-            .department("HR") // Manager tries to access HR department
+            .departmentId(1L) // HR department ID // Manager tries to access HR department
             .build();
 
         // Act & Assert - Should throw exception
@@ -140,7 +160,7 @@ class ReportServiceTest {
         when(userRepository.findById(3L)).thenReturn(Optional.of(staffUser));
 
         ReportFilterDto filters = ReportFilterDto.builder()
-            .department("Engineering")
+            .departmentId(2L) // Engineering department ID
             .build();
 
         // Act & Assert
@@ -156,7 +176,8 @@ class ReportServiceTest {
         // Arrange
         when(userRepository.findById(1L)).thenReturn(Optional.of(hrUser));
         when(reportingRepository.getAllDepartments())
-            .thenReturn(Arrays.asList("HR", "Engineering", "Marketing"));
+            .thenReturn(Arrays.asList(1L, 2L, 3L)); // Department IDs
+        // Department name lookups already mocked in setUp()
 
         // Act
         List<String> result = reportService.getAvailableDepartments(1L);
@@ -173,7 +194,8 @@ class ReportServiceTest {
         // Arrange
         when(userRepository.findById(2L)).thenReturn(Optional.of(managerUser));
         when(reportingRepository.getAllDepartments())
-            .thenReturn(Arrays.asList("HR", "Engineering", "Marketing"));
+            .thenReturn(Arrays.asList(1L, 2L, 3L)); // Department IDs
+        // Department name lookups already mocked in setUp()
 
         // Act
         List<String> result = reportService.getAvailableDepartments(2L);
@@ -207,20 +229,20 @@ class ReportServiceTest {
             when(userRepository.findById(1L)).thenReturn(Optional.of(hrUser));
             
             List<Object[]> allStaff = Arrays.asList(
-                new Object[]{9L, "Ian Thompson", "Software"},
-                new Object[]{10L, "Julia Adams", "Software"},
-                new Object[]{11L, "OrangleManagerTestUser", "Software"},
-                new Object[]{1L, "HR User 1", "HR"},
-                new Object[]{2L, "HR User 2", "HR"},
-                new Object[]{4L, "Engineering User 1", "Engineering"},
-                new Object[]{5L, "Engineering User 2", "Engineering"},
-                new Object[]{6L, "Engineering User 3", "Engineering"},
-                new Object[]{7L, "Marketing User 1", "Marketing"},
-                new Object[]{8L, "Marketing User 2", "Marketing"},
-                new Object[]{12L, "Sales User 1", "Sales"}
+                new Object[]{9L, "Ian Thompson", 4L}, // Software department ID
+                new Object[]{10L, "Julia Adams", 4L}, // Software department ID
+                new Object[]{11L, "OrangleManagerTestUser", 4L}, // Software department ID
+                new Object[]{1L, "HR User 1", 1L}, // HR department ID
+                new Object[]{2L, "HR User 2", 1L}, // HR department ID
+                new Object[]{4L, "Engineering User 1", 2L}, // Engineering department ID
+                new Object[]{5L, "Engineering User 2", 2L}, // Engineering department ID
+                new Object[]{6L, "Engineering User 3", 2L}, // Engineering department ID
+                new Object[]{7L, "Marketing User 1", 3L}, // Marketing department ID
+                new Object[]{8L, "Marketing User 2", 3L}, // Marketing department ID
+                new Object[]{12L, "Sales User 1", 5L} // Sales department ID
             );
             
-            when(reportingRepository.getUsersForStaffBreakdown("", null))
+            when(reportingRepository.getUsersForStaffBreakdown(null, null))
                 .thenReturn(allStaff);
             
             // Mock task counts (return empty for all)
@@ -232,7 +254,7 @@ class ReportServiceTest {
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
-                .department("")
+                .departmentId(null) // No department filter
                 .projectIds(null)
                 .build();
             
@@ -255,12 +277,12 @@ class ReportServiceTest {
             when(userRepository.findById(1L)).thenReturn(Optional.of(hrUser));
             
             List<Object[]> engineeringStaff = Arrays.asList(
-                new Object[]{4L, "Engineering User 1", "Engineering"},
-                new Object[]{5L, "Engineering User 2", "Engineering"},
-                new Object[]{6L, "Engineering User 3", "Engineering"}
+                new Object[]{4L, "Engineering User 1", 2L}, // Engineering department ID
+                new Object[]{5L, "Engineering User 2", 2L}, // Engineering department ID
+                new Object[]{6L, "Engineering User 3", 2L} // Engineering department ID
             );
             
-            when(reportingRepository.getUsersForStaffBreakdown("Engineering", null))
+            when(reportingRepository.getUsersForStaffBreakdown(2L, null)) // Engineering department ID
                 .thenReturn(engineeringStaff);
             
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
@@ -270,7 +292,7 @@ class ReportServiceTest {
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
-                .department("Engineering")
+                .departmentId(2L) // Engineering department ID
                 .projectIds(null)
                 .build();
             
@@ -291,12 +313,12 @@ class ReportServiceTest {
             when(userRepository.findById(1L)).thenReturn(Optional.of(hrUser));
             
             List<Object[]> projectMembers = Arrays.asList(
-                new Object[]{9L, "Ian Thompson", "Software"},
-                new Object[]{10L, "Julia Adams", "Software"},
-                new Object[]{4L, "Engineering User 1", "Engineering"}
+                new Object[]{9L, "Ian Thompson", 4L}, // Software department ID
+                new Object[]{10L, "Julia Adams", 4L}, // Software department ID
+                new Object[]{4L, "Engineering User 1", 2L} // Engineering department ID
             );
             
-            when(reportingRepository.getUsersForStaffBreakdown("", Arrays.asList(100L, 101L)))
+            when(reportingRepository.getUsersForStaffBreakdown(null, Arrays.asList(100L, 101L)))
                 .thenReturn(projectMembers);
             
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
@@ -306,7 +328,7 @@ class ReportServiceTest {
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
-                .department(null)
+                .departmentId(null)
                 .projectIds(Arrays.asList(100L, 101L))
                 .build();
             
@@ -329,11 +351,11 @@ class ReportServiceTest {
             when(userRepository.findById(1L)).thenReturn(Optional.of(hrUser));
             
             List<Object[]> filteredStaff = Arrays.asList(
-                new Object[]{4L, "Engineering User 1", "Engineering"},
-                new Object[]{5L, "Engineering User 2", "Engineering"}
+                new Object[]{4L, "Engineering User 1", 2L}, // Engineering department ID
+                new Object[]{5L, "Engineering User 2", 2L} // Engineering department ID
             );
             
-            when(reportingRepository.getUsersForStaffBreakdown("Engineering", Arrays.asList(100L, 101L)))
+            when(reportingRepository.getUsersForStaffBreakdown(2L, Arrays.asList(100L, 101L))) // Engineering department ID
                 .thenReturn(filteredStaff);
             
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
@@ -343,7 +365,7 @@ class ReportServiceTest {
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
-                .department("Engineering")
+                .departmentId(2L) // Engineering department ID
                 .projectIds(Arrays.asList(100L, 101L))
                 .build();
             
@@ -365,11 +387,11 @@ class ReportServiceTest {
             when(userRepository.findById(2L)).thenReturn(Optional.of(managerUser));
             
             List<Object[]> engineeringStaff = Arrays.asList(
-                new Object[]{4L, "Engineering User 1", "Engineering"},
-                new Object[]{5L, "Engineering User 2", "Engineering"}
+                new Object[]{4L, "Engineering User 1", 2L}, // Engineering department ID
+                new Object[]{5L, "Engineering User 2", 2L} // Engineering department ID
             );
             
-            when(reportingRepository.getUsersForStaffBreakdown("Engineering", null))
+            when(reportingRepository.getUsersForStaffBreakdown(2L, null)) // Engineering department ID
                 .thenReturn(engineeringStaff);
             
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
@@ -379,7 +401,7 @@ class ReportServiceTest {
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
-                .department("")
+                .departmentId(null) // No department filter
                 .projectIds(null)
                 .build();
             
@@ -400,10 +422,10 @@ class ReportServiceTest {
             when(userRepository.findById(2L)).thenReturn(Optional.of(managerUser));
             
             List<Object[]> filteredStaff = Arrays.<Object[]>asList(
-                new Object[]{4L, "Engineering User 1", "Engineering"}
+                new Object[]{4L, "Engineering User 1", 2L} // Engineering department ID
             );
             
-            when(reportingRepository.getUsersForStaffBreakdown("Engineering", Arrays.asList(100L, 101L)))
+            when(reportingRepository.getUsersForStaffBreakdown(2L, Arrays.asList(100L, 101L))) // Engineering department ID
                 .thenReturn(filteredStaff);
             
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
@@ -413,7 +435,7 @@ class ReportServiceTest {
                 .thenReturn(BigDecimal.ZERO);
             
             ReportFilterDto filters = ReportFilterDto.builder()
-                .department("Engineering")
+                .departmentId(2L) // Engineering department ID
                 .projectIds(Arrays.asList(100L, 101L))
                 .build();
             
@@ -435,11 +457,11 @@ class ReportServiceTest {
             when(userRepository.findById(1L)).thenReturn(Optional.of(hrUser));
             
             List<Object[]> allStaff = Arrays.asList(
-                new Object[]{9L, "Ian Thompson", "Software"},
-                new Object[]{10L, "Julia Adams", "Software"}
+                new Object[]{9L, "Ian Thompson", 4L}, // Software department ID
+                new Object[]{10L, "Julia Adams", 4L} // Software department ID
             );
             
-            when(reportingRepository.getUsersForStaffBreakdown("", null))
+            when(reportingRepository.getUsersForStaffBreakdown(null, null))
                 .thenReturn(allStaff);
             
             when(reportingRepository.getTaskCountsByStatusForUser(any(), any(), any(), any()))
@@ -449,7 +471,7 @@ class ReportServiceTest {
                 .thenReturn(null); // Simulate null from DB
             
             ReportFilterDto filters = ReportFilterDto.builder()
-                .department("")
+                .departmentId(null) // No department filter
                 .projectIds(null)
                 .build();
             
@@ -476,10 +498,10 @@ class ReportServiceTest {
             when(userRepository.findById(1L)).thenReturn(Optional.of(hrUser));
             
             List<Object[]> staff = Arrays.<Object[]>asList(
-                new Object[]{11L, "OrangleManagerTestUser", "Software"}
+                new Object[]{11L, "OrangleManagerTestUser", 4L} // Software department ID
             );
             
-            when(reportingRepository.getUsersForStaffBreakdown("", null))
+            when(reportingRepository.getUsersForStaffBreakdown(null, null))
                 .thenReturn(staff);
             
             List<Object[]> taskCounts = Arrays.asList(
@@ -496,7 +518,7 @@ class ReportServiceTest {
                 .thenReturn(new BigDecimal("41.02"));
             
             ReportFilterDto filters = ReportFilterDto.builder()
-                .department("")
+                .departmentId(null) // No department filter
                 .projectIds(null)
                 .build();
             

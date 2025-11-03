@@ -42,7 +42,7 @@ class JsonReportExporterTest {
         reportData.put("generatedAt", OffsetDateTime.now());
 
         filters = ReportFilterDto.builder()
-                .department("Engineering")
+                .departmentId(100L)
                 .startDate(LocalDate.of(2025, 1, 1))
                 .endDate(LocalDate.of(2025, 12, 31))
                 .build();

@@ -2,6 +2,9 @@ package com.spmorangle.crm.taskmanagement.service.impl;
 
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentalVisibilityService;
 import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
 import com.spmorangle.crm.projectmanagement.dto.ProjectResponseDto;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
@@ -93,6 +96,12 @@ class TaskServiceImplTest {
     @Mock
     private ReportService reportService;
 
+    @Mock
+    private DepartmentQueryService departmentQueryService;
+
+    @Mock
+    private DepartmentalVisibilityService departmentalVisibilityService;
+
     @InjectMocks
     private TaskServiceImpl taskService;
 
@@ -149,6 +158,30 @@ class TaskServiceImplTest {
             }
             return users;
         });
+
+        // Mock findById to support department visibility filtering
+        lenient().when(userRepository.findById(anyLong())).thenAnswer(invocation -> {
+            Long id = invocation.getArgument(0);
+            return Optional.of(createUser(id));
+        });
+
+        // Mock DepartmentQueryService to return department names
+        lenient().when(departmentQueryService.getById(anyLong())).thenAnswer(invocation -> {
+            Long deptId = invocation.getArgument(0);
+            return Optional.of(DepartmentDto.builder()
+                .id(deptId)
+                .name("Dept " + deptId)
+                .build());
+        });
+
+        // Mock DepartmentalVisibilityService
+        lenient().when(departmentalVisibilityService.visibleDepartmentsForAssignedDept(anyLong())).thenAnswer(invocation -> {
+            Long deptId = invocation.getArgument(0);
+            // Return the department itself and potentially child departments
+            return deptId != null ? Set.of(deptId) : Set.of();
+        });
+
+        lenient().when(departmentalVisibilityService.canUserSeeTask(any(), anyLong())).thenReturn(true);
     }
 
     private Task createTestTask(Long id, Long projectId, Long ownerId, String title,
@@ -173,7 +206,7 @@ class TaskServiceImplTest {
         User user = new User();
         user.setId(id);
         user.setUserName("Owner " + id);
-        user.setDepartment("Dept " + (id % 3));
+        user.setDepartmentId((id % 3) * 100L); // Department IDs: 0, 100, 200
         user.setRoleType("STAFF");
         user.setCognitoSub(UUID.randomUUID());
         return user;

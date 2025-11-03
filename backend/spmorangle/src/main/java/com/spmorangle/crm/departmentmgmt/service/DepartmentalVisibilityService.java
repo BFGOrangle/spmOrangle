@@ -8,4 +8,6 @@ public interface DepartmentalVisibilityService {
 
     boolean canUserSeeTask(Long userId);
 
+    boolean canUserSeeTask(Set<Long> viewingUserVisibleDeptIds, Long taskAssigneeId);
+
 }

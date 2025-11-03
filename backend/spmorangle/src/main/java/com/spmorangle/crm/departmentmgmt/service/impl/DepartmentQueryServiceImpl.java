@@ -50,16 +50,20 @@ public class DepartmentQueryServiceImpl implements DepartmentQueryService {
      * Returns the parent of the given department. If includeSelf, returns self when no parent exists.
      */
     @Transactional(readOnly = true)
-    public DepartmentDto getParentDepartment(Long id, boolean includeSelf) {
+    public Optional<DepartmentDto> getParentDepartment(Long id, boolean includeSelf) {
         Department child = departmentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Department not found with id: " + id));
         Long parentId = child.getParentId();
         if (parentId == null) {
-            if (includeSelf) return DepartmentConverter.convert(child);
-            throw new IllegalArgumentException("Department " + id + " has no parent.");
+            if (includeSelf) return Optional.of(DepartmentConverter.convert(child));
+            return Optional.empty();
         }
-        Department parent = departmentRepository.findById(parentId)
-                .orElseThrow(() -> new IllegalArgumentException("Parent Department not found with id: " + parentId));
-        return DepartmentConverter.convert(parent);
+
+        return departmentRepository.findById(parentId)
+                .map(DepartmentConverter::convert);
+
+//        Department parent = departmentRepository.findById(parentId)
+//                .orElseThrow(() -> new IllegalArgumentException("Parent Department not found with id: " + parentId));
+//        return DepartmentConverter.convert(parent);
     }
 }

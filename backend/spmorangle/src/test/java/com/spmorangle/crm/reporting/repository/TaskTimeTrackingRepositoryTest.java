@@ -57,7 +57,7 @@ class TaskTimeTrackingRepositoryTest {
         engineeringUser = new User();
         engineeringUser.setUserName("engineer");
         engineeringUser.setEmail("engineer@example.com");
-        engineeringUser.setDepartment("Engineering");
+        engineeringUser.setDepartmentId(100L); // Engineering department
         engineeringUser.setRoleType(UserType.STAFF.getCode());
         engineeringUser.setCognitoSub(UUID.randomUUID());
         engineeringUser.setIsActive(true);
@@ -67,7 +67,7 @@ class TaskTimeTrackingRepositoryTest {
         marketingUser = new User();
         marketingUser.setUserName("marketer");
         marketingUser.setEmail("marketer@example.com");
-        marketingUser.setDepartment("Marketing");
+        marketingUser.setDepartmentId(200L); // Marketing department
         marketingUser.setRoleType(UserType.STAFF.getCode());
         marketingUser.setCognitoSub(UUID.randomUUID());
         marketingUser.setIsActive(true);
@@ -136,7 +136,7 @@ class TaskTimeTrackingRepositoryTest {
 
             // Act
             List<Object[]> results = taskTimeTrackingRepository.getHoursByDepartment(
-                "", // all departments
+                null, // all departments
                 null,
                 LocalDate.now().minusDays(1),
                 LocalDate.now().plusDays(1)
@@ -145,7 +145,7 @@ class TaskTimeTrackingRepositoryTest {
             // Assert
             assertThat(results).isNotEmpty();
             Object[] engineeringResult = results.stream()
-                .filter(row -> "Engineering".equals(row[0]))
+                .filter(row -> Long.valueOf(100L).equals(row[0]))
                 .findFirst()
                 .orElse(null);
 
@@ -189,7 +189,7 @@ class TaskTimeTrackingRepositoryTest {
 
             // Act
             List<Object[]> results = taskTimeTrackingRepository.getHoursByDepartment(
-                "",
+                null,
                 null,
                 LocalDate.now().minusDays(1),
                 LocalDate.now().plusDays(1)
@@ -197,8 +197,8 @@ class TaskTimeTrackingRepositoryTest {
 
             // Assert
             assertThat(results).hasSize(2);
-            assertThat(results).anyMatch(row -> "Engineering".equals(row[0]));
-            assertThat(results).anyMatch(row -> "Marketing".equals(row[0]));
+            assertThat(results).anyMatch(row -> Long.valueOf(100L).equals(row[0]));
+            assertThat(results).anyMatch(row -> Long.valueOf(200L).equals(row[0]));
         }
 
         @Test
@@ -234,7 +234,7 @@ class TaskTimeTrackingRepositoryTest {
 
             // Act - Filter by Engineering only
             List<Object[]> results = taskTimeTrackingRepository.getHoursByDepartment(
-                "Engineering",
+                100L,
                 null,
                 LocalDate.now().minusDays(1),
                 LocalDate.now().plusDays(1)
@@ -242,7 +242,7 @@ class TaskTimeTrackingRepositoryTest {
 
             // Assert - Should only return Engineering
             assertThat(results).hasSize(1);
-            assertThat(results.get(0)[0]).isEqualTo("Engineering");
+            assertThat(results.get(0)[0]).isEqualTo(100L);
         }
     }
 
@@ -284,7 +284,7 @@ class TaskTimeTrackingRepositoryTest {
 
             // Act
             List<Object[]> results = taskTimeTrackingRepository.getHoursByProject(
-                "",
+                null,
                 null,
                 LocalDate.now().minusDays(1),
                 LocalDate.now().plusDays(1)
@@ -348,7 +348,7 @@ class TaskTimeTrackingRepositoryTest {
 
             // Act - Filter by project 1 only
             List<Object[]> results = taskTimeTrackingRepository.getHoursByProject(
-                "",
+                null,
                 Collections.singletonList(testProject.getId()),
                 LocalDate.now().minusDays(1),
                 LocalDate.now().plusDays(1)
@@ -403,7 +403,7 @@ class TaskTimeTrackingRepositoryTest {
 
             // Act
             List<Object[]> results = taskTimeTrackingRepository.getProjectDetails(
-                "",
+                null,
                 null,
                 LocalDate.now().minusDays(1),
                 LocalDate.now().plusDays(1)
@@ -412,15 +412,15 @@ class TaskTimeTrackingRepositoryTest {
             // Assert
             assertThat(results).isNotEmpty();
             Object[] projectDetail = results.get(0);
-            
+
             String projectName = (String) projectDetail[0];
-            String department = (String) projectDetail[1];
+            Long departmentId = (Long) projectDetail[1];
             BigDecimal totalHours = (BigDecimal) projectDetail[2];
             Long completedCount = (Long) projectDetail[3];
             Long inProgressCount = (Long) projectDetail[4];
 
             assertThat(projectName).isEqualTo("Test Project");
-            assertThat(department).isEqualTo("Engineering");
+            assertThat(departmentId).isEqualTo(100L);
             assertThat(totalHours).isGreaterThan(new BigDecimal("2.95")); // ~3 hours (2 + 1)
             assertThat(totalHours).isLessThan(new BigDecimal("3.05"));
             assertThat(completedCount).isEqualTo(1L);
@@ -466,7 +466,7 @@ class TaskTimeTrackingRepositoryTest {
 
             // Act
             List<Object[]> results = taskTimeTrackingRepository.getProjectDetails(
-                "",
+                null,
                 null,
                 LocalDate.now().minusDays(1),
                 LocalDate.now().plusDays(1)
@@ -517,7 +517,7 @@ class TaskTimeTrackingRepositoryTest {
 
             // Act
             List<Object[]> results = taskTimeTrackingRepository.getProjectDetails(
-                "",
+                null,
                 null,
                 LocalDate.now().minusDays(1),
                 LocalDate.now().plusDays(1)
@@ -525,10 +525,10 @@ class TaskTimeTrackingRepositoryTest {
 
             // Assert - Should have 2 rows (same project, different departments)
             assertThat(results).hasSize(2);
-            assertThat(results).anyMatch(row -> 
-                "Test Project".equals(row[0]) && "Engineering".equals(row[1]));
-            assertThat(results).anyMatch(row -> 
-                "Test Project".equals(row[0]) && "Marketing".equals(row[1]));
+            assertThat(results).anyMatch(row ->
+                "Test Project".equals(row[0]) && Long.valueOf(100L).equals(row[1]));
+            assertThat(results).anyMatch(row ->
+                "Test Project".equals(row[0]) && Long.valueOf(200L).equals(row[1]));
         }
     }
 
@@ -550,7 +550,7 @@ class TaskTimeTrackingRepositoryTest {
 
             // Act
             List<Object[]> results = taskTimeTrackingRepository.getHoursByDepartment(
-                "",
+                null,
                 null,
                 LocalDate.now().minusDays(1),
                 LocalDate.now().plusDays(1)
@@ -567,7 +567,7 @@ class TaskTimeTrackingRepositoryTest {
         void testGetHoursByProject_EmptyResultWhenNoMatch() {
             // Act - Query with date range that has no data
             List<Object[]> results = taskTimeTrackingRepository.getHoursByProject(
-                "",
+                null,
                 null,
                 LocalDate.now().minusDays(30),
                 LocalDate.now().minusDays(20)

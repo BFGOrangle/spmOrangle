@@ -42,12 +42,12 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
            "JOIN ProjectMember pm ON p.id = pm.projectId " +
            "JOIN User u ON pm.userId = u.id " +
            "WHERE p.deleteInd = false " +
-           "AND UPPER(u.department) = UPPER(:department) " +
+           "AND u.departmentId = :departmentId " +
            "AND p.id NOT IN (" +
            "  SELECT p2.id FROM Project p2 " +
            "  LEFT JOIN ProjectMember pm2 ON p2.id = pm2.projectId " +
            "  WHERE p2.deleteInd = false AND (p2.ownerId = :managerId OR pm2.userId = :managerId)" +
            ")")
     List<Project> findProjectsWithDepartmentStaff(@Param("managerId") Long managerId,
-                                                   @Param("department") String department);
+                                                   @Param("departmentId") Long departmentId);
 }

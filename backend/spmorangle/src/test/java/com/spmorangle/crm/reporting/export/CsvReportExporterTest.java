@@ -236,7 +236,7 @@ class CsvReportExporterTest {
 
     private ReportFilterDto createSampleFilters() {
         return ReportFilterDto.builder()
-                .department("Engineering")
+                .departmentId(100L)
                 .startDate(LocalDate.of(2024, 1, 1))
                 .endDate(LocalDate.of(2024, 12, 31))
                 .timeRange(ReportFilterDto.TimeRange.YEARLY)

@@ -79,9 +79,14 @@ supabase:
 
 logging:
   level:
-    org.springframework.amqp: DEBUG
-    com.spmorangle.crm.notification: DEBUG
-    com.spmorangle.crm.taskmanagement.service: DEBUG
+    # org.springframework.amqp: DEBUG
+    # com.spmorangle.crm.notification: DEBUG
+    # com.spmorangle.crm.taskmanagement.service: DEBUG
+    # org.springframework.transaction: TRACE
+    # org.springframework.orm.jpa: DEBUG
+    # org.hibernate.SQL: DEBUG
+#    com.spmorangle.crm.reporting.service.impl.ReportServiceImpl: DEBUG
+
 
 overdue:
   check:

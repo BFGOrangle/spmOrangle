@@ -349,9 +349,11 @@ class SubtaskServiceImplTest {
             when(subtaskRepository.findByIdAndNotDeleted(999L)).thenReturn(null);
 
             // When & Then
+            // Since canUserUpdateSubtask returns false when subtask is not found,
+            // the permission check fails first with the permission error message
             assertThatThrownBy(() -> subtaskService.updateSubtask(999L, updateDto, 301L))
                     .isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Subtask not found with ID: 999");
+                    .hasMessageContaining("Only project owner or collaborators can update the subtask");
         }
     }
 
@@ -407,14 +409,16 @@ class SubtaskServiceImplTest {
             // Given
             Long nonExistentSubtaskId = 999L;
             Long userId = 301L;
-            
+
             when(subtaskRepository.findByIdAndNotDeleted(nonExistentSubtaskId)).thenReturn(null);
 
             // When & Then
+            // Since canUserDeleteSubtask returns false when subtask is not found,
+            // the permission check fails first with the permission error message
             assertThatThrownBy(() -> subtaskService.deleteSubtask(nonExistentSubtaskId, userId))
                     .isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Subtask not found with ID: 999");
-            
+                    .hasMessageContaining("Only project owner can delete the subtask");
+
             verify(subtaskRepository, never()).save(any(Subtask.class));
         }
 
@@ -597,33 +601,35 @@ class SubtaskServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should throw exception when subtask not found for update permission check")
-        void canUserUpdateSubtask_SubtaskNotFound_ThrowsException() {
+        @DisplayName("Should return false when subtask not found for update permission check")
+        void canUserUpdateSubtask_SubtaskNotFound_ReturnsFalse() {
             // Given
             Long nonExistentSubtaskId = 999L;
             Long userId = 301L;
-            
+
             when(subtaskRepository.findByIdAndNotDeleted(nonExistentSubtaskId)).thenReturn(null);
 
-            // When & Then
-            assertThatThrownBy(() -> subtaskService.canUserUpdateSubtask(nonExistentSubtaskId, userId))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Subtask not found with ID: 999");
+            // When
+            boolean result = subtaskService.canUserUpdateSubtask(nonExistentSubtaskId, userId);
+
+            // Then
+            assertThat(result).isFalse();
         }
 
         @Test
-        @DisplayName("Should throw exception when subtask not found for delete permission check")
-        void canUserDeleteSubtask_SubtaskNotFound_ThrowsException() {
+        @DisplayName("Should return false when subtask not found for delete permission check")
+        void canUserDeleteSubtask_SubtaskNotFound_ReturnsFalse() {
             // Given
             Long nonExistentSubtaskId = 999L;
             Long userId = 301L;
-            
+
             when(subtaskRepository.findByIdAndNotDeleted(nonExistentSubtaskId)).thenReturn(null);
 
-            // When & Then
-            assertThatThrownBy(() -> subtaskService.canUserDeleteSubtask(nonExistentSubtaskId, userId))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Subtask not found with ID: 999");
+            // When
+            boolean result = subtaskService.canUserDeleteSubtask(nonExistentSubtaskId, userId);
+
+            // Then
+            assertThat(result).isFalse();
         }
     }
 

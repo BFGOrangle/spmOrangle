@@ -3,9 +3,13 @@ package com.spmorangle.crm.projectmanagement.service.impl;
 import com.spmorangle.common.converter.UserConverter;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentalVisibilityService;
 import com.spmorangle.crm.projectmanagement.dto.CreateProjectDto;
 import com.spmorangle.crm.projectmanagement.dto.ProjectResponseDto;
 import com.spmorangle.crm.projectmanagement.model.Project;
+import com.spmorangle.crm.projectmanagement.repository.ProjectMemberRepository;
 import com.spmorangle.crm.projectmanagement.repository.ProjectRepository;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
@@ -30,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,6 +51,15 @@ class ProjectServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private DepartmentQueryService departmentQueryService;
+
+    @Mock
+    private DepartmentalVisibilityService departmentalVisibilityService;
+
+    @Mock
+    private ProjectMemberRepository projectMemberRepository;
 
     @InjectMocks
     private ProjectServiceImpl projectService;
@@ -117,6 +131,51 @@ class ProjectServiceImplTest {
                 .username("user3")
                 .email("user3@example.com")
                 .build();
+
+        // Mock DepartmentQueryService to return department names (lenient for tests that don't use it)
+        lenient().when(departmentQueryService.getById(any())).thenAnswer(invocation -> {
+            Long deptId = invocation.getArgument(0);
+            String deptName = switch (deptId.intValue()) {
+                case 100 -> "Engineering";
+                case 200 -> "HR";
+                case 300 -> "Marketing";
+                default -> "Dept " + deptId;
+            };
+            return Optional.of(DepartmentDto.builder()
+                .id(deptId)
+                .name(deptName)
+                .build());
+        });
+
+        // Mock DepartmentalVisibilityService
+        lenient().when(departmentalVisibilityService.visibleDepartmentsForAssignedDept(any())).thenAnswer(invocation -> {
+            Long deptId = invocation.getArgument(0);
+            if (deptId == null) {
+                // Users with no department can see all departments (0L as wildcard)
+                return java.util.Set.of(0L, 100L, 200L, 300L);
+            }
+            return java.util.Set.of(deptId);
+        });
+
+        // Mock canUserSeeTask to return true by default (lenient for tests that don't use it)
+        lenient().when(departmentalVisibilityService.canUserSeeTask(any(), any())).thenReturn(true);
+
+        // Mock ProjectMemberRepository to return empty list by default (lenient for tests that don't use it)
+        lenient().when(projectMemberRepository.findByProjectId(any())).thenReturn(Collections.emptyList());
+
+        // Mock userRepository.findById to return a user for any ID (lenient for tests that don't use it)
+        // This is needed for getUserProjects which checks project owner/member departments
+        lenient().when(userRepository.findById(any())).thenAnswer(invocation -> {
+            Long userId = invocation.getArgument(0);
+            User user = new User();
+            user.setId(userId);
+            user.setUserName("user" + userId);
+            user.setEmail("user" + userId + "@example.com");
+            user.setRoleType("STAFF");
+            user.setDepartmentId(100L); // Default to department 100L
+            user.setIsActive(true);
+            return Optional.of(user);
+        });
     }
 
     @Nested
@@ -454,7 +513,7 @@ class ProjectServiceImplTest {
             testUserForGetProjects.setUserName("testuser");
             testUserForGetProjects.setEmail("test@example.com");
             testUserForGetProjects.setRoleType("STAFF");
-            testUserForGetProjects.setDepartment("Engineering");
+            testUserForGetProjects.setDepartmentId(100L); // Engineering department
 
             when(userRepository.findUsersInProject(eq(projectId))).thenReturn(Collections.singletonList(testUser1));
             when(userRepository.findById(eq(userId))).thenReturn(Optional.of(testUserForGetProjects));
@@ -564,7 +623,7 @@ class ProjectServiceImplTest {
             staffUser.setUserName("staff_user");
             staffUser.setEmail("staff@example.com");
             staffUser.setRoleType("STAFF");
-            staffUser.setDepartment("Engineering");
+            staffUser.setDepartmentId(100L); // Engineering department
             staffUser.setIsActive(true);
 
             // Setup MANAGER user
@@ -573,7 +632,7 @@ class ProjectServiceImplTest {
             managerUser.setUserName("manager_user");
             managerUser.setEmail("manager@example.com");
             managerUser.setRoleType("MANAGER");
-            managerUser.setDepartment("Engineering");
+            managerUser.setDepartmentId(100L); // Engineering department
             managerUser.setIsActive(true);
 
             // Setup HR user
@@ -582,7 +641,7 @@ class ProjectServiceImplTest {
             hrUser.setUserName("hr_user");
             hrUser.setEmail("hr@example.com");
             hrUser.setRoleType("HR");
-            hrUser.setDepartment("HR");
+            hrUser.setDepartmentId(200L); // HR department
             hrUser.setIsActive(true);
 
             // Setup project owned by manager
@@ -700,7 +759,7 @@ class ProjectServiceImplTest {
 
             when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
             when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
-            when(projectRepository.findProjectsWithDepartmentStaff(managerId, "Engineering"))
+            when(projectRepository.findProjectsWithDepartmentStaff(managerId, 100L))
                     .thenReturn(relatedProjects);
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
 
@@ -724,7 +783,7 @@ class ProjectServiceImplTest {
 
             when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
             when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
-            when(projectRepository.findProjectsWithDepartmentStaff(managerId, "Engineering"))
+            when(projectRepository.findProjectsWithDepartmentStaff(managerId, 100L))
                     .thenReturn(relatedProjects);
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
 
@@ -809,7 +868,7 @@ class ProjectServiceImplTest {
 
             when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
             when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
-            when(projectRepository.findProjectsWithDepartmentStaff(managerId, "Engineering"))
+            when(projectRepository.findProjectsWithDepartmentStaff(managerId, 100L))
                     .thenReturn(relatedProjects);
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
 
@@ -845,7 +904,7 @@ class ProjectServiceImplTest {
             // Mock owner user with department
             User ownerUser = new User();
             ownerUser.setId(200L);
-            ownerUser.setDepartment("Engineering");
+            ownerUser.setDepartmentId(100L); // Engineering department
 
             when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
             when(userRepository.findById(200L)).thenReturn(Optional.of(ownerUser));
@@ -869,7 +928,7 @@ class ProjectServiceImplTest {
             noDeptUser.setId(400L);
             noDeptUser.setUserName("no_dept_user");
             noDeptUser.setRoleType("STAFF");
-            noDeptUser.setDepartment(null); // No department
+            noDeptUser.setDepartmentId(null); // No department
             noDeptUser.setIsActive(true);
 
             List<Project> projects = Collections.singletonList(memberProject);

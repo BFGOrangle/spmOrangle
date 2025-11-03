@@ -527,7 +527,7 @@ public class ProjectControllerTest {
             staffUser.setUserName("staff_user");
             staffUser.setEmail("staff@example.com");
             staffUser.setRoleType("STAFF");
-            staffUser.setDepartment("Engineering");
+            staffUser.setDepartmentId(100L); // Engineering department
             staffUser.setCognitoSub(UUID.randomUUID());
 
             // Setup MANAGER user
@@ -536,7 +536,7 @@ public class ProjectControllerTest {
             managerUser.setUserName("manager_user");
             managerUser.setEmail("manager@example.com");
             managerUser.setRoleType("MANAGER");
-            managerUser.setDepartment("Engineering");
+            managerUser.setDepartmentId(100L); // Engineering department
             managerUser.setCognitoSub(UUID.randomUUID());
 
             // Setup HR user
@@ -545,7 +545,7 @@ public class ProjectControllerTest {
             hrUser.setUserName("hr_user");
             hrUser.setEmail("hr@example.com");
             hrUser.setRoleType("HR");
-            hrUser.setDepartment("HR");
+            hrUser.setDepartmentId(200L); // HR department
             hrUser.setCognitoSub(UUID.randomUUID());
         }
 
