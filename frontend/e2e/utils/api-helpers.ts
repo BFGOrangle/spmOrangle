@@ -1,4 +1,4 @@
-import { Page, APIRequestContext, APIResponse } from '@playwright/test';
+import { Page, APIRequestContext, APIResponse, Response } from '@playwright/test';
 import { getConfig } from '../config/environments';
 
 /**
@@ -119,7 +119,7 @@ export async function waitForApiCall(
   page: Page,
   urlPattern: string | RegExp,
   options?: { timeout?: number }
-): Promise<APIResponse> {
+): Promise<Response> {
   const response = await page.waitForResponse(urlPattern, {
     timeout: options?.timeout,
   });

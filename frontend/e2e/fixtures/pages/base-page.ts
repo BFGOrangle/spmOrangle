@@ -318,7 +318,11 @@ export class BasePage {
    * Wait for selector
    */
   async waitForSelector(selector: string, options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }): Promise<void> {
-    await this.page.waitForSelector(selector, options);
+    if (options) {
+      await this.page.waitForSelector(selector, options);
+    } else {
+      await this.page.waitForSelector(selector);
+    }
   }
 
   /**
