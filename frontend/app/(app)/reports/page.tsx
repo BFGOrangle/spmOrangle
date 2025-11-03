@@ -52,7 +52,7 @@ import { Route } from "@/enums/Route";
 
 export default function ReportsPage() {
   const { toast } = useToast();
-  const { isStaff, isLoading: isUserLoading } = useCurrentUser();
+  const { isAdmin, isLoading: isUserLoading } = useCurrentUser();
   const router = useRouter();
 
   // Filter state - matching backend request body fields
@@ -79,9 +79,9 @@ export default function ReportsPage() {
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Redirect STAFF users away from reports page
+  // Redirect non-HR users away from reports page (only HR/Admin can access)
   useEffect(() => {
-    if (!isUserLoading && isStaff) {
+    if (!isUserLoading && !isAdmin) {
       toast({
         title: "Access Denied",
         description: "You do not have permission to access reports.",
@@ -89,7 +89,7 @@ export default function ReportsPage() {
       });
       router.push(Route.Dashboard);
     }
-  }, [isStaff, isUserLoading, router, toast]);
+  }, [isAdmin, isUserLoading, router, toast]);
 
   // Load initial filter options
   useEffect(() => {
@@ -204,8 +204,8 @@ export default function ReportsPage() {
 
   const isCustomTimeRange = timeRange === "CUSTOM";
 
-  // Don't render the page if user is loading or is a STAFF user
-  if (isUserLoading || isStaff) {
+  // Don't render the page if user is loading or is not an HR user
+  if (isUserLoading || !isAdmin) {
     return null;
   }
 
@@ -401,7 +401,7 @@ export default function ReportsPage() {
                 </h2>
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  <Card>
+                  <Card data-testid="task-summary-total">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">
                         Total Tasks
@@ -409,13 +409,13 @@ export default function ReportsPage() {
                       <BarChart3 className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-2xl font-bold" data-testid="task-summary-total-value">
                         {taskSummary.totalTasks}
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  <Card data-testid="task-summary-completed">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">
                         Completed
@@ -423,7 +423,7 @@ export default function ReportsPage() {
                       <CheckCircle2 className="h-4 w-4 text-green-500" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-2xl font-bold" data-testid="task-summary-completed-value">
                         {taskSummary.completedTasks}
                       </div>
                       <p className="text-xs text-muted-foreground">
@@ -432,7 +432,7 @@ export default function ReportsPage() {
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  <Card data-testid="task-summary-in-progress">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">
                         In Progress
@@ -440,13 +440,13 @@ export default function ReportsPage() {
                       <Clock className="h-4 w-4 text-blue-500" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-2xl font-bold" data-testid="task-summary-in-progress-value">
                         {taskSummary.inProgressTasks}
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  <Card data-testid="task-summary-blocked">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">
                         Blocked
@@ -454,7 +454,7 @@ export default function ReportsPage() {
                       <AlertCircle className="h-4 w-4 text-red-500" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-2xl font-bold" data-testid="task-summary-blocked-value">
                         {taskSummary.blockedTasks}
                       </div>
                     </CardContent>

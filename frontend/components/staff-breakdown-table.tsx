@@ -23,7 +23,7 @@ export function StaffBreakdownTable({ data }: StaffBreakdownTableProps) {
 
   return (
     <div className="rounded-md border">
-      <Table>
+      <Table data-testid="staff-breakdown-table">
         <TableHeader>
           <TableRow>
             <TableHead>Staff Name</TableHead>
@@ -37,18 +37,18 @@ export function StaffBreakdownTable({ data }: StaffBreakdownTableProps) {
         </TableHeader>
         <TableBody>
           {data.map((staff) => (
-            <TableRow key={staff.userId}>
-              <TableCell className="font-medium">{staff.userName}</TableCell>
-              <TableCell>{staff.department}</TableCell>
-              <TableCell className="text-right">{staff.todoTasks}</TableCell>
-              <TableCell className="text-right">
+            <TableRow key={staff.userId} data-testid="staff-breakdown-row">
+              <TableCell className="font-medium" data-testid="staff-name">{staff.userName}</TableCell>
+              <TableCell data-testid="staff-department">{staff.department}</TableCell>
+              <TableCell className="text-right" data-testid="staff-todo">{staff.todoTasks}</TableCell>
+              <TableCell className="text-right" data-testid="staff-in-progress">
                 {staff.inProgressTasks}
               </TableCell>
-              <TableCell className="text-right">
+              <TableCell className="text-right" data-testid="staff-completed">
                 {staff.completedTasks}
               </TableCell>
-              <TableCell className="text-right">{staff.blockedTasks}</TableCell>
-              <TableCell className="text-right">
+              <TableCell className="text-right" data-testid="staff-blocked">{staff.blockedTasks}</TableCell>
+              <TableCell className="text-right" data-testid="staff-logged-hours">
                 {staff.loggedHours.toFixed(2)}
               </TableCell>
             </TableRow>
