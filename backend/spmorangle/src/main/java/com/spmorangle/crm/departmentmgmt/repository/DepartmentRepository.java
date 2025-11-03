@@ -1,0 +1,22 @@
+package com.spmorangle.crm.departmentmgmt.repository;
+
+import com.spmorangle.crm.departmentmgmt.model.Department;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface DepartmentRepository extends JpaRepository<Department, Long> {
+
+    Optional<Department> findByNameIgnoreCase(String name);
+
+    List<Department> findByParentId(Long parentId);
+
+    @Query("SELECT d FROM Department d WHERE LOWER(d.name) IN :names")
+    List<Department> findByNamesIgnoreCase(@Param("names") Collection<String> names);
+}

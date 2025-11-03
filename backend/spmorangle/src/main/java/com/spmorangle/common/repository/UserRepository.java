@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,4 +38,7 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     List<User> findUsersInProject(Long projectId);
 
     List<User> findByDepartmentIgnoreCase(String department);
+
+    @Query("SELECT u FROM User u WHERE u.isActive = true AND LOWER(u.department) IN :departments")
+    List<User> findActiveUsersByDepartmentsIgnoreCase(@Param("departments") Collection<String> departments);
 }

@@ -1,7 +1,12 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
+import com.spmorangle.common.enums.UserType;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.model.Department;
+import com.spmorangle.crm.departmentmgmt.repository.DepartmentRepository;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
 import com.spmorangle.crm.projectmanagement.dto.ProjectResponseDto;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
@@ -31,6 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -93,6 +99,12 @@ class TaskServiceImplTest {
     @Mock
     private ReportService reportService;
 
+    @Mock
+    private DepartmentRepository departmentRepository;
+
+    @Mock
+    private DepartmentQueryService departmentQueryService;
+
     @InjectMocks
     private TaskServiceImpl taskService;
 
@@ -136,6 +148,11 @@ class TaskServiceImplTest {
                             .completedTaskCount(0)
                             .build())
                     .toList();
+        });
+
+        lenient().when(userRepository.findById(anyLong())).thenAnswer(invocation -> {
+            Long id = invocation.getArgument(0);
+            return Optional.of(createUser(id));
         });
 
         lenient().when(userRepository.findAllById(any())).thenAnswer(invocation -> {
@@ -2120,6 +2137,44 @@ class TaskServiceImplTest {
             assertThat(result.get(0).isUserHasEditAccess()).isTrue(); // Owned task
             assertThat(result.get(1).isUserHasEditAccess()).isTrue(); // Collaborator task
             assertThat(result.get(2).isUserHasEditAccess()).isFalse(); // Other task
+        }
+
+        @Test
+        @DisplayName("Manager cannot access project outside department scope")
+        void getProjectTasks_ManagerOutsideScope_ThrowsAccessDenied() {
+            Long userId = 500L;
+            Long projectId = 808L;
+
+            User manager = createUser(userId);
+            manager.setRoleType(UserType.MANAGER.getCode());
+            manager.setDepartment("Marketing");
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(manager));
+
+            Department department = new Department();
+            department.setId(50L);
+            department.setName("Marketing");
+
+            when(departmentRepository.findByNameIgnoreCase("Marketing"))
+                .thenReturn(Optional.of(department));
+            when(departmentQueryService.getDescendants(50L, true))
+                .thenReturn(List.of(DepartmentDto.builder().id(50L).name("Marketing").parentId(null).build()));
+            when(userRepository.findActiveUsersByDepartmentsIgnoreCase(Set.of("marketing")))
+                .thenReturn(List.of(manager));
+
+            Task externalTask = createTestTask(1L, projectId, 900L, "External", "Desc", Status.TODO, Collections.emptyList());
+            externalTask.setOwnerId(888L);
+
+            when(taskRepository.findByProjectIdAndNotDeleted(projectId))
+                .thenReturn(List.of(externalTask));
+            when(collaboratorService.getTasksForWhichUserIsCollaborator(userId))
+                .thenReturn(Collections.emptyList());
+            when(projectService.getOwnerId(projectId)).thenReturn(777L);
+            when(taskAssigneeRepository.findByTaskIdIn(Set.of(1L))).thenReturn(Collections.emptyList());
+
+            assertThatThrownBy(() -> taskService.getProjectTasks(userId, projectId))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("departmental scope");
         }
     }
 

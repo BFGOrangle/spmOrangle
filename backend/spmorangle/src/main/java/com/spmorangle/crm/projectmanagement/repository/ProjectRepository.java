@@ -1,5 +1,6 @@
 package com.spmorangle.crm.projectmanagement.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -35,19 +36,19 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
      * This is used for managers to see "related" cross-department projects.
      *
      * @param managerId The manager's user ID (to exclude projects they're already a member of)
-     * @param department The department to search for
+     * @param departments The departments to search for (typically the manager's department and sub-departments)
      * @return List of projects with department staff as members (excluding projects where manager is already a member)
      */
     @Query("SELECT DISTINCT p FROM Project p " +
            "JOIN ProjectMember pm ON p.id = pm.projectId " +
            "JOIN User u ON pm.userId = u.id " +
            "WHERE p.deleteInd = false " +
-           "AND UPPER(u.department) = UPPER(:department) " +
+           "AND UPPER(u.department) IN :departments " +
            "AND p.id NOT IN (" +
            "  SELECT p2.id FROM Project p2 " +
            "  LEFT JOIN ProjectMember pm2 ON p2.id = pm2.projectId " +
            "  WHERE p2.deleteInd = false AND (p2.ownerId = :managerId OR pm2.userId = :managerId)" +
            ")")
     List<Project> findProjectsWithDepartmentStaff(@Param("managerId") Long managerId,
-                                                   @Param("department") String department);
+                                                  @Param("departments") Collection<String> departments);
 }

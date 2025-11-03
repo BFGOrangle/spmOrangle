@@ -4,14 +4,20 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.spmorangle.common.converter.UserConverter;
+import com.spmorangle.common.enums.UserType;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.repository.DepartmentRepository;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.projectmanagement.model.ProjectMember;
 import com.spmorangle.crm.projectmanagement.repository.ProjectMemberRepository;
 import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
@@ -38,6 +44,8 @@ public class ProjectServiceImpl implements ProjectService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final DepartmentRepository departmentRepository;
+    private final DepartmentQueryService departmentQueryService;
 
     @Override
     public List<ProjectResponseDto> getUserProjects(Long userId) {
@@ -64,20 +72,54 @@ public class ProjectServiceImpl implements ProjectService {
             result.add(mapToProjectResponseDto(project, userId, false));
         }
 
-        // For MANAGER role: Also fetch related cross-department projects
-        if ("MANAGER".equalsIgnoreCase(userRole) && userDepartment != null && !userDepartment.isEmpty()) {
-            log.info("Manager role detected - fetching related cross-department projects for department: {}", userDepartment);
-            List<Project> relatedProjects = projectRepository.findProjectsWithDepartmentStaff(userId, userDepartment);
-            log.info("Found {} related cross-department projects", relatedProjects.size());
+        // For department-scoped roles, fetch related projects where their department or sub-departments are involved
+        if (isDepartmentScopedRole(userRole) && userDepartment != null && !userDepartment.isEmpty()) {
+            Set<String> departmentScope = resolveDepartmentScopeNames(userDepartment);
+            if (!departmentScope.isEmpty()) {
+                List<String> upperDepartments = departmentScope.stream()
+                        .map(String::toUpperCase)
+                        .toList();
 
-            // Add related projects (isRelated = true)
-            for (Project project : relatedProjects) {
-                result.add(mapToProjectResponseDto(project, userId, true));
+                log.info("Department-scoped role detected - fetching related projects for departments: {}", departmentScope);
+                List<Project> relatedProjects = projectRepository.findProjectsWithDepartmentStaff(userId, upperDepartments);
+                log.info("Found {} related projects within departmental scope", relatedProjects.size());
+
+                for (Project project : relatedProjects) {
+                    result.add(mapToProjectResponseDto(project, userId, true));
+                }
             }
         }
 
         log.info("Returning total of {} projects for user {}", result.size(), userId);
         return result;
+    }
+
+    private boolean isDepartmentScopedRole(String role) {
+        if (role == null) {
+            return false;
+        }
+
+        return UserType.MANAGER.getCode().equalsIgnoreCase(role)
+                || UserType.DIRECTOR.getCode().equalsIgnoreCase(role);
+    }
+
+    private Set<String> resolveDepartmentScopeNames(String departmentName) {
+        if (departmentName == null || departmentName.isEmpty()) {
+            return Set.of();
+        }
+
+        return departmentRepository.findByNameIgnoreCase(departmentName)
+                .map(root -> departmentQueryService.getDescendants(root.getId(), true).stream()
+                        .map(DepartmentDto::getName)
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(name -> !name.isEmpty())
+                        .collect(Collectors.toCollection(LinkedHashSet::new)))
+                .orElseGet(() -> {
+                    LinkedHashSet<String> fallback = new LinkedHashSet<>();
+                    fallback.add(departmentName);
+                    return fallback;
+                });
     }
 
     @Override
