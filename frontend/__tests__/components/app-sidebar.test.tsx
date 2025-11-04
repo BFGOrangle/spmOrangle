@@ -168,6 +168,7 @@ jest.mock("@/contexts/user-context", () => ({
     isLoading: false,
     isAdmin: true,
     isStaff: false,
+    isManager: false,
     signOut: jest.fn(),
   })),
 }));
@@ -192,6 +193,7 @@ const renderWithSidebarProvider = (component: React.ReactElement, options: any =
     isLoading: options.isLoading || false,
     isAdmin: options.isAdmin || false,
     isStaff: options.isStaff !== undefined ? options.isStaff : true,
+    isManager: options.isManager || false,
     signOut: jest.fn(),
   };
   
