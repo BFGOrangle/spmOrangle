@@ -168,26 +168,32 @@ const mockProjectsData = [
     completedTaskCount: 30,
     createdAt: "2025-01-20",
     updatedAt: "2025-01-24",
+    isOwner: true,
+    isRelated: false,
   },
   {
     id: 2,
-    name: "Test Project 2", 
+    name: "Test Project 2",
     description: "Test description 2",
     ownerId: 2,
     taskCount: 40,
     completedTaskCount: 18,
     createdAt: "2025-02-10",
     updatedAt: "2025-02-15",
+    isOwner: false,
+    isRelated: false,
   },
   {
     id: 3,
     name: "Test Project 3",
-    description: "Test description 3", 
+    description: "Test description 3",
     ownerId: 3,
     taskCount: 25,
     completedTaskCount: 5,
     createdAt: "2025-03-05",
     updatedAt: "2025-03-10",
+    isOwner: false,
+    isRelated: false,
   },
   {
     id: 4,
@@ -198,6 +204,8 @@ const mockProjectsData = [
     completedTaskCount: 50,
     createdAt: "2024-12-10",
     updatedAt: "2024-12-15",
+    isOwner: false,
+    isRelated: false,
   },
 ];
 
@@ -243,17 +251,16 @@ const mockRelatedTasksData: TaskResponse[] = [
 describe("ProjectsPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Reset all mocks before each test
     mockProjectService.getUserProjects.mockClear();
     mockProjectService.getRelatedProjectTasks.mockClear();
     mockProjectService.getProjectsByIds.mockClear();
-    
+
     // Default mock implementation that returns test project data
-    mockProjectService.getUserProjects.mockResolvedValue(mockProjectsData);
-    mockProjectService.getRelatedProjectTasks.mockResolvedValue(mockRelatedTasksData);
-    // Mock fetching metadata for projects 5 and 6 (which user is not a member of)
-    mockProjectService.getProjectsByIds.mockResolvedValue([
+    // Now includes both member projects (isRelated: false) and related projects (isRelated: true)
+    const allProjectsData = [
+      ...mockProjectsData, // Member projects
       {
         id: 5,
         name: "Test Project 5",
@@ -263,6 +270,8 @@ describe("ProjectsPage", () => {
         completedTaskCount: 10,
         createdAt: "2025-01-15T00:00:00.000Z",
         updatedAt: "2025-01-20T00:00:00.000Z",
+        isOwner: false,
+        isRelated: true,
       },
       {
         id: 6,
@@ -273,8 +282,15 @@ describe("ProjectsPage", () => {
         completedTaskCount: 5,
         createdAt: "2025-02-01T00:00:00.000Z",
         updatedAt: "2025-02-10T00:00:00.000Z",
+        isOwner: false,
+        isRelated: true,
       },
-    ]);
+    ];
+
+    mockProjectService.getUserProjects.mockResolvedValue(allProjectsData);
+    // These are no longer called by the new implementation, but keep for backward compatibility
+    mockProjectService.getRelatedProjectTasks.mockResolvedValue(mockRelatedTasksData);
+    mockProjectService.getProjectsByIds.mockResolvedValue([]);
   });
 
   const setup = async (userRole: string = "STAFF") => {

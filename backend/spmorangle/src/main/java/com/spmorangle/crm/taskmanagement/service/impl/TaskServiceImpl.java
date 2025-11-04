@@ -62,9 +62,15 @@ public class TaskServiceImpl implements TaskService {
     @Transactional(rollbackFor = Exception.class)
     public CreateTaskResponseDto createTask(CreateTaskDto createTaskDto, Long taskOwnerId, Long currentUserId) {
         log.info("🔵 Creating task with title: '{}' for user: {}", createTaskDto.getTitle(), currentUserId);
-        log.info("📋 CreateTaskDto details - ProjectId: {}, OwnerId: {}, AssignedUserIds: {}", 
+        log.info("📋 CreateTaskDto details - ProjectId: {}, OwnerId: {}, AssignedUserIds: {}",
                  createTaskDto.getProjectId(), createTaskDto.getOwnerId(), createTaskDto.getAssignedUserIds());
-        
+
+        // Authorization check: User must be a project member to create tasks
+        if (!projectService.isUserProjectMember(currentUserId, createTaskDto.getProjectId())) {
+            throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
+                "Cannot create task in a view-only project. You must be a project member or owner.");
+        }
+
         Task task = new Task();
         
         task.setProjectId(createTaskDto.getProjectId());
@@ -102,11 +108,31 @@ public class TaskServiceImpl implements TaskService {
 
         Task savedTask = taskRepository.save(task);
         log.info("✅ Task created with ID: {}", savedTask.getId());
-        
+
+        // Automatically assign the task owner as an assignee
         List<Long> assignedUserIds = new ArrayList<>();
+        try {
+            log.info("👤 Automatically assigning task owner {} as an assignee", taskOwnerId);
+            AddCollaboratorRequestDto ownerCollaboratorRequest = AddCollaboratorRequestDto.builder()
+                    .taskId(savedTask.getId())
+                    .collaboratorId(taskOwnerId)
+                    .build();
+            collaboratorService.addCollaborator(ownerCollaboratorRequest, currentUserId);
+            assignedUserIds.add(taskOwnerId);
+            log.info("✅ Task owner {} successfully assigned to task {}", taskOwnerId, savedTask.getId());
+        } catch (Exception e) {
+            log.error("❌ Failed to assign task owner {} to task {}: {}", taskOwnerId, savedTask.getId(), e.getMessage(), e);
+        }
+
         if (createTaskDto.getAssignedUserIds() != null && !createTaskDto.getAssignedUserIds().isEmpty()) {
-            log.info("👥 Assigning task to {} users: {}", createTaskDto.getAssignedUserIds().size(), createTaskDto.getAssignedUserIds());
+            log.info("👥 Assigning task to {} additional users: {}", createTaskDto.getAssignedUserIds().size(), createTaskDto.getAssignedUserIds());
             for (Long userId : createTaskDto.getAssignedUserIds()) {
+                // Skip if this is the owner (already assigned above)
+                if (userId.equals(taskOwnerId)) {
+                    log.info("⏭️ Skipping assignment of user {} - already assigned as task owner", userId);
+                    continue;
+                }
+
                 try {
                     log.info("🔄 Attempting to assign task {} to user {}", savedTask.getId(), userId);
                     AddCollaboratorRequestDto collaboratorRequest = AddCollaboratorRequestDto.builder()
@@ -122,7 +148,7 @@ public class TaskServiceImpl implements TaskService {
                 }
             }
         } else {
-            log.info("⚠️ No users to assign - assignedUserIds is null or empty");
+            log.info("⚠️ No additional users to assign - assignedUserIds is null or empty");
         }
         
         // Publish task creation notification
@@ -177,10 +203,20 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting tasks for project: {}", projectId);
         List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
 
-        Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
-        tasks = tasks.stream()
-                .filter(task -> canUserSeeTaskByDepartment(task, visibleDepartmentIds))
-                .collect(Collectors.toList());
+        // Check if this is a "related project" (user is not a member)
+        boolean isRelatedProject = !projectService.isUserProjectMember(userId, projectId);
+
+        // Apply department filtering ONLY for related projects (AC Scenario 2)
+        if (isRelatedProject) {
+            log.info("User {} viewing related project {} - filtering tasks by department visibility", userId, projectId);
+            Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
+            tasks = tasks.stream()
+                    .filter(task -> canUserSeeTaskByDepartment(task, visibleDepartmentIds))
+                    .collect(Collectors.toList());
+            log.info("Filtered to {} tasks with assignees in visible departments", tasks.size());
+        } else {
+            log.info("User {} is a member of project {} - showing all tasks", userId, projectId);
+        }
 
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
         Long projectOwnerId = projectService.getOwnerId(projectId);
@@ -206,10 +242,16 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting tasks for project on calendar view: {}", projectId);
         List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
 
-        Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
-        tasks = tasks.stream()
+        // Check if this is a "related project" (user is not a member)
+        boolean isRelatedProject = !projectService.isUserProjectMember(userId, projectId);
+
+        // Apply department filtering ONLY for related projects
+        if (isRelatedProject) {
+            Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
+            tasks = tasks.stream()
                 .filter(task -> canUserSeeTaskByDepartment(task, visibleDepartmentIds))
                 .collect(Collectors.toList());
+        }
 
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
         Long projectOwnerId = projectService.getOwnerId(projectId);
@@ -529,6 +571,12 @@ public class TaskServiceImpl implements TaskService {
 
         Task task = taskRepository.findById(updateTaskDto.getTaskId())
                 .orElseThrow(() -> new RuntimeException("Task not found"));
+
+        // Authorization check: User must be a project member to update tasks
+        if (!projectService.isUserProjectMember(currentUserId, task.getProjectId())) {
+            throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
+                "Cannot update task in a view-only project. You must be a project member or owner.");
+        }
 
         // Only owner or collaborators can update the task
         if (!canUserUpdateTask(updateTaskDto.getTaskId(), currentUserId)) {
@@ -1504,10 +1552,16 @@ public class TaskServiceImpl implements TaskService {
                 return Collections.emptySet();
             }
 
+            log.info("Getting visible departments for user {} (username: {}) in department {}",
+                     userId, user.getUserName(), userDepartmentId);
+
             // Check if what other departments are visible to our user
-            return departmentQueryService.getById(userDepartmentId)
+            Set<Long> visibleDeptIds = departmentQueryService.getById(userDepartmentId)
                 .map(deptDto -> departmentalVisibilityService.visibleDepartmentsForAssignedDept(deptDto.getId()))
                 .orElse(Collections.emptySet());
+
+            log.info("User {} can see {} departments: {}", userId, visibleDeptIds.size(), visibleDeptIds);
+            return visibleDeptIds;
         } catch (Exception e) {
             log.error("Error getting visible department IDs for user {}: {}", userId, e.getMessage(), e);
             // Return empty set on error to prevent transaction rollback
@@ -1518,6 +1572,7 @@ public class TaskServiceImpl implements TaskService {
     private Boolean canUserSeeTaskByDepartment(Task task, Set<Long> userVisibleDepartmentIds) {
         try {
             if (userVisibleDepartmentIds.isEmpty()) {
+                log.debug("User has no visible departments - cannot see task {}", task.getId());
                 return false;
             }
 
@@ -1525,17 +1580,32 @@ public class TaskServiceImpl implements TaskService {
             List<Long> assigneeIds = new ArrayList<>(taskAssigneeRepository.findAssigneeIdsByTaskId(task.getId()));
             assigneeIds.add(task.getOwnerId());
 
+            log.debug("Checking visibility for task {} (title: '{}', owner: {}, assignees: {})",
+                     task.getId(), task.getTitle(), task.getOwnerId(), assigneeIds);
+
             for(Long assigneeId : assigneeIds) {
                 User assignee = userRepository.findById(assigneeId).orElse(null);
                 if(assignee == null || assignee.getDepartmentId() == null) {
+                    log.debug("Assignee {} not found or has no department", assigneeId);
                     continue;
                 }
 
+                log.debug("Checking if assignee {} in department {} is visible",
+                         assigneeId, assignee.getDepartmentId());
+
                 if(departmentalVisibilityService.canUserSeeTask(userVisibleDepartmentIds, assigneeId)) {
+                    log.info("User CAN see task {} - assignee {} is in visible department {}",
+                            task.getId(), assigneeId, assignee.getDepartmentId());
                     return true;
                 }
             }
 
+            log.info("User CANNOT see task {} - no assignees in visible departments. User visible depts: {}, Task assignee depts: {}",
+                    task.getId(), userVisibleDepartmentIds,
+                    assigneeIds.stream()
+                        .map(id -> userRepository.findById(id).map(User::getDepartmentId).orElse(null))
+                        .filter(deptId -> deptId != null)
+                        .toList());
             return false;
         } catch (Exception e) {
             log.error("Error checking department visibility for task {}: {}", task.getId(), e.getMessage(), e);
