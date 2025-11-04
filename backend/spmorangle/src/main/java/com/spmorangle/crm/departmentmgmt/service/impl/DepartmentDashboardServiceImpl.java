@@ -51,6 +51,7 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
     );
 
     private static final int UPCOMING_WINDOW_DAYS = 14;
+    private static final int CRITICAL_PRIORITY_THRESHOLD = 10;
 
     private final DepartmentRepository departmentRepository;
     private final DepartmentQueryService departmentQueryService;
@@ -220,13 +221,20 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
                                              int activeProjectCount,
                                              int priorityQueueCount) {
         int totalTasks = tasks.size();
-        int completedTasks = (int) tasks.stream().filter(task -> task.getStatus() == Status.COMPLETED).count();
-        int blockedTasks = (int) tasks.stream().filter(task -> task.getStatus() == Status.BLOCKED).count();
+        int completedTasks = (int) tasks.stream()
+                .filter(task -> task.getStatus() == Status.COMPLETED)
+                .count();
+        int inProgressTasks = (int) tasks.stream()
+                .filter(task -> task.getStatus() == Status.IN_PROGRESS)
+                .count();
+        int blockedTasks = (int) tasks.stream()
+                .filter(task -> task.getStatus() == Status.BLOCKED)
+                .count();
         int highPriorityTasks = priorityQueueCount;
 
         double completionRate = totalTasks == 0
                 ? 0
-                : ((double) completedTasks / totalTasks) * 100.0;
+                : ((double) (completedTasks + inProgressTasks) / totalTasks) * 100.0;
 
         return DashboardMetricsDto.builder()
                 .activeProjects(activeProjectCount)
@@ -298,8 +306,8 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
         return taskItems.stream()
                 .filter(item -> !"COMPLETED".equals(item.getStatus()))
                 .filter(item -> "BLOCKED".equals(item.getStatus())
-                        || (item.getPriority() != null && item.getPriority() >= 8)
-                        || "BUG".equals(item.getTaskType()))
+                        || "BUG".equals(item.getTaskType())
+                        || (item.getPriority() != null && item.getPriority() >= CRITICAL_PRIORITY_THRESHOLD))
                 .sorted(Comparator
                         .comparing((TaskDashboardItemDto item) -> item.getPriority() == null ? 0 : item.getPriority()).reversed()
                         .thenComparing(TaskDashboardItemDto::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
