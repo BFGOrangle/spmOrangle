@@ -77,8 +77,8 @@ supabase:
     region: ap-southeast-1
     bucket: syncup_bucket
 
-logging:
-  level:
+#logging:
+#  level:
     # org.springframework.amqp: DEBUG
     # com.spmorangle.crm.notification: DEBUG
     # com.spmorangle.crm.taskmanagement.service: DEBUG
