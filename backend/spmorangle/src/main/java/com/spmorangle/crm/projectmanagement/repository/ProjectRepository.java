@@ -30,24 +30,24 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     List<Project> findByIdIn(@Param("projectIds") Set<Long> projectIds);
 
     /**
-     * Find projects where staff from a specific department are members,
+     * Find projects where staff from specific departments (manager's visible departments) are members,
      * but the given user (manager) is NOT a member.
      * This is used for managers to see "related" cross-department projects.
      *
      * @param managerId The manager's user ID (to exclude projects they're already a member of)
-     * @param department The department to search for
+     * @param departmentIds The list of visible department IDs to search for
      * @return List of projects with department staff as members (excluding projects where manager is already a member)
      */
     @Query("SELECT DISTINCT p FROM Project p " +
            "JOIN ProjectMember pm ON p.id = pm.projectId " +
            "JOIN User u ON pm.userId = u.id " +
            "WHERE p.deleteInd = false " +
-           "AND UPPER(u.department) = UPPER(:department) " +
+           "AND u.departmentId IN :departmentIds " +
            "AND p.id NOT IN (" +
            "  SELECT p2.id FROM Project p2 " +
            "  LEFT JOIN ProjectMember pm2 ON p2.id = pm2.projectId " +
            "  WHERE p2.deleteInd = false AND (p2.ownerId = :managerId OR pm2.userId = :managerId)" +
            ")")
     List<Project> findProjectsWithDepartmentStaff(@Param("managerId") Long managerId,
-                                                   @Param("department") String department);
+                                                   @Param("departmentIds") Set<Long> departmentIds);
 }

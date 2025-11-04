@@ -3,6 +3,8 @@ package com.spmorangle.crm.reporting.service.impl;
 import com.spmorangle.common.enums.UserType;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.reporting.dto.Period;
 import com.spmorangle.crm.reporting.dto.ReportFilterDto;
 import com.spmorangle.crm.reporting.dto.StaffBreakdownDto;
@@ -38,43 +40,41 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ReportServiceImpl implements ReportService {
-    
+
     private final ReportingRepository reportingRepository;
     private final TaskTimeTrackingRepository taskTimeTrackingRepository;
     private final UserRepository userRepository;
     private final TaskAssigneeRepository taskAssigneeRepository;
     private final TaskRepository taskRepository;
+    private final DepartmentQueryService departmentQueryService;
     
     @Override
     public TaskSummaryReportDto generateTaskSummaryReport(ReportFilterDto filters, Long userId) {
         log.info("Generating task summary report for user: {}", userId);
-        
+
         User currentUser = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         // Apply role-based filtering
-        String departmentFilter = applyDepartmentFilter(filters.getDepartment(), currentUser);
-        
-        // Convert null to empty string for department
-        String dept = departmentFilter != null ? departmentFilter : "";
-        
+        Long departmentFilter = applyDepartmentFilter(filters.getDepartmentId(), currentUser);
+
         // Dates are now required (validated at controller level)
         LocalDate startDate = filters.getStartDate();
         LocalDate endDate = filters.getEndDate();
-        
+
         // Get task counts by status - choose the right method based on filters
         List<Object[]> statusCounts;
         boolean hasProjectFilter = filters.getProjectIds() != null && !filters.getProjectIds().isEmpty();
-        
+
         if (hasProjectFilter) {
             // Use project-specific query when project filtering is requested
             log.info("Filtering by projects: {}", filters.getProjectIds());
             statusCounts = reportingRepository.getTaskCountsByProjectAndStatus(
-                dept, filters.getProjectIds(), startDate, endDate);
+                departmentFilter, filters.getProjectIds(), startDate, endDate);
         } else {
             // Use general query when no project filtering
             statusCounts = reportingRepository.getTaskCountsByStatus(
-                dept, startDate, endDate);
+                departmentFilter, startDate, endDate);
         }
         
         // Initialize counters
@@ -115,34 +115,38 @@ public class ReportServiceImpl implements ReportService {
         // Get department breakdown (always show all departments)
         Map<String, TaskSummaryReportDto.TaskStatusCounts> departmentBreakdown = new HashMap<>();
         List<Object[]> deptCounts = reportingRepository.getTaskCountsByDepartmentAndStatus(startDate, endDate);
-        
+
         for (Object[] row : deptCounts) {
-            String department = (String) row[0];
+            Long departmentId = (Long) row[0];
             Status status = (Status) row[1];
             Long count = (Long) row[2];
-            
+
             // Apply role-based filtering
-            if (canAccessDepartment(department, currentUser)) {
-                departmentBreakdown.putIfAbsent(department, TaskSummaryReportDto.TaskStatusCounts.builder()
-                    .total(0L).completed(0L).inProgress(0L).todo(0L).blocked(0L).build());
-                
-                TaskSummaryReportDto.TaskStatusCounts deptStatusCounts = departmentBreakdown.get(department);
-                deptStatusCounts.setTotal(deptStatusCounts.getTotal() + count);
-                
-                switch (status) {
-                    case COMPLETED -> deptStatusCounts.setCompleted(deptStatusCounts.getCompleted() + count);
-                    case IN_PROGRESS -> deptStatusCounts.setInProgress(deptStatusCounts.getInProgress() + count);
-                    case TODO -> deptStatusCounts.setTodo(deptStatusCounts.getTodo() + count);
-                    case BLOCKED -> deptStatusCounts.setBlocked(deptStatusCounts.getBlocked() + count);
+            if (canAccessDepartment(departmentId, currentUser)) {
+                // Convert department ID to name for response
+                String departmentName = getDepartmentName(departmentId);
+                if (departmentName != null) {
+                    departmentBreakdown.putIfAbsent(departmentName, TaskSummaryReportDto.TaskStatusCounts.builder()
+                        .total(0L).completed(0L).inProgress(0L).todo(0L).blocked(0L).build());
+
+                    TaskSummaryReportDto.TaskStatusCounts deptStatusCounts = departmentBreakdown.get(departmentName);
+                    deptStatusCounts.setTotal(deptStatusCounts.getTotal() + count);
+
+                    switch (status) {
+                        case COMPLETED -> deptStatusCounts.setCompleted(deptStatusCounts.getCompleted() + count);
+                        case IN_PROGRESS -> deptStatusCounts.setInProgress(deptStatusCounts.getInProgress() + count);
+                        case TODO -> deptStatusCounts.setTodo(deptStatusCounts.getTodo() + count);
+                        case BLOCKED -> deptStatusCounts.setBlocked(deptStatusCounts.getBlocked() + count);
+                    }
                 }
             }
         }
-        
+
         // Get project breakdown (always show - all projects or filtered projects)
         List<Object[]> projectCounts;
         if (!hasProjectFilter) {
             // No filter - get all projects
-            projectCounts = reportingRepository.getAllTaskCountsByProjectAndStatus(dept, startDate, endDate);
+            projectCounts = reportingRepository.getAllTaskCountsByProjectAndStatus(departmentFilter, startDate, endDate);
         } else {
             // Use the already fetched data from statusCounts (which has project breakdown)
             projectCounts = statusCounts;
@@ -192,76 +196,80 @@ public class ReportServiceImpl implements ReportService {
     @Override
     public TimeAnalyticsReportDto generateTimeAnalyticsReport(ReportFilterDto filters, Long userId) {
         log.info("Generating time analytics report for user: {}", userId);
-        
+
         User currentUser = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         // Apply role-based filtering
-        String departmentFilter = applyDepartmentFilter(filters.getDepartment(), currentUser);
-        
-        // Convert null to empty string for department
-        String dept = departmentFilter != null ? departmentFilter : "";
-        
+        Long departmentFilter = applyDepartmentFilter(filters.getDepartmentId(), currentUser);
+
         // Dates are now required (validated at controller level)
         LocalDate startDate = filters.getStartDate();
         LocalDate endDate = filters.getEndDate();
-        
+
         // Convert empty list to null for query compatibility
         List<Long> projectIds = filters.getProjectIds();
         if (projectIds != null && projectIds.isEmpty()) {
             projectIds = null;
         }
-        
+
         // Get hours by department (with filters applied)
         List<Object[]> departmentHours = taskTimeTrackingRepository.getHoursByDepartment(
-            dept, projectIds, startDate, endDate);
-        
+            departmentFilter, projectIds, startDate, endDate);
+
         Map<String, BigDecimal> hoursByDepartment = new HashMap<>();
         BigDecimal totalHours = BigDecimal.ZERO;
-        
+
         for (Object[] row : departmentHours) {
-            String department = (String) row[0];
+            Long departmentId = (Long) row[0];
             BigDecimal hours = (BigDecimal) row[1];
-            
+
             // Apply role-based access control (query already filtered by department and project)
-            if (canAccessDepartment(department, currentUser)) {
-                hoursByDepartment.put(department, hours != null ? hours : BigDecimal.ZERO);
-                totalHours = totalHours.add(hours != null ? hours : BigDecimal.ZERO);
+            if (canAccessDepartment(departmentId, currentUser)) {
+                // Convert department ID to name for response
+                String departmentName = getDepartmentName(departmentId);
+                if (departmentName != null) {
+                    hoursByDepartment.put(departmentName, hours != null ? hours : BigDecimal.ZERO);
+                    totalHours = totalHours.add(hours != null ? hours : BigDecimal.ZERO);
+                }
             }
         }
-        
+
         // Get hours by project
         List<Object[]> projectHours = taskTimeTrackingRepository.getHoursByProject(
-            dept, projectIds, startDate, endDate);
-        
+            departmentFilter, projectIds, startDate, endDate);
+
         Map<String, BigDecimal> hoursByProject = new HashMap<>();
         for (Object[] row : projectHours) {
             String projectName = (String) row[0];
             BigDecimal hours = (BigDecimal) row[1];
             hoursByProject.put(projectName, hours != null ? hours : BigDecimal.ZERO);
         }
-        
+
         // Get project details (name, department, hours, completed tasks, in-progress tasks)
         List<Object[]> projectDetailsData = taskTimeTrackingRepository.getProjectDetails(
-            dept, projectIds, startDate, endDate);
-        
+            departmentFilter, projectIds, startDate, endDate);
+
         Map<String, TimeAnalyticsReportDto.ProjectTimeDetails> projectDetails = new HashMap<>();
         for (Object[] row : projectDetailsData) {
             String projectName = (String) row[0];
-            String projectDept = (String) row[1];
+            Long projectDeptId = (Long) row[1];
             BigDecimal projectTotalHours = (BigDecimal) row[2];
             Long completedTasks = (Long) row[3];
             Long inProgressTasks = (Long) row[4];
-            
+
             // Calculate average hours per task
             Long totalProjectTasks = completedTasks + inProgressTasks;
             BigDecimal avgHoursPerTask = totalProjectTasks > 0 && projectTotalHours != null
                 ? projectTotalHours.divide(BigDecimal.valueOf(totalProjectTasks), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
-            
+
+            // Convert department ID to name for response
+            String projectDeptName = getDepartmentName(projectDeptId);
+
             projectDetails.put(projectName, TimeAnalyticsReportDto.ProjectTimeDetails.builder()
                 .projectName(projectName)
-                .department(projectDept)
+                .department(projectDeptName)
                 .totalHours(projectTotalHours != null ? projectTotalHours : BigDecimal.ZERO)
                 .completedTasks(completedTasks)
                 .inProgressTasks(inProgressTasks)
@@ -281,25 +289,36 @@ public class ReportServiceImpl implements ReportService {
     public List<String> getAvailableDepartments(Long userId) {
         User currentUser = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        List<String> allDepartments = reportingRepository.getAllDepartments();
 
-        // Only HR can access reports and see all departments
+        List<Long> allDepartmentIds = reportingRepository.getAllDepartments();
+
+        // HR can see all departments, Managers only their own
         if (UserType.HR.getCode().equals(currentUser.getRoleType())) {
-            return allDepartments;
+            // Convert department IDs to names for response
+            return allDepartmentIds.stream()
+                .map(this::getDepartmentName)
+                .filter(name -> name != null)
+                .toList();
+        } else if (UserType.MANAGER.getCode().equals(currentUser.getRoleType())) {
+            Long userDeptId = currentUser.getDepartmentId();
+            String userDeptName = getUserDepartmentName(currentUser);
+            return allDepartmentIds.stream()
+                .filter(deptId -> deptId.equals(userDeptId))
+                .map(this::getDepartmentName)
+                .filter(name -> name != null)
+                .toList();
         }
 
-        return List.of(); // Non-HR users cannot access reports
+        return List.of(); // Staff cannot access reports
     }
-    
+
     @Override
-    public List<Object[]> getAvailableProjects(String department, Long userId) {
+    public List<Object[]> getAvailableProjects(Long departmentId, Long userId) {
         User currentUser = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        String departmentFilter = applyDepartmentFilter(department, currentUser);
-        String dept = departmentFilter != null ? departmentFilter : "";
-        return reportingRepository.getProjectsByDepartment(dept);
+
+        Long departmentFilter = applyDepartmentFilter(departmentId, currentUser);
+        return reportingRepository.getProjectsByDepartment(departmentFilter);
     }
     
     @Override
@@ -477,22 +496,55 @@ public class ReportServiceImpl implements ReportService {
         }
     }
     
-    private String applyDepartmentFilter(String requestedDepartment, User currentUser) {
+    private Long applyDepartmentFilter(Long requestedDepartmentId, User currentUser) {
         if (UserType.HR.getCode().equals(currentUser.getRoleType())) {
-            // Only HR can access reports and filter by any department or see all
-            return requestedDepartment;
+            // HR can filter by any department or see all
+            return requestedDepartmentId;
+        } else if (UserType.MANAGER.getCode().equals(currentUser.getRoleType())) {
+            // Managers can only see their own department
+            Long userDeptId = currentUser.getDepartmentId();
+            if (requestedDepartmentId != null && !requestedDepartmentId.equals(userDeptId)) {
+                String userDeptName = getUserDepartmentName(currentUser);
+                throw new RuntimeException(
+                    "Access denied: Managers can only view reports for their own department ("
+                    + userDeptName + ")");
+            }
+            // If null or matches their department, return their department
+            return userDeptId;
         }
 
-        // Non-HR users cannot access reports
-        throw new RuntimeException("Access denied: Only HR users can access reports");
+        // Staff cannot access reports
+        throw new RuntimeException("Access denied: Staff users cannot access reports");
     }
-    
-    private boolean canAccessDepartment(String department, User currentUser) {
-        // Only HR can access reports
+
+    private boolean canAccessDepartment(Long departmentId, User currentUser) {
         if (UserType.HR.getCode().equals(currentUser.getRoleType())) {
             return true;
+        } else if (UserType.MANAGER.getCode().equals(currentUser.getRoleType())) {
+            Long userDeptId = currentUser.getDepartmentId();
+            return departmentId != null && departmentId.equals(userDeptId);
         }
         return false;
+    }
+
+    /**
+     * Helper method to get department name from department ID
+     */
+    private String getDepartmentName(Long departmentId) {
+        if (departmentId == null) {
+            log.debug("getDepartmentName called with null departmentId");
+            return null;
+        }
+        log.debug("Looking up department name for departmentId: {}", departmentId);
+        Optional<DepartmentDto> deptOpt = departmentQueryService.getById(departmentId);
+        if (deptOpt.isPresent()) {
+            String name = deptOpt.get().getName();
+            log.debug("Found department name: {} for departmentId: {}", name, departmentId);
+            return name;
+        } else {
+            log.warn("Department not found for departmentId: {}", departmentId);
+            return null;
+        }
     }
     
     /**
@@ -500,35 +552,35 @@ public class ReportServiceImpl implements ReportService {
      * Handles periods without data by including them with zero values
      */
     public List<TimeSeriesDataPoint> generateTimeSeriesData(ReportFilterDto filters, Long userId) {
-        if (filters.getTimeRange() == null || 
+        if (filters.getTimeRange() == null ||
             filters.getTimeRange() == ReportFilterDto.TimeRange.CUSTOM) {
             return null;
         }
-        
+
         // Dates are now required (validated at controller level)
         LocalDate startDate = filters.getStartDate();
         LocalDate endDate = filters.getEndDate();
-        
+
         // Generate all periods (including empty ones)
         List<Period> periods = generatePeriods(startDate, endDate, filters.getTimeRange());
-        
+
         // Generate data for each period
         return periods.stream()
             .map(period -> {
                 // Create filter for this specific period
                 ReportFilterDto periodFilter = ReportFilterDto.builder()
-                    .department(filters.getDepartment())
+                    .departmentId(filters.getDepartmentId())
                     .projectIds(filters.getProjectIds())
                     .startDate(period.getStartDate())
                     .endDate(period.getEndDate())
                     .timeRange(null) // Prevent recursion
                     .build();
-                
+
                 // Generate reports for this period
                 TaskSummaryReportDto periodTaskSummary = generateTaskSummaryReport(periodFilter, userId);
                 TimeAnalyticsReportDto periodTimeAnalytics = generateTimeAnalyticsReport(periodFilter, userId);
                 List<StaffBreakdownDto> periodStaffBreakdown = generateStaffBreakdown(periodFilter, userId);
-                
+
                 return TimeSeriesDataPoint.builder()
                     .period(period.getPeriod())
                     .periodLabel(period.getPeriodLabel())
@@ -680,51 +732,51 @@ public class ReportServiceImpl implements ReportService {
     @Override
     public List<StaffBreakdownDto> generateStaffBreakdown(ReportFilterDto filters, Long userId) {
         log.info("Generating staff breakdown report for user: {}", userId);
-        
+
         User currentUser = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         // Apply role-based filtering
-        String departmentFilter = applyDepartmentFilter(filters.getDepartment(), currentUser);
-        
-        // Convert null to empty string for department
-        String dept = departmentFilter != null ? departmentFilter : "";
-        
+        Long departmentFilter = applyDepartmentFilter(filters.getDepartmentId(), currentUser);
+
         // Dates are now required (validated at controller level)
         LocalDate startDate = filters.getStartDate();
         LocalDate endDate = filters.getEndDate();
-        
+
         // Get project filter - convert empty list to null for query compatibility
         List<Long> projectIds = filters.getProjectIds();
         if (projectIds != null && projectIds.isEmpty()) {
             projectIds = null;
         }
-        
+
         // Get all relevant users - single query handles both department-only and project filters
-        List<Object[]> users = reportingRepository.getUsersForStaffBreakdown(dept, projectIds);
-        
+        List<Object[]> users = reportingRepository.getUsersForStaffBreakdown(departmentFilter, projectIds);
+
         // For each user, fetch their task counts and logged hours
         List<StaffBreakdownDto> staffBreakdowns = new ArrayList<>();
         for (Object[] userRow : users) {
             Long staffUserId = (Long) userRow[0];
             String userName = (String) userRow[1];
-            String userDepartment = (String) userRow[2];
-            
+            Long userDepartmentId = (Long) userRow[2];
+
+            log.debug("Processing user: userId={}, userName={}, departmentId={}",
+                staffUserId, userName, userDepartmentId);
+
             // Get task counts by status for this user
             List<Object[]> taskCounts = reportingRepository.getTaskCountsByStatusForUser(
                 staffUserId, projectIds, startDate, endDate);
-            
+
             // Initialize counters
             long todoTasks = 0;
             long inProgressTasks = 0;
             long completedTasks = 0;
             long blockedTasks = 0;
-            
+
             // Process task counts
             for (Object[] countRow : taskCounts) {
                 Status status = (Status) countRow[0];
                 Long count = (Long) countRow[1];
-                
+
                 switch (status) {
                     case TODO -> todoTasks = count;
                     case IN_PROGRESS -> inProgressTasks = count;
@@ -732,16 +784,26 @@ public class ReportServiceImpl implements ReportService {
                     case BLOCKED -> blockedTasks = count;
                 }
             }
-            
+
             // Get logged hours for this user (with project filter)
             BigDecimal loggedHours = reportingRepository.getLoggedHoursForUser(
                 staffUserId, projectIds, startDate, endDate);
-            
+
+            // Convert department ID to name for response
+            // Return "N/A" instead of null for users without departments
+            String userDepartmentName = userDepartmentId != null
+                ? getDepartmentName(userDepartmentId)
+                : "N/A";
+            // If department lookup fails, also use "N/A"
+            if (userDepartmentName == null) {
+                userDepartmentName = "N/A";
+            }
+
             // Always include all users, even with zero activity
             staffBreakdowns.add(StaffBreakdownDto.builder()
                 .userId(staffUserId)
                 .userName(userName)
-                .department(userDepartment)
+                .department(userDepartmentName)
                 .todoTasks(todoTasks)
                 .inProgressTasks(inProgressTasks)
                 .completedTasks(completedTasks)
@@ -749,8 +811,21 @@ public class ReportServiceImpl implements ReportService {
                 .loggedHours(loggedHours != null ? loggedHours : BigDecimal.ZERO)
                 .build());
         }
-        
+
         return staffBreakdowns;
+    }
+
+    /**
+     * Helper method to get department name from user
+     * Since User model now uses departmentId, we need to query for the name
+     */
+    private String getUserDepartmentName(User user) {
+        if (user.getDepartmentId() == null) {
+            return null;
+        }
+        return departmentQueryService.getById(user.getDepartmentId())
+            .map(dept -> dept.getName())
+            .orElse(null);
     }
 }
 

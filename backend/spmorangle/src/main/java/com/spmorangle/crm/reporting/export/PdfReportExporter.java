@@ -117,8 +117,11 @@ public class PdfReportExporter implements ReportExporter {
             addMetadataRow(metadataTable, "Generated At", reportData.get("generatedAt").toString());
         }
 
-        if (filters.getDepartment() != null && !filters.getDepartment().isEmpty()) {
-            addMetadataRow(metadataTable, "Department", filters.getDepartment());
+        // Display department filter info
+        if (filters.getDepartmentId() != null) {
+            addMetadataRow(metadataTable, "Department ID", filters.getDepartmentId().toString());
+        } else {
+            addMetadataRow(metadataTable, "Department", "All Departments");
         }
 
         if (filters.getStartDate() != null && filters.getEndDate() != null) {
@@ -326,7 +329,9 @@ public class PdfReportExporter implements ReportExporter {
     }
 
     private Cell createCell(String content, boolean isBold) {
-        Paragraph paragraph = new Paragraph(content).setFontSize(NORMAL_FONT_SIZE);
+        // Handle null content to prevent IllegalArgumentException from iText
+        String safeContent = content != null ? content : "N/A";
+        Paragraph paragraph = new Paragraph(safeContent).setFontSize(NORMAL_FONT_SIZE);
         if (isBold) {
             paragraph.setBold();
         }

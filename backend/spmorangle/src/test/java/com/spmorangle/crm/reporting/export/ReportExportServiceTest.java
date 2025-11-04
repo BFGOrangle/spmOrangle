@@ -53,7 +53,7 @@ class ReportExportServiceTest {
         reportData.put("generatedAt", java.time.OffsetDateTime.now());
 
         filters = ReportFilterDto.builder()
-                .department("Engineering")
+                .departmentId(100L)
                 .startDate(LocalDate.of(2025, 1, 1))
                 .endDate(LocalDate.of(2025, 12, 31))
                 .build();
@@ -134,7 +134,7 @@ class ReportExportServiceTest {
         // by checking the Content-Disposition header when CSV is implemented
         
         // For now, we test the basic structure
-        filters.setDepartment("Software");
+        filters.setDepartmentId(1L);
         filters.setStartDate(LocalDate.of(2025, 1, 1));
         filters.setEndDate(LocalDate.of(2025, 12, 31));
 
@@ -142,8 +142,8 @@ class ReportExportServiceTest {
         // Example: report_software_2025-01-01_to_2025-12-31.csv
         
         // This will be testable once CSV export is implemented
-        assertNotNull(filters.getDepartment());
-        assertEquals("Software", filters.getDepartment());
+        assertNotNull(filters.getDepartmentId());
+        assertEquals(1L, filters.getDepartmentId());
     }
 
     @Test
@@ -159,13 +159,13 @@ class ReportExportServiceTest {
 
     @Test
     void testFilenameGeneration_SpecialCharacters() {
-        filters.setDepartment("R&D Department");
+        filters.setDepartmentId(2L);
         
         // Special characters should be handled properly
         // Spaces should be replaced with hyphens
         // & and other special chars should be handled
         
-        assertTrue(filters.getDepartment().contains("&"));
+        assertEquals(2L, filters.getDepartmentId());
     }
 }
 

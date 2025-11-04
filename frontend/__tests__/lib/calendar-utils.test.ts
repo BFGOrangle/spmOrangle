@@ -86,6 +86,8 @@ describe('calendar-utils', () => {
       ownerId: 1,
       taskCount: 0,
       completedTaskCount: 0,
+      isOwner: true,
+      isRelated: false,
     };
 
     it('converts task with due date to calendar event', () => {

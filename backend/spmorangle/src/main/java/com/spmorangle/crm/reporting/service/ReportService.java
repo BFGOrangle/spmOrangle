@@ -35,11 +35,11 @@ public interface ReportService {
     
     /**
      * Get available projects based on user role and department filter
-     * @param department Department filter (optional)
+     * @param departmentId Department ID filter (optional)
      * @param userId Current user ID for permission checking
      * @return List of projects the user can access
      */
-    List<Object[]> getAvailableProjects(String department, Long userId);
+    List<Object[]> getAvailableProjects(Long departmentId, Long userId);
     
     /**
      * Start time tracking when task moves to IN_PROGRESS

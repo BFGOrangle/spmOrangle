@@ -18,12 +18,16 @@ import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentalVisibilityService;
 import com.spmorangle.crm.projectmanagement.dto.CreateProjectDto;
 import com.spmorangle.crm.projectmanagement.dto.ProjectResponseDto;
 import com.spmorangle.crm.projectmanagement.model.Project;
 import com.spmorangle.crm.projectmanagement.repository.ProjectRepository;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
 import com.spmorangle.crm.taskmanagement.enums.Status;
+import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -38,6 +42,8 @@ public class ProjectServiceImpl implements ProjectService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final DepartmentQueryService departmentQueryService;
+    private final DepartmentalVisibilityService departmentalVisibilityService;
 
     @Override
     public List<ProjectResponseDto> getUserProjects(Long userId) {
@@ -47,31 +53,69 @@ public class ProjectServiceImpl implements ProjectService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String userRole = user.getRoleType();
-        String userDepartment = user.getDepartment();
+        
 
-        log.info("User role: {}, department: {}", userRole, userDepartment);
+
+
+        String userRole = user.getRoleType();
+        Long userDepartmentId = user.getDepartmentId();
+
+        log.info("User role: {}, department id: {}", userRole, userDepartmentId);
 
         // Get projects where user is a member (owner or collaborator)
         List<Project> memberProjects = projectRepository.findUserProjects(userId);
         log.info("Found {} member projects for user {}", memberProjects.size(), userId);
 
+
+        Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
+        memberProjects = memberProjects.stream()
+            .filter(project -> canUserSeeProjectByDepartment(project, visibleDepartmentIds))
+            .collect(Collectors.toList());
+
         // Initialize result list with member projects
         List<ProjectResponseDto> result = new ArrayList<>();
 
         // Add member projects (isRelated = false)
+        log.info("👤 Processing {} member projects (projects where user is owner/member)", memberProjects.size());
         for (Project project : memberProjects) {
+            log.info("  → Member Project ID: {}, Name: '{}', OwnerId: {}",
+                     project.getId(), project.getName(), project.getOwnerId());
             result.add(mapToProjectResponseDto(project, userId, false));
         }
 
         // For MANAGER role: Also fetch related cross-department projects
-        if ("MANAGER".equalsIgnoreCase(userRole) && userDepartment != null && !userDepartment.isEmpty()) {
-            log.info("Manager role detected - fetching related cross-department projects for department: {}", userDepartment);
-            List<Project> relatedProjects = projectRepository.findProjectsWithDepartmentStaff(userId, userDepartment);
-            log.info("Found {} related cross-department projects", relatedProjects.size());
+        if ("MANAGER".equalsIgnoreCase(userRole) && userDepartmentId != null) {
+            log.info("Manager role detected - fetching related cross-department projects for visible departments: {}", visibleDepartmentIds);
+            List<Project> relatedProjects = projectRepository.findProjectsWithDepartmentStaff(userId, visibleDepartmentIds);
+            log.info("Found {} related cross-department projects before filtering", relatedProjects.size());
+
+            // Log the raw related projects before department filtering
+            for (Project rp : relatedProjects) {
+                log.info("  → Raw Related Project ID: {}, Name: '{}', OwnerId: {}",
+                         rp.getId(), rp.getName(), rp.getOwnerId());
+            }
+
+            relatedProjects = relatedProjects.stream()
+            .filter(project -> canUserSeeProjectByDepartment(project, visibleDepartmentIds))
+            .collect(Collectors.toList());
+
+            log.info("RelatedProjects: {}", relatedProjects);
 
             // Add related projects (isRelated = true)
             for (Project project : relatedProjects) {
+                // Log which staff members from visible departments are in this project
+                List<ProjectMember> members = projectMemberRepository.findByProjectId(project.getId());
+                List<Long> staffInVisibleDepts = members.stream()
+                        .map(ProjectMember::getUserId)
+                        .filter(memberId -> {
+                            User member = userRepository.findById(memberId).orElse(null);
+                            return member != null && visibleDepartmentIds.contains(member.getDepartmentId());
+                        })
+                        .toList();
+
+                log.info("🔗 Related project '{}' (ID: {}) has {} staff from my visible departments: {}",
+                         project.getName(), project.getId(), staffInVisibleDepts.size(), staffInVisibleDepts);
+
                 result.add(mapToProjectResponseDto(project, userId, true));
             }
         }
@@ -109,13 +153,13 @@ public class ProjectServiceImpl implements ProjectService {
         memberIds.add(currentUserId);
 
         // Add all active users from manager's department
-        if (manager.getDepartment() != null && !manager.getDepartment().isEmpty()) {
-            List<User> departmentUsers = userRepository.findByDepartmentIgnoreCase(manager.getDepartment());
+        if (manager.getDepartmentId() != null) {
+            List<User> departmentUsers = userRepository.findByDepartmentId(manager.getDepartmentId());
             departmentUsers.stream()
                     .filter(User::getIsActive) // Only active users
                     .map(User::getId)
                     .forEach(memberIds::add);
-            log.info("Added {} active users from department: {}", departmentUsers.size(), manager.getDepartment());
+            log.info("Added {} active users from department id: {}", departmentUsers.size(), manager.getDepartmentId());
         }
 
         // Add additional members if specified
@@ -191,16 +235,30 @@ public class ProjectServiceImpl implements ProjectService {
         // Calculate isOwner flag
         boolean isOwner = project.getOwnerId().equals(userId);
 
-        // Get department name from project owner
+        // Check if user is a project member (not just owner)
+        boolean isProjectMember = isUserProjectMember(userId, project.getId());
+
+        // Get department id from project owner
         String departmentName = null;
         try {
             User owner = userRepository.findById(project.getOwnerId()).orElse(null);
-            if (owner != null) {
-                departmentName = owner.getDepartment();
+            if (owner != null && owner.getDepartmentId() != null) {
+                departmentName = departmentQueryService.getById(owner.getDepartmentId())
+                .map(DepartmentDto::getName)
+                .orElse(null);
             }
         } catch (Exception e) {
             log.warn("Could not fetch owner department for project {}: {}", project.getId(), e.getMessage());
         }
+
+        // Detailed logging for project visibility
+        String projectType = isOwner ? "MY PROJECT (Owner)" :
+                             isProjectMember ? "MY PROJECT (Member)" :
+                             "RELATED PROJECT (View-Only)";
+
+        log.info("📂 Project '{}' (ID: {}) - Type: {}, isOwner: {}, isMember: {}, isRelated: {}, ownerId: {}, viewingUserId: {}",
+                 project.getName(), project.getId(), projectType, isOwner, isProjectMember, isRelated,
+                 project.getOwnerId(), userId);
 
         return ProjectResponseDto.builder()
                 .id(project.getId())
@@ -251,5 +309,67 @@ public class ProjectServiceImpl implements ProjectService {
                 .filter(project -> !project.isDeleteInd())
                 .map(this::mapToProjectResponseDto)
                 .toList();
+    }
+
+
+    private Set<Long> getUserVisibleDepartmentIds(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Get department of user
+        Long userDepartmentId= user.getDepartmentId();
+        if (userDepartmentId == null) {
+            log.warn("User {} has no department assigned", userId);
+            return Collections.emptySet();
+        }
+
+        // Check what other departments are visible to our user
+        return departmentQueryService.getById(userDepartmentId)
+            .map(deptDto -> departmentalVisibilityService.visibleDepartmentsForAssignedDept(deptDto.getId()))
+            .orElse(Collections.emptySet());
+    }
+
+    private Boolean canUserSeeProjectByDepartment(Project project, Set<Long> userVisibleDepartmentIds) {
+        if (userVisibleDepartmentIds.isEmpty()) {
+            // Users with no department can see all their member projects
+            // Department visibility checks don't apply
+            return true;
+        }
+
+        List<ProjectMember> projectMembers = projectMemberRepository.findByProjectId(project.getId());
+        
+        List<Long> memberIds = projectMembers.stream()
+            .map(ProjectMember::getUserId)
+            .collect(Collectors.toList());
+
+        memberIds.add(project.getOwnerId());
+
+
+        for (Long memberId : memberIds) {
+            User member = userRepository.findById(memberId).orElse(null);
+            if (member == null || member.getDepartmentId() == null) {
+                continue;
+            }
+
+            if (departmentalVisibilityService.canUserSeeTask(userVisibleDepartmentIds, memberId)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean isUserProjectMember(Long userId, Long projectId) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found with id: " + projectId));
+
+        // Check if user is the owner
+        if (project.getOwnerId().equals(userId)) {
+            return true;
+        }
+
+        // Check if user is a project member
+        List<ProjectMember> members = projectMemberRepository.findByProjectId(projectId);
+        return members.stream().anyMatch(m -> m.getUserId() == userId);
     }
 }

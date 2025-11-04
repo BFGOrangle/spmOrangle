@@ -13,6 +13,10 @@ export interface ProjectResponseDto {
   updatedAt: string;
   taskCount: number;
   completedTaskCount: number;
+  // Permission metadata fields
+  isOwner: boolean;
+  isRelated: boolean;
+  departmentName?: string;
 }
 
 export interface CreateProjectDto {

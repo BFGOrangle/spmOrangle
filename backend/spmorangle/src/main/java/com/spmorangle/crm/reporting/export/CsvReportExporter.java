@@ -78,8 +78,11 @@ public class CsvReportExporter implements ReportExporter {
     private void addReportMetadata(CSVPrinter csvPrinter, Map<String, Object> reportData, ReportFilterDto filters) throws IOException {
         csvPrinter.printRecord("Report Generated", reportData.get("generatedAt"));
 
-        if (filters.getDepartment() != null && !filters.getDepartment().isEmpty()) {
-            csvPrinter.printRecord("Department", filters.getDepartment());
+        // Display department filter info
+        if (filters.getDepartmentId() != null) {
+            csvPrinter.printRecord("Department ID", filters.getDepartmentId());
+        } else {
+            csvPrinter.printRecord("Department", "All Departments");
         }
 
         if (filters.getStartDate() != null && filters.getEndDate() != null) {

@@ -15,30 +15,30 @@ import java.util.List;
 public interface ReportingRepository extends JpaRepository<Task, Long> {
     
     @Query("""
-        SELECT t.status, COUNT(t) 
-        FROM Task t 
-        JOIN User u ON t.ownerId = u.id 
-        WHERE (:department = '' OR u.department = :department)
+        SELECT t.status, COUNT(t)
+        FROM Task t
+        JOIN User u ON t.ownerId = u.id
+        WHERE (:departmentId IS NULL OR u.departmentId = :departmentId)
         AND (CAST(t.createdAt AS DATE) >= :startDate)
         AND (CAST(t.createdAt AS DATE) <= :endDate)
         AND t.deleteInd = false
         GROUP BY t.status
         """)
     List<Object[]> getTaskCountsByStatus(
-        @Param("department") String department,
+        @Param("departmentId") Long departmentId,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
     
     @Query("""
-        SELECT u.department, t.status, COUNT(t) 
-        FROM Task t 
-        JOIN User u ON t.ownerId = u.id 
+        SELECT u.departmentId, t.status, COUNT(t)
+        FROM Task t
+        JOIN User u ON t.ownerId = u.id
         WHERE (CAST(t.createdAt AS DATE) >= :startDate)
         AND (CAST(t.createdAt AS DATE) <= :endDate)
         AND t.deleteInd = false
-        AND u.department IS NOT NULL
-        GROUP BY u.department, t.status
+        AND u.departmentId IS NOT NULL
+        GROUP BY u.departmentId, t.status
         """)
     List<Object[]> getTaskCountsByDepartmentAndStatus(
         @Param("startDate") LocalDate startDate,
@@ -46,11 +46,11 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
     );
     
     @Query("""
-        SELECT p.name, t.status, COUNT(t) 
-        FROM Task t 
-        JOIN Project p ON t.projectId = p.id 
-        JOIN User u ON t.ownerId = u.id 
-        WHERE (:department = '' OR u.department = :department)
+        SELECT p.name, t.status, COUNT(t)
+        FROM Task t
+        JOIN Project p ON t.projectId = p.id
+        JOIN User u ON t.ownerId = u.id
+        WHERE (:departmentId IS NULL OR u.departmentId = :departmentId)
         AND t.projectId IN :projectIds
         AND (CAST(t.createdAt AS DATE) >= :startDate)
         AND (CAST(t.createdAt AS DATE) <= :endDate)
@@ -59,7 +59,7 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
         GROUP BY p.name, t.status
         """)
     List<Object[]> getTaskCountsByProjectAndStatus(
-        @Param("department") String department,
+        @Param("departmentId") Long departmentId,
         @Param("projectIds") List<Long> projectIds,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
@@ -70,11 +70,11 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
      * Similar to getTaskCountsByDepartmentAndStatus but for projects
      */
     @Query("""
-        SELECT p.name, t.status, COUNT(t) 
-        FROM Task t 
-        JOIN Project p ON t.projectId = p.id 
-        JOIN User u ON t.ownerId = u.id 
-        WHERE (:department = '' OR u.department = :department)
+        SELECT p.name, t.status, COUNT(t)
+        FROM Task t
+        JOIN Project p ON t.projectId = p.id
+        JOIN User u ON t.ownerId = u.id
+        WHERE (:departmentId IS NULL OR u.departmentId = :departmentId)
         AND (CAST(t.createdAt AS DATE) >= :startDate)
         AND (CAST(t.createdAt AS DATE) <= :endDate)
         AND t.deleteInd = false
@@ -82,40 +82,41 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
         GROUP BY p.name, t.status
         """)
     List<Object[]> getAllTaskCountsByProjectAndStatus(
-        @Param("department") String department,
+        @Param("departmentId") Long departmentId,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
     
     @Query("""
-        SELECT DISTINCT u.department 
-        FROM User u 
-        WHERE u.department IS NOT NULL 
-        ORDER BY u.department
+        SELECT DISTINCT u.departmentId
+        FROM User u
+        WHERE u.departmentId IS NOT NULL
+        ORDER BY u.departmentId
         """)
-    List<String> getAllDepartments();
+    List<Long> getAllDepartments();
     
     @Query("""
-        SELECT DISTINCT p.id, p.name 
-        FROM Project p 
-        JOIN User u ON p.ownerId = u.id 
-        WHERE (:department = '' OR u.department = :department)
+        SELECT DISTINCT p.id, p.name
+        FROM Project p
+        JOIN User u ON p.ownerId = u.id
+        WHERE (:departmentId IS NULL OR u.departmentId = :departmentId)
         AND p.deleteInd = false
         ORDER BY p.name
         """)
-    List<Object[]> getProjectsByDepartment(@Param("department") String department);
+    List<Object[]> getProjectsByDepartment(@Param("departmentId") Long departmentId);
     
     /**
      * Get all users for staff breakdown by department and optional project filters
      * Returns all users in the department, optionally filtered by project membership
      * Note: Pass null for projectIds to get all users (no project filter)
+     * Returns: userId, userName, departmentId
      */
     @Query("""
-        SELECT DISTINCT u.id, u.userName, u.department
+        SELECT DISTINCT u.id, u.userName, u.departmentId
         FROM User u
-        WHERE (:department = '' OR u.department = :department)
+        WHERE (:departmentId IS NULL OR u.departmentId = :departmentId)
         AND (
-            :projectIds IS NULL 
+            :projectIds IS NULL
             OR u.id IN (
                 SELECT pm.userId FROM ProjectMember pm
                 WHERE pm.projectId IN :projectIds
@@ -124,7 +125,7 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
         ORDER BY u.userName
         """)
     List<Object[]> getUsersForStaffBreakdown(
-        @Param("department") String department,
+        @Param("departmentId") Long departmentId,
         @Param("projectIds") List<Long> projectIds
     );
     
