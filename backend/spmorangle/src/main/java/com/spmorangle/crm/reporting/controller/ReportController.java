@@ -25,7 +25,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/reports")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('HR') or hasRole('MANAGER')")
+@PreAuthorize("hasRole('HR')")
 public class ReportController {
     
     private final ReportService reportService;

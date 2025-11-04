@@ -8,7 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report e2e-results/html",
+    "test:e2e:codegen": "playwright codegen localhost:3000",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node -e \"if (process.env.VERCEL !== '1' && process.env.CI !== 'true') { require('child_process').execSync('npx playwright install --with-deps chromium', { stdio: 'inherit' }); }\""
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -43,6 +50,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
     "lucide-react": "^0.544.0",
     "next": "15.5.3",
     "react": "19.1.0",
@@ -55,13 +63,14 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@types/jest": "^30.0.0",
-    "@types/node": "^20",
+    "@types/node": "^20.19.24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/rrule": "^2.1.7",
