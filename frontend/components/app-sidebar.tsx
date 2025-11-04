@@ -73,6 +73,15 @@ const adminItems = [
   },
 ];
 
+// Manager-only items
+const managerItems = [
+  {
+    title: "Team Management",
+    url: "/user-management",
+    icon: Users,
+  },
+];
+
 export function AppSidebar() {
   const { isStaff } = useCurrentUser();
 
@@ -83,7 +92,7 @@ export function AppSidebar() {
     }
     return true;
   });
-  const { isAdmin } = useCurrentUser();
+  const { isAdmin, isManager } = useCurrentUser();
 
   return (
     <Sidebar>
@@ -123,6 +132,26 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {adminItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {isManager && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {managerItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <Link href={item.url}>

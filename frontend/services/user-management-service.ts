@@ -78,6 +78,10 @@ export class UserManagementService {
     return this.authenticatedClient.get<UserResponseDto[]>("/api/user/");
   }
 
+  async getMyDeptUsers(): Promise<UserResponseDto[]> {
+    return this.authenticatedClient.get<UserResponseDto[]>("/api/user/my-dept");
+  }
+
   /**
    * Get user by ID (authenticated)
    */

@@ -1,5 +1,6 @@
 package com.spmorangle.crm.usermanagement.controller;
 
+import com.spmorangle.common.model.User;
 import com.spmorangle.common.service.UserContextService;
 import com.spmorangle.crm.usermanagement.dto.CreateUserDto;
 import com.spmorangle.crm.usermanagement.dto.UpdateUserRoleDto;
@@ -113,6 +114,14 @@ public class UserController {
     @GetMapping("/")
     public ResponseEntity<List<UserResponseDto>> getAllUsers() {
         List<UserResponseDto> users = userManagementService.getAllUsers();
+        return ResponseEntity.ok(users);
+    }
+
+    @PreAuthorize("hasAnyRole('HR', 'MANAGER')")
+    @GetMapping("/my-dept")
+    public ResponseEntity<List<UserResponseDto>> getMyDeptUsers() {
+        User requestingUser = userContextService.getRequestingUser();
+        List<UserResponseDto> users = userManagementService.getUsersByDepartmentId(requestingUser.getDepartmentId());
         return ResponseEntity.ok(users);
     }
 }
