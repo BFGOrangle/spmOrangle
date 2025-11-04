@@ -321,10 +321,10 @@ private ReportExporter selectExporter(ExportFormat format) {
 
 ### 1. Role-Based Access Control
 
-All export endpoints require `@PreAuthorize("hasRole('HR') or hasRole('MANAGER')")`:
+All export endpoints require `@PreAuthorize("hasRole('HR')")`:
 
 - **HR**: Can export reports for all departments
-- **Manager**: Can only export reports for their department
+- **Manager**: No access (403 Forbidden)
 - **Staff**: No access (403 Forbidden)
 
 ### 2. Data Filtering
@@ -335,9 +335,8 @@ All export endpoints require `@PreAuthorize("hasRole('HR') or hasRole('MANAGER')
 private String applyDepartmentFilter(String requestedDepartment, User user) {
     if (user.getRole() == Role.HR) {
         return requestedDepartment;  // HR can see all
-    } else if (user.getRole() == Role.MANAGER) {
-        return user.getDepartment();  // Manager sees own dept only
     }
+    throw new RuntimeException("Access denied: Only HR users can access reports");
 }
 ```
 

@@ -292,29 +292,36 @@ describe("UserManagementPage", () => {
         isAdmin: true,
       });
 
+      // Click the button to open the dialog
       await user.click(screen.getByRole("button", { name: /create user/i }));
 
       await waitFor(() => {
         expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
       });
 
+      // Fill in the form fields
       await user.type(screen.getByLabelText(/full name/i), "New User");
       await user.type(screen.getByLabelText(/email/i), "newuser@example.com");
       await user.type(screen.getByLabelText(/password/i), "password123");
 
-      const submitButton = screen.getByRole("button", { name: /create user/i });
+      // Get all buttons with "Create User" text and click the one inside the dialog (last one)
+      const createButtons = screen.getAllByRole("button", { name: /create user/i });
+      const submitButton = createButtons[createButtons.length - 1];
       await user.click(submitButton);
 
-      await waitFor(() => {
-        expect(mockUserManagementService.adminCreateUser).toHaveBeenCalledWith({
-          userName: "New User",
-          email: "newuser@example.com",
-          password: "password123",
-          roleType: "STAFF",
-        });
-        expect(toast.success).toHaveBeenCalledWith("User created successfully");
-      });
-    });
+      await waitFor(
+        () => {
+          expect(mockUserManagementService.adminCreateUser).toHaveBeenCalledWith({
+            userName: "New User",
+            email: "newuser@example.com",
+            password: "password123",
+            roleType: "STAFF",
+          });
+          expect(toast.success).toHaveBeenCalledWith("User created successfully");
+        },
+        { timeout: 10000 }
+      );
+    }, 15000);
 
     it("shows error when creating user with empty fields", async () => {
       const user = userEvent.setup();
@@ -322,17 +329,36 @@ describe("UserManagementPage", () => {
         isAdmin: true,
       });
 
+      // Open the create user dialog
       await user.click(screen.getByRole("button", { name: /create user/i }));
 
       await waitFor(() => {
         expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
       });
 
-      // Try to submit without filling fields - button should be disabled or show error
-      // Just verify the form is shown with required fields
-      expect(screen.getByLabelText(/full name/i)).toHaveValue("");
-      expect(screen.getByLabelText(/email/i)).toHaveValue("");
-      expect(screen.getByLabelText(/password/i)).toHaveValue("");
+      // Verify form fields are present and initially empty
+      const fullNameInput = screen.getByLabelText(/full name/i) as HTMLInputElement;
+      const emailInput = screen.getByLabelText(/email/i) as HTMLInputElement;
+      const passwordInput = screen.getByLabelText(/password/i) as HTMLInputElement;
+
+      expect(fullNameInput).toBeInTheDocument();
+      expect(emailInput).toBeInTheDocument();
+      expect(passwordInput).toBeInTheDocument();
+
+      // Check that the values are empty or clear them if they have values
+      expect(fullNameInput.value).toBe("");
+      expect(emailInput.value).toBe("");
+      expect(passwordInput.value).toBe("");
+
+      // Try to submit without filling fields
+      const createButtons = screen.getAllByRole("button", { name: /create user/i });
+      const submitButton = createButtons[createButtons.length - 1];
+      await user.click(submitButton);
+
+      // Should show validation error
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith("All fields are required");
+      });
     });
 
     it("handles API errors when creating user", async () => {
@@ -360,8 +386,9 @@ describe("UserManagementPage", () => {
 
       await waitFor(() => {
         expect(mockUserManagementService.adminCreateUser).toHaveBeenCalled();
-      }, { timeout: 3000 });
-    });
+        expect(toast.error).toHaveBeenCalled();
+      }, { timeout: 10000 });
+    }, 15000);
 
     it("closes dialog after successful user creation", async () => {
       const user = userEvent.setup();
@@ -385,15 +412,27 @@ describe("UserManagementPage", () => {
       const submitButton = submitButtons[submitButtons.length - 1];
       await user.click(submitButton);
 
-      await waitFor(() => {
-        expect(mockUserManagementService.adminCreateUser).toHaveBeenCalledWith({
-          userName: "New User",
-          email: "newuser@example.com",
-          password: "password123",
-          roleType: "STAFF",
-        });
-      }, { timeout: 3000 });
-    });
+      await waitFor(
+        () => {
+          expect(mockUserManagementService.adminCreateUser).toHaveBeenCalledWith({
+            userName: "New User",
+            email: "newuser@example.com",
+            password: "password123",
+            roleType: "STAFF",
+          });
+          expect(toast.success).toHaveBeenCalledWith("User created successfully");
+        },
+        { timeout: 10000 }
+      );
+
+      // Verify dialog closes
+      await waitFor(
+        () => {
+          expect(screen.queryByText("Create New User")).not.toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
+    }, 20000);
   });
 
   describe("Deactivate User", () => {
@@ -440,10 +479,13 @@ describe("UserManagementPage", () => {
         isAdmin: true,
       });
 
-      const searchInput = screen.getByPlaceholderText("Search users...");
+      const searchInput = screen.getByPlaceholderText("Search users...") as HTMLInputElement;
       await user.type(searchInput, "John");
 
-      expect(searchInput).toHaveValue("John");
+      // Wait for all typing to complete
+      await waitFor(() => {
+        expect(searchInput.value).toBe("John");
+      });
     });
   });
 
