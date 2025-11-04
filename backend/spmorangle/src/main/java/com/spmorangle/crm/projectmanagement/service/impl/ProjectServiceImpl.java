@@ -289,7 +289,7 @@ public class ProjectServiceImpl implements ProjectService {
             return Collections.emptySet();
         }
 
-        // Check if what other departments are visible to our user
+        // Check what other departments are visible to our user
         return departmentQueryService.getById(userDepartmentId)
             .map(deptDto -> departmentalVisibilityService.visibleDepartmentsForAssignedDept(deptDto.getId()))
             .orElse(Collections.emptySet());
