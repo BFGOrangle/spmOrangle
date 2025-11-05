@@ -53,14 +53,15 @@ jest.mock('../../services/file-service', () => ({
 jest.mock('../../services/tag-service', () => ({
   tagService: {
     getTags: jest.fn(() => Promise.resolve([
-      { id: 1, tagName: 'frontend' },
-      { id: 2, tagName: 'backend' },
-      { id: 3, tagName: 'ui' },
+      { id: 1, tagName: 'frontend', deleteInd: false },
+      { id: 2, tagName: 'backend', deleteInd: false },
+      { id: 3, tagName: 'ui', deleteInd: false },
     ])),
     createTag: jest.fn((request: any) => {
       const tagName = typeof request === 'string' ? request : request.tagName;
-      return Promise.resolve({ id: Date.now(), tagName });
+      return Promise.resolve({ id: Date.now(), tagName, deleteInd: false });
     }),
+    deleteTag: jest.fn(() => Promise.resolve()),
   },
 }));
 
@@ -607,7 +608,7 @@ describe('TaskCreationDialog', () => {
 
     it('creates missing tags before submitting', async () => {
       tagService.getTags.mockResolvedValueOnce([
-        { id: 1, tagName: 'frontend' },
+        { id: 1, tagName: 'frontend', deleteInd: false },
       ]);
 
       render(

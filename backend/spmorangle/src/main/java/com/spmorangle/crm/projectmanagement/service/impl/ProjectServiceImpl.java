@@ -90,9 +90,12 @@ public class ProjectServiceImpl implements ProjectService {
             result.add(mapToProjectResponseDto(project, userId, false));
         }
 
-        // For MANAGER role: Also fetch related cross-department projects
-        if ("MANAGER".equalsIgnoreCase(userRole) && userDepartmentId != null) {
-            log.info("Manager role detected - fetching related cross-department projects for visible departments: {}", visibleDepartmentIds);
+        // Fetch related cross-department projects for all users with departments
+        // Related projects are projects where colleagues from visible departments are working,
+        // but the user is not a direct member (view-only access)
+        if (userDepartmentId != null) {
+            log.info("User {} has department {} - fetching related cross-department projects for visible departments: {}",
+                     userId, userDepartmentId, visibleDepartmentIds);
             List<Project> relatedProjects = projectRepository.findProjectsWithDepartmentStaff(userId, visibleDepartmentIds);
             log.info("Found {} related cross-department projects before filtering", relatedProjects.size());
 

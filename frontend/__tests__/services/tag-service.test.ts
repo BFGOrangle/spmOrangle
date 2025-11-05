@@ -30,9 +30,9 @@ describe("TagService", () => {
   describe("getTags", () => {
     it("returns sorted tags", async () => {
       mockAuthenticatedClient.get.mockResolvedValueOnce([
-        { id: 2, tagName: "beta" },
-        { id: 1, tagName: "alpha" },
-        { id: 3, tagName: "gamma" },
+        { id: 2, tagName: "beta", deleteInd: false },
+        { id: 1, tagName: "alpha", deleteInd: false },
+        { id: 3, tagName: "gamma", deleteInd: false },
       ]);
 
       const result = await service.getTags();
@@ -52,7 +52,7 @@ describe("TagService", () => {
 
   describe("createTag", () => {
     it("creates tag from string input", async () => {
-      const payload = { id: 99, tagName: "frontend" };
+      const payload = { id: 99, tagName: "frontend", deleteInd: false };
       mockAuthenticatedClient.post.mockResolvedValueOnce(payload);
 
       const result = await service.createTag("frontend");
@@ -62,13 +62,23 @@ describe("TagService", () => {
     });
 
     it("creates tag from object input", async () => {
-      const payload = { id: 100, tagName: "backend" };
+      const payload = { id: 100, tagName: "backend", deleteInd: false };
       mockAuthenticatedClient.post.mockResolvedValueOnce(payload);
 
       const result = await service.createTag({ tagName: "backend" });
 
       expect(mockAuthenticatedClient.post).toHaveBeenCalledWith("/api/tag", { tagName: "backend" });
       expect(result).toEqual(payload);
+    });
+  });
+
+  describe("deleteTag", () => {
+    it("deletes tag by id", async () => {
+      mockAuthenticatedClient.delete.mockResolvedValueOnce(undefined);
+
+      await service.deleteTag(123);
+
+      expect(mockAuthenticatedClient.delete).toHaveBeenCalledWith("/api/tag/123");
     });
   });
 });

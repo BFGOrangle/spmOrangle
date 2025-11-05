@@ -33,4 +33,12 @@ public class TagController {
         TagDto createdTag = tagService.createTag(createTagDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdTag);
     }
+
+    @PreAuthorize("hasRole('MANAGER')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteTag(@PathVariable Long id) {
+        log.info("Soft-deleting tag with id: {}", id);
+        tagService.deleteTag(id);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -37,14 +37,25 @@ public class TagServiceImpl implements TagService {
     @Override
     public TagDto createTag(CreateTagDto createTagDto){
         String tagName = createTagDto.tagName();
-        Tag existingTag = tagRepository.findByTagName(tagName).orElse(null);
+
+        // Check if tag exists (including soft-deleted ones)
+        Tag existingTag = tagRepository.findByTagNameIncludingDeleted(tagName).orElse(null);
+
         if (existingTag != null) {
+            if (existingTag.isDeleteInd()) {
+                // Reactivate soft-deleted tag
+                existingTag.setDeleteInd(false);
+                Tag reactivatedTag = tagRepository.save(existingTag);
+                log.info("Reactivated soft-deleted tag: {}", tagName);
+                return tagMapper.toDto(reactivatedTag);
+            }
             log.info("Tag already exists: {}", tagName);
             return tagMapper.toDto(existingTag);
         }
-        
+
         Tag newTag = new Tag();
         newTag.setTagName(tagName);
+        newTag.setDeleteInd(false);
         Tag savedTag = tagRepository.save(newTag);
         log.info("Created new tag: {}", tagName);
         return tagMapper.toDto(savedTag);
@@ -53,10 +64,11 @@ public class TagServiceImpl implements TagService {
     @Override
     @Transactional
     public Tag findOrCreateTag(String tagName) {
-        return tagRepository.findByTagName(tagName)
+        return tagRepository.findActiveByTagName(tagName)
                 .orElseGet(() -> {
                     Tag newTag = new Tag();
                     newTag.setTagName(tagName);
+                    newTag.setDeleteInd(false);
                     return tagRepository.save(newTag);
                 });
     }
@@ -71,5 +83,21 @@ public class TagServiceImpl implements TagService {
             }
         }
         return tags;
+    }
+
+    @Override
+    @Transactional
+    public void deleteTag(Long tagId) {
+        Tag tag = tagRepository.findById(tagId)
+                .orElseThrow(() -> new RuntimeException("Tag not found with id: " + tagId));
+
+        if (tag.isDeleteInd()) {
+            log.warn("Tag {} is already deleted", tagId);
+            return;
+        }
+
+        tag.setDeleteInd(true);
+        tagRepository.save(tag);
+        log.info("Soft-deleted tag: {} (id: {})", tag.getTagName(), tagId);
     }
 }

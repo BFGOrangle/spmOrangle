@@ -745,27 +745,40 @@ class ProjectServiceImplTest {
         }
 
         @Test
-        @DisplayName("STAFF should NOT see cross-department projects where they're not members")
-        void getUserProjects_Staff_ExcludesNonMemberProjects() {
+        @DisplayName("STAFF should see related cross-department projects where colleagues are members")
+        void getUserProjects_Staff_IncludesRelatedProjects() {
             // Given
             Long staffUserId = 100L;
-            List<Project> onlyMemberProjects = Collections.singletonList(memberProject);
+            List<Project> memberProjects = Collections.singletonList(memberProject);
+            List<Project> relatedProjects = Collections.singletonList(crossDeptProject); // Staff should now see this
 
             when(userRepository.findById(staffUserId)).thenReturn(Optional.of(staffUser));
-            when(projectRepository.findUserProjects(staffUserId)).thenReturn(onlyMemberProjects);
+            when(projectRepository.findUserProjects(staffUserId)).thenReturn(memberProjects);
+            when(projectRepository.findProjectsWithDepartmentStaff(eq(staffUserId), any()))
+                    .thenReturn(relatedProjects);
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+            when(departmentQueryService.getById(100L))
+                    .thenReturn(Optional.of(DepartmentDto.builder().id(100L).name("Engineering").build()));
+            when(departmentalVisibilityService.visibleDepartmentsForAssignedDept(100L))
+                    .thenReturn(Collections.singleton(100L));
+            when(projectMemberRepository.findByProjectId(any())).thenReturn(Collections.emptyList());
 
             // When
             List<ProjectResponseDto> result = projectService.getUserProjects(staffUserId);
 
             // Then
             assertThat(result).isNotNull();
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).getId()).isEqualTo(2L);
-
-            // Verify crossDeptProject and unrelatedProject are NOT in results
+            assertThat(result).hasSize(2); // memberProject + crossDeptProject
             assertThat(result.stream().map(ProjectResponseDto::getId))
-                    .doesNotContain(3L, 4L);
+                    .containsExactlyInAnyOrder(2L, 3L);
+
+            // Verify related project is marked with isRelated = true
+            ProjectResponseDto relatedProjectDto = result.stream()
+                    .filter(p -> p.getId() == 3L)
+                    .findFirst()
+                    .orElse(null);
+            assertThat(relatedProjectDto).isNotNull();
+            assertThat(relatedProjectDto.getIsRelated()).isTrue();
         }
 
         @Test
