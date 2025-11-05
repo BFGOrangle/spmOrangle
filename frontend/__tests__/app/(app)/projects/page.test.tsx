@@ -402,7 +402,7 @@ describe("ProjectsPage", () => {
 
   describe("Related Projects", () => {
     it("renders related projects section with matching cards", async () => {
-      await setup("MANAGER"); // Use MANAGER role to see related projects
+      await setup("MANAGER"); // Any role can see related projects now
 
       await waitFor(() => {
         expect(
@@ -427,17 +427,19 @@ describe("ProjectsPage", () => {
       expect(within(relatedSection).getByText("Test Project 6")).toBeInTheDocument();
     });
 
-    it("shows an empty state message when no related projects", async () => {
+    it("does not show related projects section when no related projects", async () => {
       // Mock getUserProjects to return only member projects (no related projects)
       mockProjectService.getUserProjects.mockResolvedValueOnce(mockProjectsData);
 
-      await setup("MANAGER"); // Use MANAGER role to see related projects
+      await setup("STAFF"); // Any role can see related projects now
 
       await waitFor(() => {
-        expect(
-          screen.getByText("No related projects to show yet."),
-        ).toBeInTheDocument();
+        expect(screen.getByRole("heading", { level: 1, name: "All Projects" })).toBeInTheDocument();
       });
+
+      // Related Projects section should NOT appear when there are no related projects
+      expect(screen.queryByRole("heading", { level: 2, name: "Related Projects" })).not.toBeInTheDocument();
+      expect(screen.queryByText("No related projects to show yet.")).not.toBeInTheDocument();
     });
 
     it("fetches metadata for related projects the user cannot access", async () => {
@@ -484,7 +486,7 @@ describe("ProjectsPage", () => {
 
       mockProjectService.getUserProjects.mockResolvedValueOnce(allProjectsWithExternal);
 
-      await setup("MANAGER"); // Use MANAGER role to see related projects
+      await setup("STAFF"); // Any role can see related projects now
 
       const relatedSection = screen.getByRole("heading", {
         level: 2,
