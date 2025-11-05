@@ -4,6 +4,8 @@ import com.spmorangle.common.enums.UserType;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.model.Department;
+import com.spmorangle.crm.departmentmgmt.repository.DepartmentRepository;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentalVisibilityService;
 import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
@@ -98,6 +100,9 @@ class TaskServiceImplTest {
 
     @Mock
     private ReportService reportService;
+
+    @Mock
+    private DepartmentRepository departmentRepository;
 
     @Mock
     private DepartmentQueryService departmentQueryService;
@@ -2208,19 +2213,14 @@ class TaskServiceImplTest {
 
             User manager = createUser(userId);
             manager.setRoleType(UserType.MANAGER.getCode());
-            manager.setDepartment("Marketing");
+            manager.setDepartmentId(50L);
+            manager.setIsActive(true);
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(manager));
 
-            Department department = new Department();
-            department.setId(50L);
-            department.setName("Marketing");
-
-            when(departmentRepository.findByNameIgnoreCase("Marketing"))
-                .thenReturn(Optional.of(department));
             when(departmentQueryService.getDescendants(50L, true))
                 .thenReturn(List.of(DepartmentDto.builder().id(50L).name("Marketing").parentId(null).build()));
-            when(userRepository.findActiveUsersByDepartmentsIgnoreCase(Set.of("marketing")))
+            when(userRepository.findByDepartmentIds(Set.of(50L), userId))
                 .thenReturn(List.of(manager));
 
             Task externalTask = createTestTask(1L, projectId, 900L, "External", "Desc", Status.TODO, Collections.emptyList());

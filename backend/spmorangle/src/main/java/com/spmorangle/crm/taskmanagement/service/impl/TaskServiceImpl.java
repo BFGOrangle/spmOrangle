@@ -57,7 +57,6 @@ public class TaskServiceImpl implements TaskService {
     private final UserRepository userRepository;
     private final TaskAssigneeRepository taskAssigneeRepository;
     private final ReportService reportService;
-    private final DepartmentQueryService departmentQueryService;
     private final DepartmentalVisibilityService departmentalVisibilityService;
 
     @Override
@@ -230,7 +229,7 @@ public class TaskServiceImpl implements TaskService {
         Long projectOwnerId = projectService.getOwnerId(projectId);
         Set<Long> projectTaskIds = tasks.stream().map(Task::getId).collect(Collectors.toSet());
         boolean hasDirectMembership = projectOwnerId.equals(userId)
-                || collaboratorTaskIds.stream().anyMatch(projectTaskIds::contains);
+                || tasksUserIsCollaboratorFor.stream().anyMatch(projectTaskIds::contains);
 
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -243,7 +242,7 @@ public class TaskServiceImpl implements TaskService {
         List<TaskResponseDto> result = new ArrayList<>();
 
         for (Task task : visibleTasks) {
-            boolean userHasWriteAccess = task.getOwnerId().equals(userId) || collaboratorTaskIds.contains(task.getId());
+            boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
             boolean userHasDeleteAccess = userId.equals(projectOwnerId);
 
             result.add(mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, projectNames, ownerDetails, userId));
@@ -273,7 +272,7 @@ public class TaskServiceImpl implements TaskService {
         Long projectOwnerId = projectService.getOwnerId(projectId);
         Set<Long> projectTaskIds = tasks.stream().map(Task::getId).collect(Collectors.toSet());
         boolean hasDirectMembership = projectOwnerId.equals(userId)
-                || collaboratorTaskIds.stream().anyMatch(projectTaskIds::contains);
+                || tasksUserIsCollaboratorFor.stream().anyMatch(projectTaskIds::contains);
 
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -286,7 +285,7 @@ public class TaskServiceImpl implements TaskService {
         List<TaskResponseDto> result = new ArrayList<>();
 
         for (Task task : visibleTasks) {
-            boolean userHasWriteAccess = task.getOwnerId().equals(userId) || collaboratorTaskIds.contains(task.getId());
+            boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
             boolean userHasDeleteAccess = userId.equals(projectOwnerId);
 
             if (Boolean.TRUE.equals(task.getIsRecurring()) && task.getStatus() != Status.COMPLETED) {
@@ -352,31 +351,19 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private Set<Long> resolveVisibleMemberIds(User user) {
-        String department = Optional.ofNullable(user.getDepartment())
-                .map(String::trim)
-                .filter(name -> !name.isEmpty())
-                .orElse(null);
+        Long departmentId = user.getDepartmentId();
 
-        if (department == null) {
+        if (departmentId == null) {
             return Set.of(user.getId());
         }
 
-        Set<String> visibleDepartmentNames = departmentRepository.findByNameIgnoreCase(department)
-                .map(root -> departmentQueryService.getDescendants(root.getId(), true).stream()
-                        .map(dep -> Optional.ofNullable(dep.getName()).orElse("").trim())
-                        .filter(name -> !name.isEmpty())
-                        .collect(Collectors.toCollection(LinkedHashSet::new)))
-                .orElseGet(() -> {
-                    LinkedHashSet<String> fallback = new LinkedHashSet<>();
-                    fallback.add(department);
-                    return fallback;
-                });
+        Set<Long> visibleDepartmentIds = departmentQueryService.getDescendants(departmentId, true).stream()
+                .map(DepartmentDto::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        Set<String> lowercaseNames = visibleDepartmentNames.stream()
-                .map(String::toLowerCase)
-                .collect(Collectors.toSet());
-
-        Set<Long> memberIds = userRepository.findActiveUsersByDepartmentsIgnoreCase(lowercaseNames).stream()
+        Set<Long> memberIds = userRepository.findByDepartmentIds(visibleDepartmentIds, user.getId()).stream()
+                .filter(User::getIsActive)
                 .map(User::getId)
                 .collect(Collectors.toCollection(HashSet::new));
         memberIds.add(user.getId());

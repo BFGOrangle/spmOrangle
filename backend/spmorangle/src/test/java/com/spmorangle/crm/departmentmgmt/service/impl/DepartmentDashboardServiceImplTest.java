@@ -60,7 +60,7 @@ class DepartmentDashboardServiceImplTest {
         managerUser.setId(4L);
         managerUser.setUserName("manager_jitt");
         managerUser.setRoleType(UserType.MANAGER.getCode());
-        managerUser.setDepartment("Marketing");
+        managerUser.setDepartmentId(10L);
         managerUser.setIsActive(true);
     }
 
@@ -71,7 +71,12 @@ class DepartmentDashboardServiceImplTest {
         marketing.setName("Marketing");
         marketing.setParentId(null);
 
-        when(departmentRepository.findByNameIgnoreCase("Marketing"))
+        Department marketingOps = new Department();
+        marketingOps.setId(11L);
+        marketingOps.setName("Marketing Ops");
+        marketingOps.setParentId(10L);
+
+        when(departmentRepository.findById(10L))
                 .thenReturn(Optional.of(marketing));
 
         when(departmentQueryService.getDescendants(10L, true)).thenReturn(List.of(
@@ -79,10 +84,13 @@ class DepartmentDashboardServiceImplTest {
                 DepartmentDto.builder().id(11L).name("Marketing Ops").parentId(10L).build()
         ));
 
-        User staffA = createStaffUser(8L, "staff_jordan", "Marketing");
-        User staffB = createStaffUser(12L, "staff_yc", "Marketing");
+        when(departmentRepository.findAllById(Set.of(10L, 11L)))
+                .thenReturn(List.of(marketing, marketingOps));
 
-        when(userRepository.findActiveUsersByDepartmentsIgnoreCase(Set.of("marketing", "marketing ops")))
+        User staffA = createStaffUser(8L, "staff_jordan", 10L);
+        User staffB = createStaffUser(12L, "staff_yc", 10L);
+
+        when(userRepository.findByDepartmentIds(Set.of(10L, 11L), -1L))
                 .thenReturn(List.of(staffA, staffB));
 
         Task task1 = createTask(101L, 4L, 3L, TaskType.FEATURE, Status.IN_PROGRESS, 9);
@@ -147,17 +155,17 @@ class DepartmentDashboardServiceImplTest {
         staffUser.setId(20L);
         staffUser.setUserName("staff_member");
         staffUser.setRoleType(UserType.STAFF.getCode());
-        staffUser.setDepartment("Marketing");
+        staffUser.setDepartmentId(10L);
 
         assertThatThrownBy(() -> service.getDepartmentDashboard(staffUser))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
-    private User createStaffUser(Long id, String name, String department) {
+    private User createStaffUser(Long id, String name, Long departmentId) {
         User user = new User();
         user.setId(id);
         user.setUserName(name);
-        user.setDepartment(department);
+        user.setDepartmentId(departmentId);
         user.setRoleType(UserType.STAFF.getCode());
         user.setIsActive(true);
         return user;

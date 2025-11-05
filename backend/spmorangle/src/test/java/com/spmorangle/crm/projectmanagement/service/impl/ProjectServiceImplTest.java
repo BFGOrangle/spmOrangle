@@ -4,6 +4,8 @@ import com.spmorangle.common.converter.UserConverter;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.model.Department;
+import com.spmorangle.crm.departmentmgmt.repository.DepartmentRepository;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentalVisibilityService;
 import com.spmorangle.crm.projectmanagement.dto.CreateProjectDto;
@@ -51,6 +53,9 @@ class ProjectServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private DepartmentRepository departmentRepository;
 
     @Mock
     private DepartmentQueryService departmentQueryService;

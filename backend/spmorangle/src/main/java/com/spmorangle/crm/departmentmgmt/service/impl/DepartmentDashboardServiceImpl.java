@@ -64,30 +64,29 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
     public DepartmentDashboardResponseDto getDepartmentDashboard(User user) {
         validateUserRole(user);
 
-        String departmentName = Optional.ofNullable(user.getDepartment())
-                .map(String::trim)
-                .filter(name -> !name.isEmpty())
-                .orElse(null);
-
-        if (departmentName == null) {
+        Long departmentId = user.getDepartmentId();
+        if (departmentId == null) {
             log.warn("User {} has no department assigned; returning empty dashboard", user.getId());
             return buildEmptyResponse(null, List.of());
         }
 
-        Set<String> visibleDepartmentNames = resolveVisibleDepartmentNames(departmentName);
-        if (visibleDepartmentNames.isEmpty()) {
-            log.warn("No visible departments resolved for user {} and department {}", user.getId(), departmentName);
+        Department userDepartment = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Department not found with id: " + departmentId));
+        String departmentName = userDepartment.getName();
+
+        Set<Long> visibleDepartmentIds = resolveVisibleDepartmentIds(departmentId);
+        if (visibleDepartmentIds.isEmpty()) {
+            log.warn("No visible departments resolved for user {} and department ID {}", user.getId(), departmentId);
             return buildEmptyResponse(departmentName, List.of());
         }
 
+        List<String> visibleDepartmentNames = resolveVisibleDepartmentNames(visibleDepartmentIds);
         List<String> orderedDepartments = visibleDepartmentNames.stream().toList();
 
         // Fetch active members within the visible departments
-        Set<String> lowerCaseDepartments = visibleDepartmentNames.stream()
-                .map(String::toLowerCase)
-                .collect(Collectors.toSet());
-
-        List<User> departmentMembers = userRepository.findActiveUsersByDepartmentsIgnoreCase(lowerCaseDepartments);
+        List<User> departmentMembers = userRepository.findByDepartmentIds(visibleDepartmentIds, -1L).stream()
+                .filter(User::getIsActive)
+                .toList();
         if (departmentMembers.isEmpty()) {
             log.info("No active members found for departments {}", visibleDepartmentNames);
             return buildEmptyResponse(departmentName, orderedDepartments);
@@ -120,14 +119,17 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
 
         Map<Long, Project> projectsById = resolveProjects(tasks);
 
+        // Resolve department names for all users
+        Map<Long, String> departmentNamesById = resolveDepartmentNames(usersById.values());
+
         List<TaskDashboardItemDto> taskItems = tasks.stream()
-                .map(task -> mapToTaskItem(task, usersById, projectsById, assigneeIdsByTask))
+                .map(task -> mapToTaskItem(task, usersById, projectsById, assigneeIdsByTask, departmentNamesById))
                 .toList();
 
         List<ProjectHealthCardDto> projectCards = buildProjectCards(tasks, projectsById);
         List<TaskDashboardItemDto> upcomingCommitments = selectUpcomingCommitments(taskItems);
         List<TaskDashboardItemDto> priorityQueue = selectPriorityQueue(taskItems);
-        List<TeamLoadEntryDto> teamLoad = buildTeamLoad(tasks, assigneeIdsByTask, usersById, memberIds);
+        List<TeamLoadEntryDto> teamLoad = buildTeamLoad(tasks, assigneeIdsByTask, usersById, memberIds, departmentNamesById);
 
         DashboardMetricsDto metrics = buildMetrics(tasks, projectCards.size(), priorityQueue.size());
 
@@ -152,17 +154,21 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
         }
     }
 
-    private Set<String> resolveVisibleDepartmentNames(String departmentName) {
-        Optional<Department> departmentOpt = departmentRepository.findByNameIgnoreCase(departmentName);
-        if (departmentOpt.isEmpty()) {
-            return Set.of(departmentName);
-        }
-
-        Department department = departmentOpt.get();
-        return departmentQueryService.getDescendants(department.getId(), true).stream()
-                .map(descendant -> descendant.getName().trim())
-                .filter(name -> !name.isEmpty())
+    private Set<Long> resolveVisibleDepartmentIds(Long departmentId) {
+        return departmentQueryService.getDescendants(departmentId, true).stream()
+                .map(descendant -> descendant.getId())
+                .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private List<String> resolveVisibleDepartmentNames(Set<Long> departmentIds) {
+        if (departmentIds.isEmpty()) {
+            return List.of();
+        }
+        return departmentRepository.findAllById(departmentIds).stream()
+                .map(Department::getName)
+                .filter(name -> name != null && !name.trim().isEmpty())
+                .toList();
     }
 
     private Map<Long, List<Long>> fetchAssigneesGroupedByTask(Collection<Long> taskIds) {
@@ -193,11 +199,17 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
     private TaskDashboardItemDto mapToTaskItem(Task task,
                                                Map<Long, User> usersById,
                                                Map<Long, Project> projectsById,
-                                               Map<Long, List<Long>> assigneeIdsByTask) {
+                                               Map<Long, List<Long>> assigneeIdsByTask,
+                                               Map<Long, String> departmentNamesById) {
         User owner = usersById.get(task.getOwnerId());
         Project project = task.getProjectId() != null ? projectsById.get(task.getProjectId()) : null;
 
         List<Long> assignees = assigneeIdsByTask.getOrDefault(task.getId(), List.of());
+
+        String ownerDepartmentName = null;
+        if (owner != null && owner.getDepartmentId() != null) {
+            ownerDepartmentName = departmentNamesById.get(owner.getDepartmentId());
+        }
 
         return TaskDashboardItemDto.builder()
                 .id(task.getId())
@@ -207,7 +219,7 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
                 .priority(task.getPriority())
                 .ownerId(task.getOwnerId())
                 .ownerName(owner != null ? owner.getUserName() : "User " + task.getOwnerId())
-                .ownerDepartment(owner != null ? owner.getDepartment() : null)
+                .ownerDepartment(ownerDepartmentName)
                 .projectId(task.getProjectId())
                 .projectName(project != null ? project.getName() : null)
                 .dueDateTime(task.getDueDateTime())
@@ -215,6 +227,20 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
                 .createdAt(task.getCreatedAt())
                 .assigneeIds(assignees)
                 .build();
+    }
+
+    private Map<Long, String> resolveDepartmentNames(Collection<User> users) {
+        Set<Long> departmentIds = users.stream()
+                .map(User::getDepartmentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        if (departmentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return departmentRepository.findAllById(departmentIds).stream()
+                .collect(Collectors.toMap(Department::getId, Department::getName));
     }
 
     private DashboardMetricsDto buildMetrics(List<Task> tasks,
@@ -318,7 +344,8 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
     private List<TeamLoadEntryDto> buildTeamLoad(List<Task> tasks,
                                                  Map<Long, List<Long>> assigneeIdsByTask,
                                                  Map<Long, User> usersById,
-                                                 Set<Long> visibleMemberIds) {
+                                                 Set<Long> visibleMemberIds,
+                                                 Map<Long, String> departmentNamesById) {
         Map<Long, Set<Long>> taskIdsByUser = new HashMap<>();
         Map<Long, Integer> blockedCounts = new HashMap<>();
 
@@ -349,13 +376,16 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
                     Set<Long> userTaskIds = entry.getValue();
                     User member = usersById.get(userId);
                     String fullName = member != null ? member.getUserName() : "User " + userId;
-                    String department = member != null ? member.getDepartment() : null;
+                    String departmentName = null;
+                    if (member != null && member.getDepartmentId() != null) {
+                        departmentName = departmentNamesById.get(member.getDepartmentId());
+                    }
                     int blockedCount = blockedCounts.getOrDefault(userId, 0);
 
                     return TeamLoadEntryDto.builder()
                             .userId(userId)
                             .fullName(fullName)
-                            .department(department)
+                            .department(departmentName)
                             .taskCount(userTaskIds.size())
                             .blockedTaskCount(blockedCount)
                             .build();
@@ -388,14 +418,23 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
     private DepartmentDashboardResponseDto buildEmptyResponseWithTeam(String departmentName,
                                                                       List<String> includedDepartments,
                                                                       List<User> departmentMembers) {
+        // Resolve department names for team members
+        Map<Long, String> departmentNamesById = resolveDepartmentNames(departmentMembers);
+
         List<TeamLoadEntryDto> teamLoad = departmentMembers.stream()
-                .map(member -> TeamLoadEntryDto.builder()
-                        .userId(member.getId())
-                        .fullName(member.getUserName())
-                        .department(member.getDepartment())
-                        .taskCount(0)
-                        .blockedTaskCount(0)
-                        .build())
+                .map(member -> {
+                    String deptName = null;
+                    if (member.getDepartmentId() != null) {
+                        deptName = departmentNamesById.get(member.getDepartmentId());
+                    }
+                    return TeamLoadEntryDto.builder()
+                            .userId(member.getId())
+                            .fullName(member.getUserName())
+                            .department(deptName)
+                            .taskCount(0)
+                            .blockedTaskCount(0)
+                            .build();
+                })
                 .sorted(Comparator.comparing(TeamLoadEntryDto::getFullName))
                 .toList();
 

@@ -48,6 +48,7 @@ public class ProjectServiceImpl implements ProjectService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final DepartmentRepository departmentRepository;
     private final DepartmentQueryService departmentQueryService;
     private final DepartmentalVisibilityService departmentalVisibilityService;
 
