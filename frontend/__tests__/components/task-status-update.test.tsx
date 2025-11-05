@@ -199,8 +199,8 @@ describe('Task Status Updates with Time Tracking', () => {
     jest.setSystemTime(new Date('2025-10-20T12:00:00Z'));
     
     mockGetTags.mockResolvedValue([
-      { id: 1, tagName: 'testing' },
-      { id: 2, tagName: 'urgent' },
+      { id: 1, tagName: 'testing', deleteInd: false },
+      { id: 2, tagName: 'urgent', deleteInd: false },
     ]);
     mockGetProjectMembers.mockResolvedValue([]);
   });
