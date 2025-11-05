@@ -319,6 +319,12 @@ export function TaskCreationDialog({
       if (prev.includes(collaboratorId)) {
         return prev.filter((id) => id !== collaboratorId);
       }
+      // Check if we would exceed the 5 assignee limit
+      if (prev.length >= 5) {
+        setError('Maximum 5 assignees allowed per task');
+        return prev;
+      }
+      setError(null);
       return [...prev, collaboratorId];
     });
   };
@@ -1025,7 +1031,12 @@ export function TaskCreationDialog({
           <DialogHeader>
             <DialogTitle>Select Collaborators</DialogTitle>
             <DialogDescription>
-              Choose team members to collaborate on this task. You can update collaborators at any time after the task is created.
+              Choose team members to collaborate on this task. Maximum 5 assignees allowed.
+              {draftCollaboratorIds.length > 0 && (
+                <span className="block mt-1 text-sm font-medium">
+                  Selected: {draftCollaboratorIds.length} / 5
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1041,6 +1052,7 @@ export function TaskCreationDialog({
                 <div className="space-y-2">
                   {availableCollaborators.map((collaborator) => {
                     const isSelected = draftCollaboratorIds.includes(collaborator.id);
+                    const isLimitReached = draftCollaboratorIds.length >= 5 && !isSelected;
 
                     return (
                       <Button
@@ -1049,6 +1061,7 @@ export function TaskCreationDialog({
                         variant={isSelected ? "default" : "outline"}
                         className="w-full justify-start gap-3"
                         onClick={() => toggleDraftCollaborator(collaborator.id)}
+                        disabled={isLimitReached}
                       >
                         <span className="flex flex-col items-start">
                           <span className="text-sm font-medium">{collaborator.username}</span>

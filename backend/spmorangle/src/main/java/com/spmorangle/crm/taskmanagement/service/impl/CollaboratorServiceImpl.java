@@ -15,6 +15,7 @@ import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAlreadyExistsException;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAssignmentNotFoundException;
+import com.spmorangle.crm.taskmanagement.service.exception.MaxAssigneesExceededException;
 import com.spmorangle.crm.taskmanagement.service.exception.TaskNotFoundException;
 import com.spmorangle.crm.taskmanagement.service.exception.UserNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -72,6 +73,13 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         if (taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(taskId, collaboratorId, assignedById)) {
             log.warn("⚠️ [COLLABORATOR] Collaborator already exists - TaskId: {}, CollaboratorId: {}", taskId, collaboratorId);
             throw new CollaboratorAlreadyExistsException(taskId, collaboratorId);
+        }
+
+        // Check if adding this collaborator would exceed the maximum limit
+        int currentAssigneeCount = taskAssigneeRepository.countByTaskId(taskId);
+        if (currentAssigneeCount >= MaxAssigneesExceededException.getMaxAssignees()) {
+            log.error("❌ [COLLABORATOR] Max assignees exceeded - TaskId: {}, CurrentCount: {}", taskId, currentAssigneeCount);
+            throw new MaxAssigneesExceededException(taskId, currentAssigneeCount);
         }
 
         TaskAssignee taskAssignee = new TaskAssignee();

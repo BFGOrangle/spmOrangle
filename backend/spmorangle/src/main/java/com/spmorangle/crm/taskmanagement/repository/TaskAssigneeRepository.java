@@ -23,4 +23,6 @@ public interface TaskAssigneeRepository extends JpaRepository<TaskAssignee, Task
     List<TaskAssignee> findByTaskId(Long taskId);
 
     List<TaskAssignee> findByTaskIdIn(Collection<Long> taskIds);
+
+    int countByTaskId(Long taskId);
 }
