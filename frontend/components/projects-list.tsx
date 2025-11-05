@@ -124,6 +124,10 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
     return user?.role != 'STAFF'
   }
 
+  const isManager = (user: CurrentUser | null) => {
+    return user?.role === 'MANAGER'
+  }
+
   const loadProjects = async () => {
     setIsLoading(true);
     setError(null);
@@ -216,10 +220,12 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => setIsCreateModalOpen(true)} className="cursor-pointer">
-            <Plus className="h-4 w-4 mr-2" />
-            New Project
-          </Button>
+          {isManager(currentUser) && (
+            <Button onClick={() => setIsCreateModalOpen(true)} className="cursor-pointer">
+              <Plus className="h-4 w-4 mr-2" />
+              New Project
+            </Button>
+          )}
         </div>
       </div>
 
@@ -230,15 +236,19 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
             {filterOwner === "owned" ? "No projects owned" : "No projects yet"}
           </h3>
           <p className="text-muted-foreground mb-4">
-            {filterOwner === "owned" 
-              ? "You don't own any projects yet. Try switching to 'All Projects' or create a new one." 
-              : "Create your first project to get started with task management"
+            {filterOwner === "owned"
+              ? "You don't own any projects yet. Try switching to 'All Projects'" + (isManager(currentUser) ? " or create a new one." : ".")
+              : isManager(currentUser)
+                ? "Create your first project to get started with task management"
+                : "No projects available yet"
             }
           </p>
-          <Button onClick={() => setIsCreateModalOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Project
-          </Button>
+          {isManager(currentUser) && (
+            <Button onClick={() => setIsCreateModalOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Project
+            </Button>
+          )}
         </div>
       ) : (
         <div
