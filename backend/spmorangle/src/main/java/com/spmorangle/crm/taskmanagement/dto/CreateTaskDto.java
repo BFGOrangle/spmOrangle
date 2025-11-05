@@ -3,6 +3,7 @@ package com.spmorangle.crm.taskmanagement.dto;
 import com.spmorangle.crm.taskmanagement.enums.Status;
 import com.spmorangle.crm.taskmanagement.enums.TaskType;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -33,6 +34,7 @@ public class CreateTaskDto {
 
     private final List<String> tags;
 
+    @Size(max = 5, message = "Maximum 5 assignees allowed per task")
     private final List<Long> assignedUserIds;
 
     private final OffsetDateTime dueDateTime;

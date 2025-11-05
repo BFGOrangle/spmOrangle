@@ -142,6 +142,16 @@ export function TaskCollaboratorManagement({
       return;
     }
 
+    // Check if adding would exceed the 5 assignee limit
+    if (currentCollaboratorIds.length >= 5) {
+      toast({
+        title: "Cannot add collaborator",
+        description: "Maximum 5 assignees allowed per task",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const collaboratorId = Number.parseInt(selectedUserId, 10);
 
     try {
@@ -213,7 +223,8 @@ export function TaskCollaboratorManagement({
     selectedUserId === "no-users" ||
     isMutationPending ||
     isCollaboratorsLoading ||
-    availableCollaborators.length === 0;
+    availableCollaborators.length === 0 ||
+    currentCollaboratorIds.length >= 5;
 
   const addButtonLabel = isMutationPending ? "Processing..." : "Add Collaborator";
 
@@ -233,7 +244,12 @@ export function TaskCollaboratorManagement({
         <DialogHeader>
           <DialogTitle>Manage Task Collaborators</DialogTitle>
           <DialogDescription>
-            Add or remove collaborators for this task.
+            Add or remove collaborators for this task. Maximum 5 assignees allowed.
+            {currentCollaboratorIds.length > 0 && (
+              <span className="block mt-1 text-sm font-medium">
+                Current assignees: {currentCollaboratorIds.length} / 5
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 

@@ -20,7 +20,7 @@ public class DepartmentQueryController {
 
     @GetMapping("/{id}/sub-departments")
     public ResponseEntity<List<DepartmentDto>> getSubDepartments(@PathVariable Long id) {
-        List<DepartmentDto> subDepartments = departmentQueryService.getSubDepartments(id);
+        List<DepartmentDto> subDepartments = departmentQueryService.getChildren(id);
         return ResponseEntity.ok(subDepartments);
     }
 }

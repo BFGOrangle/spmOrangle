@@ -1,7 +1,11 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
+import com.spmorangle.common.enums.UserType;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.repository.DepartmentRepository;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.projectmanagement.dto.ProjectResponseDto;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
 import com.spmorangle.crm.taskmanagement.dto.*;
@@ -14,6 +18,7 @@ import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.*;
+import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
 import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
 import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
@@ -24,6 +29,7 @@ import com.spmorangle.crm.taskmanagement.enums.Status;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,13 +49,14 @@ public class TaskServiceImpl implements TaskService {
     private final CollaboratorService collaboratorService;
     private final SubtaskService subtaskService;
     private final ProjectService projectService;
+    private final DepartmentRepository departmentRepository;
+    private final DepartmentQueryService departmentQueryService;
     private final TagService tagService;
     private final RecurrenceService recurrenceService;
     private final NotificationMessagePublisher notificationPublisher;
     private final UserRepository userRepository;
     private final TaskAssigneeRepository taskAssigneeRepository;
     private final ReportService reportService;
-    private final DepartmentQueryService departmentQueryService;
     private final DepartmentalVisibilityService departmentalVisibilityService;
 
     @Override
@@ -220,13 +227,21 @@ public class TaskServiceImpl implements TaskService {
 
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
         Long projectOwnerId = projectService.getOwnerId(projectId);
+        Set<Long> projectTaskIds = tasks.stream().map(Task::getId).collect(Collectors.toSet());
+        boolean hasDirectMembership = projectOwnerId.equals(userId)
+                || tasksUserIsCollaboratorFor.stream().anyMatch(projectTaskIds::contains);
+
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Task> visibleTasks = applyDepartmentScopeFilter(currentUser, tasks, projectTaskIds, hasDirectMembership, projectId);
 
         Map<Long, String> projectNames = resolveProjectNames(Collections.singleton(projectId));
-        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+        Map<Long, User> ownerDetails = resolveOwnerDetails(visibleTasks);
 
         List<TaskResponseDto> result = new ArrayList<>();
 
-        for(Task task : tasks) {
+        for (Task task : visibleTasks) {
             boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
             boolean userHasDeleteAccess = userId.equals(projectOwnerId);
 
@@ -255,27 +270,34 @@ public class TaskServiceImpl implements TaskService {
 
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
         Long projectOwnerId = projectService.getOwnerId(projectId);
+        Set<Long> projectTaskIds = tasks.stream().map(Task::getId).collect(Collectors.toSet());
+        boolean hasDirectMembership = projectOwnerId.equals(userId)
+                || tasksUserIsCollaboratorFor.stream().anyMatch(projectTaskIds::contains);
+
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Task> visibleTasks = applyDepartmentScopeFilter(currentUser, tasks, projectTaskIds, hasDirectMembership, projectId);
 
         Map<Long, String> projectNames = resolveProjectNames(Collections.singleton(projectId));
-        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+        Map<Long, User> ownerDetails = resolveOwnerDetails(visibleTasks);
 
         List<TaskResponseDto> result = new ArrayList<>();
 
-        for(Task task : tasks) {
+        for (Task task : visibleTasks) {
             boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
             boolean userHasDeleteAccess = userId.equals(projectOwnerId);
 
-            // Return recurring virtual tasks (but not if completed - avoid duplicates)
-            if(Boolean.TRUE.equals(task.getIsRecurring()) && task.getStatus() != Status.COMPLETED) {
+            if (Boolean.TRUE.equals(task.getIsRecurring()) && task.getStatus() != Status.COMPLETED) {
                 List<TaskResponseDto> virtualInstances = expandRecurringTaskForDisplay(
-                    task,
-                    userHasWriteAccess,
-                    userHasDeleteAccess,
-                    projectNames,
-                    ownerDetails,
-                    userId,
-                    calendarView,
-                    referenceDate
+                        task,
+                        userHasWriteAccess,
+                        userHasDeleteAccess,
+                        projectNames,
+                        ownerDetails,
+                        userId,
+                        calendarView,
+                        referenceDate
                 );
                 result.addAll(virtualInstances);
             } else {
@@ -284,6 +306,89 @@ public class TaskServiceImpl implements TaskService {
         }
 
         return result;
+    }
+
+    private List<Task> applyDepartmentScopeFilter(User user,
+                                                  List<Task> tasks,
+                                                  Set<Long> projectTaskIds,
+                                                  boolean hasDirectMembership,
+                                                  Long projectId) {
+        if (!isDepartmentScopedRole(user)) {
+            return tasks;
+        }
+
+        if (hasDirectMembership) {
+            return tasks;
+        }
+
+        Set<Long> visibleMemberIds = resolveVisibleMemberIds(user);
+        if (visibleMemberIds.isEmpty()) {
+            log.warn("User {} has no visible members for project {}", user.getId(), projectId);
+            throw new AccessDeniedException("Project is outside of your departmental scope");
+        }
+
+        Map<Long, List<Long>> assigneeIdsByTask = getAssigneeIdsByTask(projectTaskIds);
+        List<Task> filteredTasks = tasks.stream()
+                .filter(task -> isTaskVisibleToDepartment(task, visibleMemberIds, assigneeIdsByTask))
+                .collect(Collectors.toList());
+
+        if (filteredTasks.isEmpty()) {
+            log.warn("User {} attempted to access project {} outside of department scope", user.getId(), projectId);
+            throw new AccessDeniedException("Project is outside of your departmental scope");
+        }
+
+        return filteredTasks;
+    }
+
+    private boolean isDepartmentScopedRole(User user) {
+        if (user == null || user.getRoleType() == null) {
+            return false;
+        }
+
+        String role = user.getRoleType();
+        return UserType.MANAGER.getCode().equalsIgnoreCase(role)
+                || UserType.DIRECTOR.getCode().equalsIgnoreCase(role);
+    }
+
+    private Set<Long> resolveVisibleMemberIds(User user) {
+        Long departmentId = user.getDepartmentId();
+
+        if (departmentId == null) {
+            return Set.of(user.getId());
+        }
+
+        Set<Long> visibleDepartmentIds = departmentQueryService.getDescendants(departmentId, true).stream()
+                .map(DepartmentDto::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        Set<Long> memberIds = userRepository.findByDepartmentIds(visibleDepartmentIds, user.getId()).stream()
+                .filter(User::getIsActive)
+                .map(User::getId)
+                .collect(Collectors.toCollection(HashSet::new));
+        memberIds.add(user.getId());
+        return memberIds;
+    }
+
+    private Map<Long, List<Long>> getAssigneeIdsByTask(Set<Long> taskIds) {
+        if (taskIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return taskAssigneeRepository.findByTaskIdIn(taskIds).stream()
+                .collect(Collectors.groupingBy(TaskAssignee::getTaskId,
+                        Collectors.mapping(TaskAssignee::getUserId, Collectors.toList())));
+    }
+
+    private boolean isTaskVisibleToDepartment(Task task,
+                                              Set<Long> visibleMemberIds,
+                                              Map<Long, List<Long>> assigneeIdsByTask) {
+        if (visibleMemberIds.contains(task.getOwnerId())) {
+            return true;
+        }
+
+        return assigneeIdsByTask.getOrDefault(task.getId(), List.of()).stream()
+                .anyMatch(visibleMemberIds::contains);
     }
 
     @Override

@@ -21,7 +21,7 @@ public class Department {
     private Long id;
 
     @NotNull
-    @Column(name = "name", nullable = false, length = Integer.MAX_VALUE)
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
     @Column(name = "parent_id")
