@@ -3,6 +3,7 @@ import { AuthenticatedApiClient } from "./authenticated-api-client";
 export interface TagResponse {
   id: number;
   tagName: string;
+  deleteInd: boolean;
 }
 
 export interface CreateTagRequest {
@@ -28,6 +29,10 @@ export class TagService {
   async createTag(request: CreateTagRequest | string): Promise<TagResponse> {
     const payload = typeof request === "string" ? { tagName: request } : request;
     return this.authenticatedClient.post<TagResponse>("/api/tag", payload);
+  }
+
+  async deleteTag(tagId: number): Promise<void> {
+    await this.authenticatedClient.delete(`/api/tag/${tagId}`);
   }
 }
 

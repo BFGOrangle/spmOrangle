@@ -12,4 +12,5 @@ public interface TagService {
     TagDto createTag(CreateTagDto createTagDto);
     Tag findOrCreateTag(String tagName);
     Set<Tag> findOrCreateTags(List<String> tagNames);
+    void deleteTag(Long tagId);
 }
