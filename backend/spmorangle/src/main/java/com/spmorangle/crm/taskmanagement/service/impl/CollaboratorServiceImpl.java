@@ -52,8 +52,12 @@ public class CollaboratorServiceImpl implements CollaboratorService {
                 });
 
         // Authorization check: User must be a project member to add collaborators
-        if (!projectService.isUserProjectMember(assignedById, task.getProjectId())) {
-            log.error("❌ [COLLABORATOR] User {} is not a member of project {}", assignedById, task.getProjectId());
+        // Skip check for personal tasks (projectId is null or 0)
+        Long taskProjectId = task.getProjectId();
+        boolean isPersonalTask = (taskProjectId == null || taskProjectId == 0);
+
+        if (!isPersonalTask && !projectService.isUserProjectMember(assignedById, taskProjectId)) {
+            log.error("❌ [COLLABORATOR] User {} is not a member of project {}", assignedById, taskProjectId);
             throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
                 "Cannot add collaborators to tasks in a view-only project. You must be a project member or owner.");
         }
@@ -121,7 +125,11 @@ public class CollaboratorServiceImpl implements CollaboratorService {
                 .orElseThrow(() -> new TaskNotFoundException(taskId));
 
         // Authorization check: User must be a project member to remove collaborators
-        if (!projectService.isUserProjectMember(assignedById, task.getProjectId())) {
+        // Skip check for personal tasks (projectId is null or 0)
+        Long taskProjectId = task.getProjectId();
+        boolean isPersonalTask = (taskProjectId == null || taskProjectId == 0);
+
+        if (!isPersonalTask && !projectService.isUserProjectMember(assignedById, taskProjectId)) {
             throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
                 "Cannot remove collaborators from tasks in a view-only project. You must be a project member or owner.");
         }

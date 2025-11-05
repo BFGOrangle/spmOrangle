@@ -51,13 +51,13 @@ public class TaskServiceImpl implements TaskService {
     private final ProjectService projectService;
     private final DepartmentRepository departmentRepository;
     private final DepartmentQueryService departmentQueryService;
+    private final DepartmentalVisibilityService departmentalVisibilityService;
     private final TagService tagService;
     private final RecurrenceService recurrenceService;
     private final NotificationMessagePublisher notificationPublisher;
     private final UserRepository userRepository;
     private final TaskAssigneeRepository taskAssigneeRepository;
     private final ReportService reportService;
-    private final DepartmentalVisibilityService departmentalVisibilityService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -71,13 +71,7 @@ public class TaskServiceImpl implements TaskService {
         log.info("🔵 Creating task with title: '{}' for user: {}", createTaskDto.getTitle(), currentUserId);
         log.info("📋 CreateTaskDto details - ProjectId: {}, OwnerId: {}, AssignedUserIds: {}",
                  createTaskDto.getProjectId(), createTaskDto.getOwnerId(), createTaskDto.getAssignedUserIds());
-
-        // Authorization check: User must be a project member to create tasks
-        if (!projectService.isUserProjectMember(currentUserId, createTaskDto.getProjectId())) {
-            throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
-                "Cannot create task in a view-only project. You must be a project member or owner.");
-        }
-
+        
         Task task = new Task();
         
         task.setProjectId(createTaskDto.getProjectId());
@@ -676,12 +670,6 @@ public class TaskServiceImpl implements TaskService {
 
         Task task = taskRepository.findById(updateTaskDto.getTaskId())
                 .orElseThrow(() -> new RuntimeException("Task not found"));
-
-        // Authorization check: User must be a project member to update tasks
-        if (!projectService.isUserProjectMember(currentUserId, task.getProjectId())) {
-            throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
-                "Cannot update task in a view-only project. You must be a project member or owner.");
-        }
 
         // Only owner or collaborators can update the task
         if (!canUserUpdateTask(updateTaskDto.getTaskId(), currentUserId)) {
