@@ -123,7 +123,7 @@ export const CalendarControls: React.FC<CalendarControlsProps> = ({
 
         {/* Right section: View controls and filters */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-            {/* Task Type filter */}
+            {/* Task View filter */}
             <div className="min-w-0 flex-shrink-0">
             <Select
                 value={selectedTaskType}
@@ -134,17 +134,18 @@ export const CalendarControls: React.FC<CalendarControlsProps> = ({
                 }}
             >
                 <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Task Type" />
+                <SelectValue placeholder="View Type" />
                 </SelectTrigger>
                 <SelectContent>
-                <SelectItem value="Project Tasks">Project Tasks</SelectItem>
-                <SelectItem value="Personal Tasks">Personal Tasks</SelectItem>
+                <SelectItem value="My Projects">My Project Tasks</SelectItem>
+                <SelectItem value="Personal Tasks">My Personal Tasks</SelectItem>
+                <SelectItem value="Project Tasks">All Project Tasks</SelectItem>
                 </SelectContent>
             </Select>
             </div>
 
-            {/* Project filter - only show when not in Personal Tasks mode */}
-            {selectedTaskType !== "Personal Tasks" && (
+            {/* Project filter - only show when in Project Tasks mode */}
+            {selectedTaskType === "Project Tasks" && (
             <div className="min-w-0 flex-shrink-0">
                 <Select
                 value={selectedProjectId?.toString() || 'all'}
@@ -161,7 +162,7 @@ export const CalendarControls: React.FC<CalendarControlsProps> = ({
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">All Projects</SelectItem>
-                    {projects.map((project) => (
+                    {projects.filter(project => project.id !== 0).map((project) => (
                     <SelectItem key={project.id} value={project.id.toString()}>
                         {project.name}
                     </SelectItem>
@@ -225,12 +226,14 @@ export const CalendarControls: React.FC<CalendarControlsProps> = ({
             </span>
           ) : selectedTaskType === "Personal Tasks" ? (
             <span>Viewing: Personal Tasks</span>
+          ) : selectedTaskType === "My Projects" ? (
+            <span>Viewing: My Project Tasks</span>
           ) : selectedProjectId ? (
             <span>
-              Filtered by: {projects.find(p => p.id === selectedProjectId)?.name}
+              Filtered by: {projects.find(p => p.id === selectedProjectId)?.name} (includes related tasks)
             </span>
           ) : (
-            <span>Viewing: All Project Tasks</span>
+            <span>Viewing: All Project Tasks (mine + colleagues)</span>
           )}
         </div>
       </div>

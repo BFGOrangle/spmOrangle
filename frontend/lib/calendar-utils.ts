@@ -3,7 +3,7 @@
  */
 
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, addDays, isToday, isSameMonth, isSameDay } from 'date-fns';
-import { CalendarEvent, TaskToEventConverter, EventColorGenerator } from '../types/calendar';
+import { CalendarEvent, TaskToEventConverter, EventColorGenerator, BorderColorGenerator } from '../types/calendar';
 import { TaskResponseDto } from '../types/project';
 import { ProjectResponse } from '../services/project-service';
 
@@ -26,8 +26,15 @@ export const isTaskOverdue = (task: { dueDateTime?: string; status: string }): b
   return dueDate < now;
 };
 
+// Generate border color to distinguish own tasks vs colleague tasks
+export const generateBorderColor: BorderColorGenerator = (isOwnTask) => {
+  // Green border for own tasks (assigned to me or owned by me)
+  // Purple border for colleague tasks (visible through department access but not a collaborator)
+  return isOwnTask ? 'border-green-500' : 'border-purple-400';
+};
+
 // Convert task to calendar event
-export const taskToEvent: TaskToEventConverter = (task, project) => {
+export const taskToEvent: TaskToEventConverter = (task, project, currentUserId) => {
   const startDate = new Date(task.createdAt);
 
   // Use most relevant date for display filtering: dueDateTime > startDate > createdAt
@@ -44,6 +51,13 @@ export const taskToEvent: TaskToEventConverter = (task, project) => {
   // Check if task is overdue
   const taskIsOverdue = isTaskOverdue(task);
 
+  // Determine if this is the user's own task (assigned to them or owned by them)
+  let isOwnTask: boolean = true; // Default to true if no currentUserId provided (treat as own task)
+  if (currentUserId !== undefined) {
+    isOwnTask = task.ownerId === currentUserId ||
+      (task.assignedUserIds !== undefined && task.assignedUserIds.includes(currentUserId));
+  }
+
   const event = {
     id: task.id,
     title: task.title,
@@ -59,6 +73,7 @@ export const taskToEvent: TaskToEventConverter = (task, project) => {
     assignedUserIds: task.assignedUserIds,
     ownerId: task.ownerId,
     color: generateEventColor(task.taskType, task.status, taskIsOverdue),
+    borderColor: generateBorderColor(isOwnTask),
   };
 
   // Log virtual instances for debugging

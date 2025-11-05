@@ -281,6 +281,7 @@ export class ProjectService {
 
   /**
    * Get tasks from projects that are related to the current user's department
+   * Note: This endpoint does not support calendar view expansion - filtering is done on frontend
    */
   async getRelatedProjectTasks(tags?: string[]): Promise<TaskResponse[]> {
     const query = this.buildTagsQuery(tags);

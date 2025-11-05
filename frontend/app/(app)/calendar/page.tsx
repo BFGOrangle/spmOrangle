@@ -38,7 +38,7 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [filters, setFilters] = useState<CalendarFilters>({});
   const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>();
-  const [selectedTaskType, setSelectedTaskType] = useState<string>('Project Tasks');
+  const [selectedTaskType, setSelectedTaskType] = useState<string>('My Projects');
   const [searchKeyword, setSearchKeyword] = useState<string>('');
 
   // Hooks
@@ -71,19 +71,34 @@ export default function CalendarPage() {
       const backendCalendarView = currentView;
 
       if (selectedTaskType === "Personal Tasks") {
+        // Fetch only personal tasks (projectId = 0)
         tasksData = await projectService.getPersonalTasks(userId, undefined, backendCalendarView, currentDate);
-      } else if (selectedProjectId) {
-        // Fetch tasks for specific project with virtual instances
-        tasksData = await projectService.getProjectTasks(selectedProjectId, undefined, backendCalendarView, currentDate);
-      } else {
-        // Fetch all tasks from all projects with virtual instances
+      } else if (selectedTaskType === "My Projects") {
+        // Fetch only user's own tasks from their projects (excluding projectId = 0)
         for (const project of projects) {
+          if (project.id === 0) continue; // Skip personal tasks (projectId = 0)
           try {
             const tasks = await projectService.getProjectTasks(project.id, undefined, backendCalendarView, currentDate);
             tasksData.push(...tasks);
           } catch (error) {
             console.warn('Failed to fetch tasks for project:', error);
           }
+        }
+      } else if (selectedTaskType === "Project Tasks") {
+        // Use getAllUserTasks API which returns all tasks (personal + project) with department visibility
+        console.log('📡 Fetching all user tasks (personal + project + related)');
+        const allUserTasks = await projectService.getAllUserTasks(userId, undefined, backendCalendarView, currentDate);
+        
+        if (selectedProjectId) {
+          // Filter to show only tasks from the selected project
+          console.log(`� Filtering for project ${selectedProjectId}`);
+          tasksData = allUserTasks.filter(task => task.projectId === selectedProjectId);
+          console.log(`✅ Found ${tasksData.length} tasks for project ${selectedProjectId}`);
+        } else {
+          // Show all project tasks (exclude personal tasks with projectId = 0)
+          console.log('🔍 Filtering to exclude personal tasks (projectId = 0)');
+          tasksData = allUserTasks.filter(task => task.projectId !== 0);
+          console.log(`✅ Total project tasks loaded: ${tasksData.length}`);
         }
       }
 
@@ -107,12 +122,11 @@ export default function CalendarPage() {
       
       const { task, isPersonalTask } = event.detail;
       
-      // If we're viewing personal tasks and this is a personal task, or 
-      // if we're viewing all project tasks and this is a project task, refetch
+      // Refetch based on current view and task type
       const shouldRefetch = (
         (selectedTaskType === "Personal Tasks" && isPersonalTask) ||
-        (selectedTaskType === "Project Tasks" && !isPersonalTask) ||
-        (!selectedProjectId && selectedTaskType === "Project Tasks") // viewing all projects
+        (selectedTaskType === "My Projects" && !isPersonalTask) ||
+        (selectedTaskType === "Project Tasks" && !isPersonalTask)
       );
       
       console.log('Should refetch?', shouldRefetch);
@@ -135,12 +149,11 @@ export default function CalendarPage() {
       
       const { task, isPersonalTask } = event.detail;
       
-      // If we're viewing personal tasks and this is a personal task, or 
-      // if we're viewing all project tasks and this is a project task, refetch
+      // Refetch based on current view and task type
       const shouldRefetch = (
         (selectedTaskType === "Personal Tasks" && isPersonalTask) ||
-        (selectedTaskType === "Project Tasks" && !isPersonalTask) ||
-        (!selectedProjectId && selectedTaskType === "Project Tasks") // viewing all projects
+        (selectedTaskType === "My Projects" && !isPersonalTask) ||
+        (selectedTaskType === "Project Tasks" && !isPersonalTask)
       );
       
       if (shouldRefetch) {
@@ -169,9 +182,9 @@ export default function CalendarPage() {
         taskType: task.taskType as TaskType,
         status: task.status as TaskStatus,
       };
-      return taskToEvent(taskDto, project);
+      return taskToEvent(taskDto, project, currentUser?.backendStaffId);
     });
-  }, [allTasks, projects]);
+  }, [allTasks, projects, currentUser?.backendStaffId]);
 
   // Search function to filter and highlight events
   const searchAndHighlightEvents = React.useCallback((events: CalendarEvent[], keyword: string): CalendarEvent[] => {
@@ -240,6 +253,9 @@ export default function CalendarPage() {
     // First, filter by user access (assigned or owner)
     filtered = filterEventsByUserAccess(filtered, currentUser?.backendStaffId);
 
+    // Filter out tasks without due dates (only show tasks with dueDate)
+    filtered = filtered.filter(event => event.dueDate !== undefined && event.dueDate !== null);
+
     // If searching, only show matching events (highlighted ones)
     if (searchKeyword.trim()) {
       filtered = filtered.filter(event => event.isHighlighted);
@@ -289,8 +305,8 @@ export default function CalendarPage() {
 
   const handleTaskTypeChange = useCallback((taskType: string) => {
     setSelectedTaskType(taskType);
-    // Reset project filter when switching to personal tasks
-    if (taskType === "Personal Tasks") {
+    // Reset project filter when switching to My Projects or Personal Tasks
+    if (taskType === "My Projects" || taskType === "Personal Tasks") {
       setSelectedProjectId(undefined);
       setFilters(prev => ({ 
         ...prev, 

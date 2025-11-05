@@ -187,10 +187,11 @@ export const CalendarTimelineView: React.FC<TimelineProps> = ({
                       <Card
                         key={event.id}
                         className={cn(
-                          "absolute cursor-pointer hover:shadow-md transition-shadow text-white text-xs p-1 sm:p-2",
+                          "absolute cursor-pointer hover:shadow-md transition-shadow text-white text-xs p-1 sm:p-2 border-l-4",
                           eventIsOverdue 
                             ? "bg-red-600 ring-2 ring-red-600 ring-offset-1" 
-                            : event.color
+                            : event.color,
+                          event.borderColor
                         )}
                         style={{
                           left: position.left,
