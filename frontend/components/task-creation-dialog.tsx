@@ -619,12 +619,6 @@ export function TaskCreationDialog({
                   <SelectValue placeholder="Select project or create personal task" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      <span>Personal Task (No Project)</span>
-                    </div>
-                  </SelectItem>
                   {availableProjects.map((project) => (
                     <SelectItem key={project.id} value={project.id.toString()}>
                       <div className="flex items-center gap-2">
