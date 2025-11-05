@@ -4,6 +4,8 @@ import com.spmorangle.common.converter.UserConverter;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.model.Department;
+import com.spmorangle.crm.departmentmgmt.repository.DepartmentRepository;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentalVisibilityService;
 import com.spmorangle.crm.projectmanagement.dto.CreateProjectDto;
@@ -51,6 +53,9 @@ class ProjectServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private DepartmentRepository departmentRepository;
 
     @Mock
     private DepartmentQueryService departmentQueryService;
@@ -686,6 +691,34 @@ class ProjectServiceImplTest {
             unrelatedProject.setOwnerId(777L);
             unrelatedProject.setCreatedBy(777L);
             unrelatedProject.setDeleteInd(false);
+
+            // Setup department mocks
+            Department engineeringDept = new Department();
+            engineeringDept.setId(1L);
+            engineeringDept.setName("Engineering");
+            
+            Department hrDept = new Department();
+            hrDept.setId(2L);
+            hrDept.setName("HR");
+            
+            DepartmentDto engineeringDeptDto = DepartmentDto.builder()
+                    .id(1L)
+                    .name("Engineering")
+                    .build();
+                    
+            DepartmentDto hrDeptDto = DepartmentDto.builder()
+                    .id(2L)
+                    .name("HR")
+                    .build();
+            
+            lenient().when(departmentRepository.findByNameIgnoreCase("Engineering"))
+                    .thenReturn(Optional.of(engineeringDept));
+            lenient().when(departmentRepository.findByNameIgnoreCase("HR"))
+                    .thenReturn(Optional.of(hrDept));
+            lenient().when(departmentQueryService.getDescendants(1L, true))
+                    .thenReturn(Collections.singletonList(engineeringDeptDto));
+            lenient().when(departmentQueryService.getDescendants(2L, true))
+                    .thenReturn(Collections.singletonList(hrDeptDto));
         }
 
         @Test

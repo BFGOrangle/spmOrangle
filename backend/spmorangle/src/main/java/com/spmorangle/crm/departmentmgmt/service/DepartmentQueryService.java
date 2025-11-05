@@ -10,8 +10,18 @@ public interface DepartmentQueryService {
 
     Optional<DepartmentDto> getById(Long id);
 
-    List<DepartmentDto> getSubDepartments(Long id);
+    Optional<DepartmentDto> getByNameCaseInsensitive(String name);
 
-    Optional<DepartmentDto> getParentDepartment(Long id, boolean includeSelf);
+    Optional<DepartmentDto> getParent(Long id);
+
+    List<DepartmentDto> getChildren(Long id);
+
+    List<DepartmentDto> getAncestors(Long id, boolean includeSelf);
+
+    List<DepartmentDto> getDescendants(Long id, boolean includeSelf);
+
+    List<DepartmentDto> getRoots();
+
+    boolean exists(Long id);
 
 }

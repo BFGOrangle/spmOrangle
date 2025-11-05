@@ -43,6 +43,27 @@ jest.mock("@/services/project-service", () => ({
   TaskResponse: {},
 }));
 
+jest.mock("@/services/dashboard-service", () => ({
+  dashboardService: {
+    getDepartmentDashboard: jest.fn().mockResolvedValue({
+      department: "Marketing",
+      includedDepartments: ["Marketing"],
+      metrics: {
+        activeProjects: 0,
+        totalTasks: 0,
+        completedTasks: 0,
+        blockedTasks: 0,
+        highPriorityTasks: 0,
+        completionRate: 0,
+      },
+      projects: [],
+      upcomingCommitments: [],
+      priorityQueue: [],
+      teamLoad: [],
+    }),
+  },
+}));
+
 // Mock ThemeToggle component
 jest.mock("@/components/theme-toggle", () => ({
   ThemeToggle: () => <div data-testid="theme-toggle">Theme Toggle</div>,
@@ -235,4 +256,3 @@ describe("Dashboard", () => {
     )).not.toThrow();
   });
 });
-

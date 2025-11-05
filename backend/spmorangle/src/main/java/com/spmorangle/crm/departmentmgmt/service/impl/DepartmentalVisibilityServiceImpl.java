@@ -70,7 +70,7 @@ public class DepartmentalVisibilityServiceImpl implements DepartmentalVisibility
      */
     private void addAllChildDepartments(Long parentDeptId, Set<Long> visibleDeptIds) {
         // Get immediate children of this department
-        List<DepartmentDto> children = departmentQueryService.getSubDepartments(parentDeptId);
+        List<DepartmentDto> children = departmentQueryService.getChildren(parentDeptId);
 
         if (!children.isEmpty()) {
             log.debug("Department {} has {} child departments: {}",

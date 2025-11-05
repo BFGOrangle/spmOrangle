@@ -4,14 +4,20 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.spmorangle.common.converter.UserConverter;
+import com.spmorangle.common.enums.UserType;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.repository.DepartmentRepository;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.projectmanagement.model.ProjectMember;
 import com.spmorangle.crm.projectmanagement.repository.ProjectMemberRepository;
 import com.spmorangle.crm.usermanagement.dto.UserResponseDto;
@@ -42,6 +48,7 @@ public class ProjectServiceImpl implements ProjectService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final DepartmentRepository departmentRepository;
     private final DepartmentQueryService departmentQueryService;
     private final DepartmentalVisibilityService departmentalVisibilityService;
 
@@ -143,6 +150,34 @@ public class ProjectServiceImpl implements ProjectService {
         log.info("Returning total of {} projects for user {}", result.size(), userId);
         log.info("📋 Project IDs in result: {}", result.stream().map(p -> p.getId()).toList());
         return result;
+    }
+
+    private boolean isDepartmentScopedRole(String role) {
+        if (role == null) {
+            return false;
+        }
+
+        return UserType.MANAGER.getCode().equalsIgnoreCase(role)
+                || UserType.DIRECTOR.getCode().equalsIgnoreCase(role);
+    }
+
+    private Set<String> resolveDepartmentScopeNames(String departmentName) {
+        if (departmentName == null || departmentName.isEmpty()) {
+            return Set.of();
+        }
+
+        return departmentRepository.findByNameIgnoreCase(departmentName)
+                .map(root -> departmentQueryService.getDescendants(root.getId(), true).stream()
+                        .map(DepartmentDto::getName)
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(name -> !name.isEmpty())
+                        .collect(Collectors.toCollection(LinkedHashSet::new)))
+                .orElseGet(() -> {
+                    LinkedHashSet<String> fallback = new LinkedHashSet<>();
+                    fallback.add(departmentName);
+                    return fallback;
+                });
     }
 
     @Override

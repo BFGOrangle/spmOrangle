@@ -1,6 +1,7 @@
 package com.spmorangle.crm.taskmanagement.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,6 +27,11 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
            "LEFT JOIN TaskAssignee ta ON t.id = ta.taskId " +
            "WHERE t.deleteInd = false AND (t.ownerId = :userId OR ta.userId = :userId)")
     List<Task> findUserTasks(@Param("userId") Long userId);
+
+    @Query("SELECT DISTINCT t FROM Task t " +
+            "LEFT JOIN TaskAssignee ta ON t.id = ta.taskId " +
+            "WHERE t.deleteInd = false AND (t.ownerId IN :userIds OR ta.userId IN :userIds)")
+    List<Task> findVisibleTasksForUsers(@Param("userIds") Collection<Long> userIds);
     
     List<Task> getTasksById(long id);
 
