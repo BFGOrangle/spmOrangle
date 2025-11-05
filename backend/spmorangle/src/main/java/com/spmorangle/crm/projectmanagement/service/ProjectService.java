@@ -16,4 +16,5 @@ public interface ProjectService {
     Long getOwnerId(Long projectId);
     Map<Long, Long> getProjectOwners(Set<Long> projectIds);
     List<ProjectResponseDto> getProjectsByIds(Set<Long> projectIds);
+    boolean isUserProjectMember(Long userId, Long projectId);
 }

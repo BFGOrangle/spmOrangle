@@ -1,134 +1,69 @@
 package com.spmorangle.crm.departmentmgmt.service.impl;
 
+import com.spmorangle.crm.departmentmgmt.DepartmentConverter;
 import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
 import com.spmorangle.crm.departmentmgmt.model.Department;
 import com.spmorangle.crm.departmentmgmt.repository.DepartmentRepository;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Function;
+import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DepartmentQueryServiceImpl implements DepartmentQueryService {
 
     private final DepartmentRepository departmentRepository;
 
-    @Override
+    @Transactional(readOnly = true)
     public Optional<DepartmentDto> getById(Long id) {
-        return departmentRepository.findById(id).map(this::mapToDto);
+        return departmentRepository.findById(id).map(DepartmentConverter::convert);
     }
 
-    @Override
-    public Optional<DepartmentDto> getByNameCaseInsensitive(String name) {
-        if (name == null) {
+    /**
+     * Returns the immediate children of the given department id.
+     * If id is null, returns all root departments.
+     */
+    @Transactional(readOnly = true)
+    public List<DepartmentDto> getSubDepartments(Long id) {
+        List<DepartmentDto> all = departmentRepository.findAll().stream()
+                .map(DepartmentConverter::convert)
+                .toList();
+
+        // Build parentId -> children (immediate) directly from flat list
+        Map<Long, List<DepartmentDto>> idx = all.stream()
+                .filter(d -> d.getParentId() != null)
+                .collect(Collectors.groupingBy(DepartmentDto::getParentId));
+
+        List<DepartmentDto> children = idx.getOrDefault(id, List.of());
+
+        return children.stream()
+                .toList();
+    }
+
+    /**
+     * Returns the parent of the given department. If includeSelf, returns self when no parent exists.
+     */
+    @Transactional(readOnly = true)
+    public Optional<DepartmentDto> getParentDepartment(Long id, boolean includeSelf) {
+        Department child = departmentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Department not found with id: " + id));
+        Long parentId = child.getParentId();
+        if (parentId == null) {
+            if (includeSelf) return Optional.of(DepartmentConverter.convert(child));
             return Optional.empty();
         }
-        return departmentRepository.findByNameIgnoreCase(name).map(this::mapToDto);
-    }
 
-    @Override
-    public Optional<DepartmentDto> getParent(Long id) {
-        return departmentRepository.findById(id)
-                .map(Department::getParentId)
-                .flatMap(parentId -> parentId == null ? Optional.empty() : departmentRepository.findById(parentId))
-                .map(this::mapToDto);
-    }
+        return departmentRepository.findById(parentId)
+                .map(DepartmentConverter::convert);
 
-    @Override
-    public List<DepartmentDto> getChildren(Long id) {
-        return departmentRepository.findByParentId(id).stream()
-                .map(this::mapToDto)
-                .toList();
-    }
-
-    @Override
-    public List<DepartmentDto> getAncestors(Long id, boolean includeSelf) {
-        Map<Long, Department> allDepartments = getAllDepartmentsById();
-        List<DepartmentDto> ancestors = new ArrayList<>();
-
-        Department current = allDepartments.get(id);
-        if (current == null) {
-            return ancestors;
-        }
-
-        if (includeSelf) {
-            ancestors.add(mapToDto(current));
-        }
-
-        Long parentId = current.getParentId();
-        while (parentId != null) {
-            Department parent = allDepartments.get(parentId);
-            if (parent == null) {
-                break;
-            }
-            ancestors.add(mapToDto(parent));
-            parentId = parent.getParentId();
-        }
-        return ancestors;
-    }
-
-    @Override
-    public List<DepartmentDto> getDescendants(Long id, boolean includeSelf) {
-        Map<Long, Department> allDepartments = getAllDepartmentsById();
-        List<DepartmentDto> descendants = new ArrayList<>();
-        if (allDepartments.isEmpty() || !allDepartments.containsKey(id)) {
-            return descendants;
-        }
-
-        if (includeSelf) {
-            descendants.add(mapToDto(allDepartments.get(id)));
-        }
-
-        Deque<Long> stack = new ArrayDeque<>();
-        stack.push(id);
-
-        while (!stack.isEmpty()) {
-            Long currentId = stack.pop();
-            for (Department child : allDepartments.values()) {
-                if (currentId.equals(child.getParentId())) {
-                    descendants.add(mapToDto(child));
-                    stack.push(child.getId());
-                }
-            }
-        }
-
-        return descendants;
-    }
-
-    @Override
-    public List<DepartmentDto> getRoots() {
-        return departmentRepository.findByParentId(null).stream()
-                .map(this::mapToDto)
-                .toList();
-    }
-
-    @Override
-    public boolean exists(Long id) {
-        if (id == null) {
-            return false;
-        }
-        return departmentRepository.existsById(id);
-    }
-
-    private DepartmentDto mapToDto(Department department) {
-        return DepartmentDto.builder()
-                .id(department.getId())
-                .name(department.getName())
-                .parentId(department.getParentId())
-                .build();
-    }
-
-    private Map<Long, Department> getAllDepartmentsById() {
-        return departmentRepository.findAll().stream()
-                .collect(Collectors.toMap(Department::getId, Function.identity()));
+//        Department parent = departmentRepository.findById(parentId)
+//                .orElseThrow(() -> new IllegalArgumentException("Parent Department not found with id: " + parentId));
+//        return DepartmentConverter.convert(parent);
     }
 }

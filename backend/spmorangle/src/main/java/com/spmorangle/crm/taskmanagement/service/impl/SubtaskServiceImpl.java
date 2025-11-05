@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import com.spmorangle.crm.taskmanagement.model.Task;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.spmorangle.crm.taskmanagement.dto.CreateSubtaskDto;
@@ -53,24 +54,24 @@ public class SubtaskServiceImpl implements SubtaskService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public List<SubtaskResponseDto> getSubtasksByTaskId(Long taskId, Long currentUserId) {
         log.info("Fetching subtasks for task: {}", taskId);
-        
+
         List<Subtask> subtasks = subtaskRepository.findByTaskIdAndNotDeleted(taskId);
-        
+
         return subtasks.stream()
                 .map(subtask -> mapToSubtaskResponseDto(subtask, currentUserId))
                 .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public List<SubtaskResponseDto> getSubtasksByProjectId(Long projectId, Long currentUserId) {
         log.info("Fetching subtasks for project: {}", projectId);
-        
+
         List<Subtask> subtasks = subtaskRepository.findByProjectIdAndNotDeleted(projectId);
-        
+
         return subtasks.stream()
                 .map(subtask -> mapToSubtaskResponseDto(subtask, currentUserId))
                 .collect(Collectors.toList());
@@ -173,7 +174,10 @@ public class SubtaskServiceImpl implements SubtaskService {
     public boolean canUserUpdateSubtask(Long subtaskId, Long userId) {
         Subtask subtask = subtaskRepository.findByIdAndNotDeleted(subtaskId);
         if (subtask == null) {
-            throw new RuntimeException("Subtask not found with ID: " + subtaskId);
+            // When called from read-only transaction (mapToSubtaskResponseDto), don't throw exception
+            // User can't edit a non-existent subtask
+            log.warn("Subtask not found with ID: {} when checking update permission", subtaskId);
+            return false;
         }
 
         Long projectId = subtask.getProjectId();
@@ -185,7 +189,9 @@ public class SubtaskServiceImpl implements SubtaskService {
 
         Task task = taskRepository.findByIdAndNotDeleted(taskId);
         if (task == null) {
-            throw new RuntimeException("Task not found with ID: " + taskId);
+            // Task has been deleted - user can't edit subtasks of deleted tasks
+            log.warn("Task not found with ID: {} when checking subtask {} update permission", taskId, subtaskId);
+            return false;
         }
 
         // check if is a collaborator of the task
@@ -197,7 +203,10 @@ public class SubtaskServiceImpl implements SubtaskService {
     public boolean canUserDeleteSubtask(Long subtaskId, Long userId) {
         Subtask subtask = subtaskRepository.findByIdAndNotDeleted(subtaskId);
         if (subtask == null) {
-            throw new RuntimeException("Subtask not found with ID: " + subtaskId);
+            // When called from read-only transaction (mapToSubtaskResponseDto), don't throw exception
+            // User can't delete a non-existent subtask
+            log.warn("Subtask not found with ID: {} when checking delete permission", subtaskId);
+            return false;
         }
 
         Long projectId = subtask.getProjectId();
@@ -206,6 +215,12 @@ public class SubtaskServiceImpl implements SubtaskService {
             return subtask.getCreatedBy().equals(userId);
         }
 
-        return projectService.getOwnerId(projectId).equals(userId);
+        try {
+            return projectService.getOwnerId(projectId).equals(userId);
+        } catch (RuntimeException e) {
+            // Project not found - user can't delete subtasks from non-existent projects
+            log.warn("Project not found with ID: {} when checking subtask {} delete permission", projectId, subtaskId);
+            return false;
+        }
     }
 }

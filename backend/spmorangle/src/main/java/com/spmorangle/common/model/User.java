@@ -35,9 +35,8 @@ public class User {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 
-    @Size(max = 100)
-    @Column(name = "department")
-    private String department;
+    @Column(name = "department_id")
+    private Long departmentId;
 
     @NotNull
     @Column(name = "cognito_sub", nullable = false)

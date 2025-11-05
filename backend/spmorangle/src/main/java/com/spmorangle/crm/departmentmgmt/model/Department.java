@@ -2,6 +2,8 @@ package com.spmorangle.crm.departmentmgmt.model;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
@@ -10,8 +12,7 @@ import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.OffsetDateTime;
 
-@Getter
-@Setter
+@Data
 @Entity
 @Table(name = "departments", schema = "syncup")
 public class Department {
@@ -23,7 +24,6 @@ public class Department {
     @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @NotNull
     @Column(name = "parent_id")
     private Long parentId;
 

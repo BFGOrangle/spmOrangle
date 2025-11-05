@@ -7,7 +7,9 @@ import com.spmorangle.crm.departmentmgmt.dto.UpdateDepartmentReqDto;
 
 public interface DepartmentAdminService {
 
-    DepartmentDto createDepartment(CreateDepartmentReqDto req);
+    DepartmentDto getDepartmentById(Long id);
+
+    void createDepartment(CreateDepartmentReqDto req);
 
     void updateDepartment(UpdateDepartmentReqDto req);
 

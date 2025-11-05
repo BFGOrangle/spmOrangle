@@ -4,9 +4,10 @@ import java.util.Set;
 
 public interface DepartmentalVisibilityService {
 
-    Set<Long> visibilityDepartmentsForAssignedDept(Long leafDept);
+    Set<Long> visibleDepartmentsForAssignedDept(Long dept);
 
-    boolean canUserSeeTask(Set<Long> userDepartments, Long leafDept);
+    boolean canUserSeeTask(Long userId);
 
-    Set<Long> getChildDepartmentIds(Long leafDept);
+    boolean canUserSeeTask(Set<Long> viewingUserVisibleDeptIds, Long taskAssigneeId);
+
 }

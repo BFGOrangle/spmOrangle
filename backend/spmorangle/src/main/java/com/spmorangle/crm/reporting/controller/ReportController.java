@@ -34,47 +34,47 @@ public class ReportController {
     
     @GetMapping("/task-summary")
     public ResponseEntity<TaskSummaryReportDto> getTaskSummaryReport(
-            @RequestParam(required = false) String department,
+            @RequestParam(required = false) Long departmentId,
             @RequestParam(required = false) List<Long> projectIds,
             @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) ReportFilterDto.TimeRange timeRange) {
-        
+
         User user = userContextService.getRequestingUser();
-        log.info("Getting task summary report for user: {} with department: {}, projectIds: {}, startDate: {}, endDate: {}", 
-                 user.getId(), department, projectIds, startDate, endDate);
-        
+        log.info("Getting task summary report for user: {} with departmentId: {}, projectIds: {}, startDate: {}, endDate: {}",
+                 user.getId(), departmentId, projectIds, startDate, endDate);
+
         ReportFilterDto filters = ReportFilterDto.builder()
-            .department(department)
+            .departmentId(departmentId)
             .projectIds(projectIds)
             .startDate(startDate)
             .endDate(endDate)
             .timeRange(timeRange)
             .build();
-        
+
         TaskSummaryReportDto report = reportService.generateTaskSummaryReport(filters, user.getId());
         return ResponseEntity.ok(report);
     }
-    
+
     @GetMapping("/time-analytics")
     public ResponseEntity<TimeAnalyticsReportDto> getTimeAnalyticsReport(
-            @RequestParam(required = false) String department,
+            @RequestParam(required = false) Long departmentId,
             @RequestParam(required = false) List<Long> projectIds,
             @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = true) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) ReportFilterDto.TimeRange timeRange) {
-        
+
         User user = userContextService.getRequestingUser();
-        log.info("Getting time analytics report for user: {} with department: {}", user.getId(), department);
-        
+        log.info("Getting time analytics report for user: {} with departmentId: {}", user.getId(), departmentId);
+
         ReportFilterDto filters = ReportFilterDto.builder()
-            .department(department)
+            .departmentId(departmentId)
             .projectIds(projectIds)
             .startDate(startDate)
             .endDate(endDate)
             .timeRange(timeRange)
             .build();
-        
+
         TimeAnalyticsReportDto report = reportService.generateTimeAnalyticsReport(filters, user.getId());
         return ResponseEntity.ok(report);
     }
@@ -90,12 +90,12 @@ public class ReportController {
     
     @GetMapping("/projects")
     public ResponseEntity<Map<String, Object>> getAvailableProjects(
-            @RequestParam(required = false) String department) {
-        
+            @RequestParam(required = false) Long departmentId) {
+
         User user = userContextService.getRequestingUser();
-        log.info("Getting available projects for user: {} in department: {}", user.getId(), department);
-        
-        List<Object[]> projectData = reportService.getAvailableProjects(department, user.getId());
+        log.info("Getting available projects for user: {} in departmentId: {}", user.getId(), departmentId);
+
+        List<Object[]> projectData = reportService.getAvailableProjects(departmentId, user.getId());
         
         // Convert to a more frontend-friendly format
         List<Map<String, Object>> projects = projectData.stream()

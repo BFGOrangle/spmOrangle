@@ -51,8 +51,8 @@ class ReportControllerSimpleTest {
         hrUser = new User();
         hrUser.setEmail("john@test.com");
         hrUser.setRoleType(UserType.HR.getCode());
-        hrUser.setDepartment("HR");
-        
+        hrUser.setDepartmentId(200L); // HR department
+
         mockTaskSummary = new TaskSummaryReportDto();
         mockTimeAnalytics = new TimeAnalyticsReportDto();
     }
@@ -66,7 +66,7 @@ class ReportControllerSimpleTest {
 
         // Act
         ResponseEntity<TaskSummaryReportDto> response = reportController.getTaskSummaryReport(
-                "Engineering", null, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31), null
+                100L, null, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31), null
         );
 
         // Assert
@@ -84,7 +84,7 @@ class ReportControllerSimpleTest {
 
         // Act
         ResponseEntity<TimeAnalyticsReportDto> response = reportController.getTimeAnalyticsReport(
-                "Engineering", null, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31), null
+                100L, null, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31), null
         );
 
         // Assert
@@ -145,7 +145,7 @@ class ReportControllerSimpleTest {
                 .thenReturn(projectList);
 
         // Act
-        ResponseEntity<Map<String, Object>> response = reportController.getAvailableProjects("Engineering");
+        ResponseEntity<Map<String, Object>> response = reportController.getAvailableProjects(100L);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());

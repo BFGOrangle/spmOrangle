@@ -80,10 +80,10 @@ public class ReportExportService {
      */
     private String generateFilename(ReportFilterDto filters, String extension) {
         StringBuilder filename = new StringBuilder("report");
-        
-        // Add department if specified
-        if (filters.getDepartment() != null && !filters.getDepartment().isEmpty()) {
-            filename.append("_").append(filters.getDepartment().toLowerCase().replaceAll("\\s+", "-"));
+
+        // Add department ID if specified (for uniqueness in filename)
+        if (filters.getDepartmentId() != null) {
+            filename.append("_dept").append(filters.getDepartmentId());
         }
         
         // Add date range if specified

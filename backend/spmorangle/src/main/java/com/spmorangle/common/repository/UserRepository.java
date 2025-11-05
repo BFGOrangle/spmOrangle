@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -37,8 +38,12 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     @Query(nativeQuery = true, value = "SELECT u.* FROM syncup.users u JOIN syncup.project_members pm ON u.id = pm.user_id WHERE pm.project_id = :projectId")
     List<User> findUsersInProject(Long projectId);
 
-    List<User> findByDepartmentIgnoreCase(String department);
+    List<User> findByDepartmentId(Long departmentId);
 
-    @Query("SELECT u FROM User u WHERE u.isActive = true AND LOWER(u.department) IN :departments")
-    List<User> findActiveUsersByDepartmentsIgnoreCase(@Param("departments") Collection<String> departments);
+    @Query("""
+            SELECT u FROM User u
+            WHERE u.departmentId IN :departmentIds
+            AND u.id != :excludeUserId
+            """)
+    List<User> findByDepartmentIds(@Param("departmentIds") Set<Long> departmentIds, @Param("excludeUserId") Long excludeUserId);
 }

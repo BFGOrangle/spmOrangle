@@ -22,47 +22,47 @@ public interface TaskTimeTrackingRepository extends JpaRepository<TaskTimeTracki
     
     @Query("""
         SELECT COALESCE(SUM(
-            CASE 
+            CASE
                 WHEN ttt.completedAt IS NOT NULL THEN ttt.totalHours
-                WHEN ttt.startedAt IS NOT NULL THEN 
+                WHEN ttt.startedAt IS NOT NULL THEN
                     (CAST(FUNCTION('timestampdiff', SECOND, ttt.startedAt, CURRENT_TIMESTAMP) AS double) / 3600.0)
                 ELSE 0
             END
         ), 0)
-        FROM TaskTimeTracking ttt 
-        JOIN Task t ON ttt.taskId = t.id 
-        JOIN User u ON ttt.userId = u.id 
-        WHERE (:department = '' OR u.department = :department)
+        FROM TaskTimeTracking ttt
+        JOIN Task t ON ttt.taskId = t.id
+        JOIN User u ON ttt.userId = u.id
+        WHERE (:departmentId IS NULL OR u.departmentId = :departmentId)
         AND (CAST(ttt.startedAt AS DATE) >= :startDate)
         AND (CAST(ttt.completedAt AS DATE) <= :endDate OR (ttt.completedAt IS NULL AND CAST(ttt.startedAt AS DATE) <= :endDate))
         """)
     BigDecimal getTotalHoursByDepartmentAndDateRange(
-        @Param("department") String department,
+        @Param("departmentId") Long departmentId,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
     
     @Query("""
-        SELECT u.department, SUM(
-            CASE 
+        SELECT u.departmentId, SUM(
+            CASE
                 WHEN ttt.completedAt IS NOT NULL THEN ttt.totalHours
-                WHEN ttt.startedAt IS NOT NULL THEN 
+                WHEN ttt.startedAt IS NOT NULL THEN
                     (CAST(FUNCTION('timestampdiff', SECOND, ttt.startedAt, CURRENT_TIMESTAMP) AS double) / 3600.0)
                 ELSE 0
             END
-        ) 
-        FROM TaskTimeTracking ttt 
-        JOIN Task t ON ttt.taskId = t.id 
-        JOIN User u ON ttt.userId = u.id 
+        )
+        FROM TaskTimeTracking ttt
+        JOIN Task t ON ttt.taskId = t.id
+        JOIN User u ON ttt.userId = u.id
         WHERE (CAST(ttt.startedAt AS DATE) >= :startDate)
         AND (CAST(ttt.completedAt AS DATE) <= :endDate OR (ttt.completedAt IS NULL AND CAST(ttt.startedAt AS DATE) <= :endDate))
-        AND u.department IS NOT NULL
-        AND (:department = '' OR u.department = :department)
+        AND u.departmentId IS NOT NULL
+        AND (:departmentId IS NULL OR u.departmentId = :departmentId)
         AND (:projectIds IS NULL OR t.projectId IN :projectIds)
-        GROUP BY u.department
+        GROUP BY u.departmentId
         """)
     List<Object[]> getHoursByDepartment(
-        @Param("department") String department,
+        @Param("departmentId") Long departmentId,
         @Param("projectIds") List<Long> projectIds,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
@@ -70,18 +70,18 @@ public interface TaskTimeTrackingRepository extends JpaRepository<TaskTimeTracki
     
     @Query("""
         SELECT p.name, SUM(
-            CASE 
+            CASE
                 WHEN ttt.completedAt IS NOT NULL THEN ttt.totalHours
-                WHEN ttt.startedAt IS NOT NULL THEN 
+                WHEN ttt.startedAt IS NOT NULL THEN
                     (CAST(FUNCTION('timestampdiff', SECOND, ttt.startedAt, CURRENT_TIMESTAMP) AS double) / 3600.0)
                 ELSE 0
             END
-        )   
-        FROM TaskTimeTracking ttt 
-        JOIN Task t ON ttt.taskId = t.id 
-        JOIN Project p ON t.projectId = p.id 
-        JOIN User u ON ttt.userId = u.id 
-        WHERE (:department = '' OR u.department = :department)
+        )
+        FROM TaskTimeTracking ttt
+        JOIN Task t ON ttt.taskId = t.id
+        JOIN Project p ON t.projectId = p.id
+        JOIN User u ON ttt.userId = u.id
+        WHERE (:departmentId IS NULL OR u.departmentId = :departmentId)
         AND (:projectIds IS NULL OR t.projectId IN :projectIds)
         AND (CAST(ttt.startedAt AS DATE) >= :startDate)
         AND (CAST(ttt.completedAt AS DATE) <= :endDate OR (ttt.completedAt IS NULL AND CAST(ttt.startedAt AS DATE) <= :endDate))
@@ -89,36 +89,36 @@ public interface TaskTimeTrackingRepository extends JpaRepository<TaskTimeTracki
         GROUP BY p.name
         """)
     List<Object[]> getHoursByProject(
-        @Param("department") String department,
+        @Param("departmentId") Long departmentId,
         @Param("projectIds") List<Long> projectIds,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
     
     @Query("""
-        SELECT p.name, u.department, SUM(
-            CASE 
+        SELECT p.name, u.departmentId, SUM(
+            CASE
                 WHEN ttt.completedAt IS NOT NULL THEN ttt.totalHours
-                WHEN ttt.startedAt IS NOT NULL THEN 
+                WHEN ttt.startedAt IS NOT NULL THEN
                     (CAST(FUNCTION('timestampdiff', SECOND, ttt.startedAt, CURRENT_TIMESTAMP) AS double) / 3600.0)
                 ELSE 0
             END
         ),
         COUNT(DISTINCT CASE WHEN t.status = 'COMPLETED' THEN t.id END),
         COUNT(DISTINCT CASE WHEN t.status = 'IN_PROGRESS' THEN t.id END)
-        FROM TaskTimeTracking ttt 
-        JOIN Task t ON ttt.taskId = t.id 
-        JOIN Project p ON t.projectId = p.id 
-        JOIN User u ON t.ownerId = u.id 
-        WHERE (:department = '' OR u.department = :department)
+        FROM TaskTimeTracking ttt
+        JOIN Task t ON ttt.taskId = t.id
+        JOIN Project p ON t.projectId = p.id
+        JOIN User u ON t.ownerId = u.id
+        WHERE (:departmentId IS NULL OR u.departmentId = :departmentId)
         AND (:projectIds IS NULL OR t.projectId IN :projectIds)
         AND (CAST(ttt.startedAt AS DATE) >= :startDate)
         AND (CAST(ttt.completedAt AS DATE) <= :endDate OR (ttt.completedAt IS NULL AND CAST(ttt.startedAt AS DATE) <= :endDate))
         AND t.projectId IS NOT NULL
-        GROUP BY p.name, u.department
+        GROUP BY p.name, u.departmentId
         """)
     List<Object[]> getProjectDetails(
-        @Param("department") String department,
+        @Param("departmentId") Long departmentId,
         @Param("projectIds") List<Long> projectIds,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate

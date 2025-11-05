@@ -60,7 +60,7 @@ class ReportingRepositoryTest {
         testUser = new User();
         testUser.setUserName("testuser");
         testUser.setEmail("test@example.com");
-        testUser.setDepartment("Engineering");
+        testUser.setDepartmentId(100L); // Engineering department
         testUser.setRoleType(UserType.STAFF.getCode());
         testUser.setCognitoSub(UUID.randomUUID());
         testUser.setIsActive(true);
@@ -70,7 +70,7 @@ class ReportingRepositoryTest {
         testUser2 = new User();
         testUser2.setUserName("testuser2");
         testUser2.setEmail("test2@example.com");
-        testUser2.setDepartment("Marketing");
+        testUser2.setDepartmentId(200L); // Marketing department
         testUser2.setRoleType(UserType.STAFF.getCode());
         testUser2.setCognitoSub(UUID.randomUUID());
         testUser2.setIsActive(true);
