@@ -224,8 +224,11 @@ export function TaskCreationDialog({
         setTagsError(null);
         const tags = await tagService.getTags();
         if (isActive) {
-          const tagNames = tags.map((tag) => tag.tagName);
-          setAvailableTags(tagNames);
+          // Filter out deleted tags from suggestions
+          const activeTagNames = tags
+            .filter(tag => !tag.deleteInd)
+            .map(tag => tag.tagName);
+          setAvailableTags(activeTagNames);
         }
       } catch (err) {
         console.error('Error loading tags:', err);

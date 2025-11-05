@@ -155,9 +155,9 @@ describe("TasksPage", () => {
     mockTagService.getTags.mockClear();
 
     mockTagService.getTags.mockResolvedValue([
-      { id: 1, tagName: "Backend" },
-      { id: 2, tagName: "Urgent" },
-      { id: 3, tagName: "Frontend" },
+      { id: 1, tagName: "Backend", deleteInd: false },
+      { id: 2, tagName: "Urgent", deleteInd: false },
+      { id: 3, tagName: "Frontend", deleteInd: false },
     ]);
 
     // Default mock implementations that return demo data format

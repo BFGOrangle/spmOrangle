@@ -854,7 +854,11 @@ export default function TasksPage() {
         if (!isMounted) {
           return;
         }
-        setAvailableTags(tags.map((tag) => tag.tagName));
+        // Filter out deleted tags from display
+        const activeTagNames = tags
+          .filter(tag => !tag.deleteInd)
+          .map(tag => tag.tagName);
+        setAvailableTags(activeTagNames);
       } catch (err) {
         console.error('Error loading tags:', err);
         if (isMounted) {
