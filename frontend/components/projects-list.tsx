@@ -255,11 +255,11 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
         </div>
       )}
 
-      {isNotStaff(currentUser) && <section className="mt-10">
+      {relatedProjects.length > 0 && <section className="mt-10">
         <div className="flex flex-col gap-1">
           <h2 className="text-2xl font-semibold">Related Projects</h2>
           <p className="text-sm text-muted-foreground">
-            Projects that include collaborators from your department where you have view-only access
+            Projects that include colleagues from your department where you have view-only access
           </p>
         </div>
 

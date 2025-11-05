@@ -118,17 +118,19 @@ So that I can stay updated on my team's work but not see unrelated projects.
 
 #### AC3.2: Grouping of related projects (view only) ✅
 **GIVEN** I am a user in Department A
-**AND** Project X contains tasks where at least one task has an assignee from my department
+**AND** Project X contains tasks where at least one task has an assignee from my department (or visible departments)
 **WHEN** I view the project list
 **THEN** I can see Project X under "related projects"
 **AND** I only see the tasks under Project X that has an assignee from my department
 
-**Implementation:** `getUserProjects()` with `isRelated = true` (MANAGER-only) + frontend shows "View only" badge
+**Implementation:** `getUserProjects()` with `isRelated = true` (ALL users with departments) + frontend shows "View only" badge
+
+**✅ UPDATED (2025-11-05):** Changed from MANAGER-only to ALL users - anyone can now see related projects where colleagues from their visible departments are working. This provides team transparency for all roles.
+
+**Task Filtering:** Related project tasks are filtered by department visibility via `TaskServiceImpl.getProjectTasks()` when `isRelatedProject = true`
 
 **⚠️ CONCERNS:**
-- **Related Projects Restriction**: AC says "I am a user" but implementation restricts related projects to MANAGERS only. Is this intentional or should all users see related projects?
-- **Task Filtering Gap**: AC says "I only see the tasks under Project X that has an assignee from my department" but task filtering already happens via `getAllUserTasks()`. Need to verify this is working correctly in the frontend.
-- **E2E Tests Missing**: No tests validating project visibility scenarios
+- **E2E Tests Missing**: No tests validating project visibility scenarios for all user roles
 
 ---
 
@@ -313,7 +315,6 @@ So that team structures and groupings (projects, departments, tags) are centrall
 ### 🟡 Partial Implementations
 1. **Tag Permissions**: Creation is manager-only, but deletion doesn't exist (AC4.4)
 2. **Frontend Permission Checks**: Create project button visible to all users instead of manager-only (AC6.1)
-3. **Related Projects Scope**: Limited to managers only vs AC saying "as a user" (AC3.2)
 
 ### 🟠 Missing Tests
 1. **E2E Tests**: No end-to-end test implementations despite documentation existing
@@ -321,8 +322,8 @@ So that team structures and groupings (projects, departments, tags) are centrall
 3. **Permission Tests**: No E2E tests validating role-based access control
 
 ### ❓ Clarifications Needed
-1. **Visibility Direction**: Should staff see manager tasks (upward visibility) or only downward?
-2. **Related Projects Access**: Should all users or only managers see related projects?
+1. **Visibility Direction**: ✅ CLARIFIED - Downward visibility only (managers see subordinate tasks, child depts cannot see parent tasks). Within same department, all users see each other's tasks.
+2. **Related Projects Access**: ✅ RESOLVED - Changed to ALL users (previously manager-only)
 3. **Role Naming**: "Admin" in ticket vs "HR" in implementation for department management
 4. **Page Location**: AC5 mentions "Projects page" but implementation is on "Tasks page"
 5. **Tag Assignment Permissions**: Who can assign existing tags to tasks - only managers or all users?
@@ -344,8 +345,10 @@ So that team structures and groupings (projects, departments, tags) are centrall
 
 ### Ticket 3: Project Visibility
 - [ ] User sees "My Projects" when assigned to tasks
-- [ ] Manager sees "Related Projects" from subordinate departments
-- [ ] Staff user does not see unrelated projects
+- [ ] ALL users (not just managers) see "Related Projects" from visible departments
+- [ ] Staff user sees related projects where colleagues are working
+- [ ] Related projects show "View only" badge
+- [ ] User does not see unrelated projects
 
 ### Ticket 4: Tags
 - [ ] Manager can create tags
