@@ -112,10 +112,11 @@ export const CalendarMonthView: React.FC<MonthViewProps> = ({
                           <div
                             key={event.id}
                             className={cn(
-                              "text-xs p-1 rounded cursor-pointer hover:opacity-80 text-white truncate",
+                              "text-xs p-1 rounded cursor-pointer hover:opacity-80 text-white truncate border-l-4",
                               eventIsOverdue 
                                 ? "bg-red-600 ring-2 ring-red-600 ring-offset-1" 
                                 : event.color,
+                              event.borderColor,
                               getSearchHighlightClasses(event.isHighlighted || false, !!searchKeyword)
                             )}
                             onClick={(e) => {
