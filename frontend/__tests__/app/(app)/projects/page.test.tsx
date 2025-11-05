@@ -332,7 +332,7 @@ describe("ProjectsPage", () => {
     });
 
     it("renders the 'New Project' button", async () => {
-      await setup();
+      await setup("MANAGER");
 
       const newProjectButton = screen.getByText("New Project");
       expect(newProjectButton).toBeInTheDocument();
@@ -511,7 +511,7 @@ describe("ProjectsPage", () => {
     });
 
     it("has accessible button labels", async () => {
-      await setup();
+      await setup("MANAGER");
 
       expect(
         screen.getByRole("button", { name: "All Projects" }),
