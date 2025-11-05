@@ -66,7 +66,11 @@ public class TaskServiceImpl implements TaskService {
                  createTaskDto.getProjectId(), createTaskDto.getOwnerId(), createTaskDto.getAssignedUserIds());
 
         // Authorization check: User must be a project member to create tasks
-        if (!projectService.isUserProjectMember(currentUserId, createTaskDto.getProjectId())) {
+        // Skip check for personal tasks (projectId is null or 0)
+        Long projectId = createTaskDto.getProjectId();
+        boolean isPersonalTask = (projectId == null || projectId == 0);
+
+        if (!isPersonalTask && !projectService.isUserProjectMember(currentUserId, projectId)) {
             throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
                 "Cannot create task in a view-only project. You must be a project member or owner.");
         }
@@ -573,7 +577,11 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
         // Authorization check: User must be a project member to update tasks
-        if (!projectService.isUserProjectMember(currentUserId, task.getProjectId())) {
+        // Skip check for personal tasks (projectId is null or 0)
+        Long taskProjectId = task.getProjectId();
+        boolean isPersonalTask = (taskProjectId == null || taskProjectId == 0);
+
+        if (!isPersonalTask && !projectService.isUserProjectMember(currentUserId, taskProjectId)) {
             throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
                 "Cannot update task in a view-only project. You must be a project member or owner.");
         }

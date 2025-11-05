@@ -120,7 +120,28 @@ public class ProjectServiceImpl implements ProjectService {
             }
         }
 
+        // Always include Project ID 0 (Personal Tasks Repository) for all users
+        // This allows users to access their personal tasks from the projects page
+        log.info("🔍 Checking if Project ID 0 exists in database...");
+        projectRepository.findById(0L).ifPresentOrElse(
+            personalTasksProject -> {
+                log.info("✅ Project ID 0 found in database: '{}'", personalTasksProject.getName());
+                // Check if Project ID 0 is not already in the result list
+                boolean alreadyIncluded = result.stream()
+                    .anyMatch(p -> p.getId() == 0L);
+
+                if (!alreadyIncluded) {
+                    log.info("📝 Adding Personal Tasks Repository (Project ID 0) to projects list");
+                    result.add(0, mapToProjectResponseDto(personalTasksProject, userId, false));
+                } else {
+                    log.info("ℹ️ Project ID 0 already included in result list, skipping");
+                }
+            },
+            () -> log.warn("⚠️ Project ID 0 NOT found in database - personal tasks project may not be seeded")
+        );
+
         log.info("Returning total of {} projects for user {}", result.size(), userId);
+        log.info("📋 Project IDs in result: {}", result.stream().map(p -> p.getId()).toList());
         return result;
     }
 
