@@ -64,7 +64,6 @@ export default function CalendarPage() {
   } = useQuery({
     queryKey: ['calendar-tasks', selectedProjectId, selectedTaskType, currentView, currentDate.toISOString()],
     queryFn: async () => {
-      const userId = currentUserId;
       let tasksData: TaskResponse[] = [];
 
       // Pass calendar view to backend for recurring task expansion
@@ -72,33 +71,55 @@ export default function CalendarPage() {
 
       if (selectedTaskType === "Personal Tasks") {
         // Fetch only personal tasks (projectId = 0)
-        tasksData = await projectService.getPersonalTasks(userId, undefined, backendCalendarView, currentDate);
+        tasksData = await projectService.getPersonalTasks(currentUserId, undefined, backendCalendarView, currentDate);
       } else if (selectedTaskType === "My Projects") {
-        // Fetch only user's own tasks from their projects (excluding projectId = 0)
+        // Two-step logic for My Projects:
+        // Step 1: Projects are already fetched via getUserProjects() (see projects query above)
+        // Step 2: For each project, fetch tasks with calendar view expansion
+        console.log('🔄 Fetching tasks for My Projects');
+        console.log('📋 Total projects:', projects.length);
         for (const project of projects) {
           if (project.id === 0) continue; // Skip personal tasks (projectId = 0)
           try {
+            console.log(`\n📂 Fetching tasks for Project ID: ${project.id} - "${project.name}"`);
             const tasks = await projectService.getProjectTasks(project.id, undefined, backendCalendarView, currentDate);
+            console.log(`✅ Received ${tasks.length} tasks from backend for project ${project.id}`);
+            console.log('📝 Tasks:', tasks.map(t => ({ id: t.id, title: t.title, status: t.status, projectId: t.projectId })));
             tasksData.push(...tasks);
           } catch (error) {
-            console.warn('Failed to fetch tasks for project:', error);
+            console.error('❌ Failed to fetch tasks for project:', project.id, error);
           }
         }
+        console.log(`\n✅ Total tasks loaded for My Projects: ${tasksData.length}`);
       } else if (selectedTaskType === "Project Tasks") {
-        // Use getAllUserTasks API which returns all tasks (personal + project) with department visibility
-        console.log('📡 Fetching all user tasks (personal + project + related)');
-        const allUserTasks = await projectService.getAllUserTasks(userId, undefined, backendCalendarView, currentDate);
-        
         if (selectedProjectId) {
-          // Filter to show only tasks from the selected project
-          console.log(`� Filtering for project ${selectedProjectId}`);
-          tasksData = allUserTasks.filter(task => task.projectId === selectedProjectId);
-          console.log(`✅ Found ${tasksData.length} tasks for project ${selectedProjectId}`);
+          // Two-step logic for specific project:
+          // Step 1: Projects are already fetched via getUserProjects() (see projects query above)
+          // Step 2: Fetch tasks for the selected project with calendar view expansion
+          const selectedProject = projects.find(p => p.id === selectedProjectId);
+          console.log(`\n📂 Fetching tasks for Selected Project ID: ${selectedProjectId} - "${selectedProject?.name}"`);
+          tasksData = await projectService.getProjectTasks(selectedProjectId, undefined, backendCalendarView, currentDate);
+          console.log(`✅ Received ${tasksData.length} tasks from backend for project ${selectedProjectId}`);
+          console.log('📝 Tasks:', tasksData.map(t => ({ id: t.id, title: t.title, status: t.status, projectId: t.projectId })));
         } else {
-          // Show all project tasks (exclude personal tasks with projectId = 0)
-          console.log('🔍 Filtering to exclude personal tasks (projectId = 0)');
-          tasksData = allUserTasks.filter(task => task.projectId !== 0);
-          console.log(`✅ Total project tasks loaded: ${tasksData.length}`);
+          // Show all project tasks (across all projects)
+          // Step 1: Projects are already fetched via getUserProjects() (see projects query above)
+          // Step 2: For each project, fetch tasks with calendar view expansion
+          console.log('🔄 Fetching tasks for All Project Tasks');
+          console.log('📋 Total projects:', projects.length);
+          for (const project of projects) {
+            if (project.id === 0) continue; // Skip personal tasks (projectId = 0)
+            try {
+              console.log(`\n📂 Fetching tasks for Project ID: ${project.id} - "${project.name}"`);
+              const tasks = await projectService.getProjectTasks(project.id, undefined, backendCalendarView, currentDate);
+              console.log(`✅ Received ${tasks.length} tasks from backend for project ${project.id}`);
+              console.log('📝 Tasks:', tasks.map(t => ({ id: t.id, title: t.title, status: t.status, projectId: t.projectId })));
+              tasksData.push(...tasks);
+            } catch (error) {
+              console.error('❌ Failed to fetch tasks for project:', project.id, error);
+            }
+          }
+          console.log(`\n✅ Total tasks loaded for All Projects: ${tasksData.length}`);
         }
       }
 
@@ -250,8 +271,12 @@ export default function CalendarPage() {
     // Then apply other filters
     let filtered = searchedEvents;
 
-    // First, filter by user access (assigned or owner)
-    filtered = filterEventsByUserAccess(filtered, currentUser?.backendStaffId);
+    // Filter by user access based on selected task type
+    // "Project Tasks" view: Show ALL tasks in the project (including colleagues' tasks)
+    // "My Projects" and "Personal Tasks": Show only tasks user is assigned to or owns
+    if (selectedTaskType !== "Project Tasks") {
+      filtered = filterEventsByUserAccess(filtered, currentUser?.backendStaffId);
+    }
 
     // Filter out tasks without due dates (only show tasks with dueDate)
     filtered = filtered.filter(event => event.dueDate !== undefined && event.dueDate !== null);

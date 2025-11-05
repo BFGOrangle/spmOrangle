@@ -230,12 +230,27 @@ export const CalendarControls: React.FC<CalendarControlsProps> = ({
             <span>Viewing: My Project Tasks</span>
           ) : selectedProjectId ? (
             <span>
-              Filtered by: {projects.find(p => p.id === selectedProjectId)?.name} (includes related tasks)
+              Filtered by: {projects.find(p => p.id === selectedProjectId)?.name}
             </span>
           ) : (
-            <span>Viewing: All Project Tasks (mine + colleagues)</span>
+            <span>Viewing: All Project Tasks</span>
           )}
         </div>
+        
+        {/* Legend for Project Tasks view */}
+        {selectedTaskType === "Project Tasks" && (
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="font-medium">Legend:</span>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-sm bg-green-500"></div>
+              <span>Collaborator Task</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-sm bg-purple-500"></div>
+              <span>Related Task</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
