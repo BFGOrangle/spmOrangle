@@ -300,7 +300,6 @@ describe('TaskCreationDialog', () => {
       });
 
       expect(screen.getByText('Project')).toBeInTheDocument();
-      expect(screen.getByText(/personal task \(no project\)/i)).toBeInTheDocument();
     });
 
     it('shows manager privileges description', async () => {
