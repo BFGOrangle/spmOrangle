@@ -91,7 +91,7 @@ public class PreDueTaskEmailServiceImpl implements PreDueTaskEmailService {
                 %s
             </div>
             <p>Please prioritise this task.</p>
-            <p>Best regards,<br><strong>SPM Orange Team</strong></p>
+            <p>Best regards,<br><strong>SPM Orangle Team</strong></p>
         </body>
         </html>
         """,
@@ -138,7 +138,7 @@ public class PreDueTaskEmailServiceImpl implements PreDueTaskEmailService {
                     %s
                 </div>
                 <p>Please review and prioritize these tasks.</p>
-                <p>Best regards,<br><strong>SPM Orange Team</strong></p>
+                <p>Best regards,<br><strong>SPM Orangle Team</strong></p>
             </body>
             </html>
             """,
