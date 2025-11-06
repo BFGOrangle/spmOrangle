@@ -281,9 +281,9 @@ public class TaskNotificationConsumer {
             }
 
             String emailSubject = notification.getSubject();
-            String emailBody = formatEmailBody(notification);
+            String emailBody = formatEmailBodyHtml(notification);
 
-            emailService.sendEmail(userEmail, emailSubject, emailBody);
+            emailService.sendHtmlEmail(userEmail, emailSubject, emailBody);
 
             log.info("Email notification sent to {}: Subject='{}'",
                     userEmail, emailSubject);
@@ -304,27 +304,52 @@ public class TaskNotificationConsumer {
         }
     }
 
-    private String formatEmailBody(NotificationDto notification) {
-        StringBuilder emailBody = new StringBuilder();
-        emailBody.append("Hello,\n\n");
-        emailBody.append(notification.getMessage()).append("\n\n");
+    private String formatEmailBodyHtml(NotificationDto notification) {
+        String userName = getUserName(notification.getTargetId());
+        String taskLink = "";
 
         if (notification.getLink() != null) {
             String fullUrl = frontendConfig.getBaseUrl() + notification.getLink();
-            emailBody.append("Click here to view: ").append(fullUrl).append("\n\n");
+            taskLink = String.format(
+                "<p><a href=\"%s\" style=\"display: inline-block; margin-top: 10px; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;\">View Task</a></p>",
+                fullUrl
+            );
         }
 
-        emailBody.append("Best regards,\n");
-        emailBody.append("SPM Orangle Team");
+        return String.format("""
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2 style="color: #007bff;">%s</h2>
+                <p>Hi %s,</p>
+                <div style="border-left: 4px solid #007bff; padding-left: 15px; margin: 20px 0; background-color: #f8f9fa; padding: 15px;">
+                    <p>%s</p>
+                    %s
+                </div>
+                <p>Best regards,<br><strong>SPM Orange Team</strong></p>
+            </body>
+            </html>
+            """,
+            notification.getSubject(),
+            userName,
+            notification.getMessage(),
+            taskLink
+        );
+    }
 
-        return emailBody.toString();
+    private String getUserName(Long userId) {
+        try {
+            UserResponseDto user = userManagementService.getUserById(userId);
+            return user.username();
+        } catch (Exception e) {
+            log.error("Failed to get username for userid {}: {}", userId, e.getMessage());
+            return "User";
+        }
     }
 
     private String getEditorName(Long userId) {
         try {
             UserResponseDto user = userManagementService.getUserById(userId);
-            String username = user.username();
-            return username;
+            return user.username();
         } catch (Exception e) {
             log.error("Failed to get username for userid {}: {}", userId, e.getMessage());
             return "Unknown User";
