@@ -109,6 +109,9 @@ class OverdueTaskEmailServiceImplTest {
         assertTrue(body.contains("TODO"), "Email body should contain task status");
         // UTC 2025-10-22 21:07:00 converts to SGT 2025-10-23 05:07:00 (UTC+8)
         assertTrue(body.contains("Oct 23, 2025 05:07:00"), "Email body should contain formatted due date");
+        // Verify task link is included
+        assertTrue(body.contains("https://spm-orangle.vercel.app/tasks/1"), "Email body should contain task link");
+        assertTrue(body.contains("View Task"), "Email body should contain View Task button");
 
         // Verify user management service was called
         // Now the implementation calls getAssigneeName and getAssigneeEmail directly
@@ -210,6 +213,11 @@ class OverdueTaskEmailServiceImplTest {
         assertTrue(body.contains("Oct 20, 2025 22:30:00"), "Email body should contain second task due date");
         // 2025-10-22 09:15:00 UTC -> 2025-10-22 17:15:00 SGT
         assertTrue(body.contains("Oct 22, 2025 17:15:00"), "Email body should contain third task due date");
+        // Verify task links are included for all tasks
+        assertTrue(body.contains("https://spm-orangle.vercel.app/tasks/1"), "Email body should contain task 1 link");
+        assertTrue(body.contains("https://spm-orangle.vercel.app/tasks/2"), "Email body should contain task 2 link");
+        assertTrue(body.contains("https://spm-orangle.vercel.app/tasks/3"), "Email body should contain task 3 link");
+        assertTrue(body.contains("View Task"), "Email body should contain View Task links");
     }
 
     @Test

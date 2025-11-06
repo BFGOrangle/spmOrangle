@@ -163,7 +163,7 @@ class TaskNotificationConsumerTest {
         assert capturedNotifications.get(0).getTargetId().equals(200L);
         assert capturedNotifications.get(1).getTargetId().equals(300L);
 
-        verify(emailService, times(2)).sendEmail(anyString(), anyString(), anyString());
+        verify(emailService, times(2)).sendHtmlEmail(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -186,7 +186,7 @@ class TaskNotificationConsumerTest {
 
         // Assert
         verify(notificationService, never()).createBulkNotifications(anyList());
-        verify(emailService, never()).sendEmail(anyString(), anyString(), anyString());
+        verify(emailService, never()).sendHtmlEmail(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -209,7 +209,7 @@ class TaskNotificationConsumerTest {
         assert capturedNotifications.get(0).getSubject().equals("Task assigned to you");
         assert capturedNotifications.get(0).getPriority() == Priority.HIGH;
 
-        verify(emailService).sendEmail(anyString(), anyString(), anyString());
+        verify(emailService).sendHtmlEmail(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -287,10 +287,12 @@ class TaskNotificationConsumerTest {
 
         // Assert
         ArgumentCaptor<String> emailBodyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(emailService).sendEmail(eq("user@test.com"), anyString(), emailBodyCaptor.capture());
+        verify(emailService).sendHtmlEmail(eq("user@test.com"), anyString(), emailBodyCaptor.capture());
 
         String emailBody = emailBodyCaptor.getValue();
         assert emailBody.contains("http://localhost:3000/tasks/123");
+        assert emailBody.contains("<html>");
+        assert emailBody.contains("View Task");
     }
 
     @Test
@@ -306,7 +308,7 @@ class TaskNotificationConsumerTest {
         taskNotificationConsumer.handleTaskNotification(taskCreatedMessage);
 
         // Assert - Email should not be sent for empty email address
-        verify(emailService, never()).sendEmail(anyString(), anyString(), anyString());
+        verify(emailService, never()).sendHtmlEmail(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -321,7 +323,7 @@ class TaskNotificationConsumerTest {
         taskNotificationConsumer.handleTaskNotification(taskCreatedMessage);
 
         // Assert - Should not throw exception, email service should not be called
-        verify(emailService, never()).sendEmail(anyString(), anyString(), anyString());
+        verify(emailService, never()).sendHtmlEmail(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -363,7 +365,7 @@ class TaskNotificationConsumerTest {
         assert capturedNotifications.get(0).getChannels().contains(Channel.IN_APP);
         assert capturedNotifications.get(0).getChannels().contains(Channel.EMAIL);
 
-        verify(emailService).sendEmail(anyString(), anyString(), anyString());
+        verify(emailService).sendHtmlEmail(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -385,7 +387,7 @@ class TaskNotificationConsumerTest {
 
         // Assert - Should not create notification for self-removal
         verify(notificationService, never()).createBulkNotifications(anyList());
-        verify(emailService, never()).sendEmail(anyString(), anyString(), anyString());
+        verify(emailService, never()).sendHtmlEmail(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -419,7 +421,7 @@ class TaskNotificationConsumerTest {
         assert capturedNotifications.get(0).getChannels().contains(Channel.IN_APP);
         assert capturedNotifications.get(0).getChannels().contains(Channel.EMAIL);
 
-        verify(emailService, times(2)).sendEmail(anyString(), anyString(), anyString());
+        verify(emailService, times(2)).sendHtmlEmail(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -456,7 +458,7 @@ class TaskNotificationConsumerTest {
         assert capturedNotifications.size() == 1;
         assert capturedNotifications.get(0).getTargetId().equals(200L);
 
-        verify(emailService, times(1)).sendEmail(anyString(), anyString(), anyString());
+        verify(emailService, times(1)).sendHtmlEmail(anyString(), anyString(), anyString());
     }
 
     @Test
