@@ -75,8 +75,10 @@ public class PreDueTaskEmailServiceImpl implements PreDueTaskEmailService {
                 .format(DATE_FORMATTER);
 
         String dueTimeMessage = hoursUntilDue == 12
-                ? "due in 12 hours (rescheduled)"
-                : "due in 24 hours";
+                ? "due in less than 12 hours (rescheduled)"
+                : "due in less than 24 hours";
+
+        String taskUrl = String.format("https://spm-orangle.vercel.app/tasks/%d", task.getId());
 
         return String.format("""
         <html>
@@ -89,6 +91,7 @@ public class PreDueTaskEmailServiceImpl implements PreDueTaskEmailService {
                 <p><strong>Due Date:</strong> %s</p>
                 <p><strong>Status:</strong> %s</p>
                 %s
+                <p><a href="%s" style="display: inline-block; margin-top: 10px; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">View Task</a></p>
             </div>
             <p>Please prioritise this task.</p>
             <p>Best regards,<br><strong>SPM Orange Team</strong></p>
@@ -102,7 +105,8 @@ public class PreDueTaskEmailServiceImpl implements PreDueTaskEmailService {
                 task.getStatus(),
                 task.getDescription() != null
                         ? "<p><strong>Description:</strong> " + task.getDescription() + "</p>"
-                        : ""
+                        : "",
+                taskUrl
         );
     }
 
@@ -115,16 +119,20 @@ public class PreDueTaskEmailServiceImpl implements PreDueTaskEmailService {
                     .atZoneSameInstant(SINGAPORE_ZONE)
                     .format(DATE_FORMATTER);
 
+            String taskUrl = String.format("https://spm-orangle.vercel.app/tasks/%d", task.getId());
+
             taskList.append(String.format("""
                 <div style="border-left: 4px solid #dc3545; padding-left: 15px; margin: 10px 0; background-color: #f8f9fa; padding: 10px;">
                     <h4 style="margin: 0 0 10px 0;">%s</h4>
                     <p style="margin: 5px 0;"><strong>Due Date:</strong> %s</p>
                     <p style="margin: 5px 0;"><strong>Status:</strong> %s</p>
+                    <p style="margin: 5px 0;"><a href="%s" style="color: #007bff; text-decoration: none;">View Task →</a></p>
                 </div>
                 """,
                     task.getTitle(),
                     formattedDueDate,
-                    task.getStatus()
+                    task.getStatus(),
+                    taskUrl
             ));
         }
 
