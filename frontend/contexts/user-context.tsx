@@ -89,9 +89,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       // Get backend staff profile to get the actual staff ID
       let backendStaffId: number | undefined;
+      let staffProfile: import("@/types/user").UserResponseDto | null = null;
       try {
         const { userManagementService } = await import("@/services/user-management-service");
-        const staffProfile = await userManagementService.getUserByCognitoSub(cognitoSubId);
+        staffProfile = await userManagementService.getUserByCognitoSub(cognitoSubId);
 
         if (staffProfile) {
           backendStaffId = staffProfile.id;
@@ -116,6 +117,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           `${attributes.given_name || ""} ${attributes.family_name || ""}`.trim(),
         cognitoSub: cognitoSubId,
         backendStaffId: backendStaffId,
+        department: staffProfile?.department,
       };
 
       setCurrentUser(user);

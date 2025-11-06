@@ -215,40 +215,74 @@ export default function ProjectTasksPage() {
 
   useEffect(() => {
     const loadProjectData = async () => {
+      console.log('🔵 [Project Detail] Starting to load project data');
+      console.log('  → Project ID:', projectId);
+      console.log('  → Current User ID:', currentUserId);
+      console.log('  → Is Project ID 0 (Personal Tasks)?', projectId === 0);
+
       try {
         setLoading(true);
 
         // Use actual user ID from context
         if (!currentUserId) {
+          console.error('❌ [Project Detail] User not authenticated');
           setError("User not authenticated");
           setLoading(false);
           return;
         }
 
-        // Load project details and tasks in parallel
-        const [projectsResponse, tasksResponse,] = await Promise.all([
-          projectService.getUserProjects(currentUserId),
-          projectService.getProjectTasks(projectId)
-        ]);
-        
+        console.log('📡 [Project Detail] Fetching projects list...');
+        const projectsResponse = await projectService.getUserProjects(currentUserId);
+        console.log('✅ [Project Detail] Projects list received:', projectsResponse.length, 'projects');
+        console.log('  → Project IDs:', projectsResponse.map(p => p.id));
+
+        console.log('📡 [Project Detail] Fetching tasks...');
+        let tasksResponse;
+        if (projectId === 0) {
+          console.log('  → Using getPersonalTasks for Project ID 0');
+          tasksResponse = await projectService.getPersonalTasks(currentUserId);
+        } else {
+          console.log('  → Using getProjectTasks for Project ID', projectId);
+          tasksResponse = await projectService.getProjectTasks(projectId);
+        }
+        console.log('✅ [Project Detail] Tasks received:', tasksResponse.length, 'tasks');
+
+        console.log('🔍 [Project Detail] Looking for project with ID:', projectId);
         const currentProject = projectsResponse.find(p => p.id === projectId);
+
         if (!currentProject) {
+          console.error('❌ [Project Detail] Project not found in response');
+          console.error('  → Available projects:', projectsResponse.map(p => ({ id: p.id, name: p.name })));
           setError("Project not found");
           return;
         }
-        
+
+        console.log('✅ [Project Detail] Project found:', currentProject.name);
         setProject(currentProject);
         setTasks(tasksResponse);
+        console.log('🎉 [Project Detail] Successfully loaded project data');
       } catch (err) {
-        console.error('Error loading project data:', err);
+        console.error('❌ [Project Detail] Error loading project data:', err);
+        if (err instanceof Error) {
+          console.error('  → Error message:', err.message);
+          console.error('  → Error stack:', err.stack);
+        }
         setError("Failed to load project data");
       } finally {
+        console.log('🏁 [Project Detail] Setting loading to false');
         setLoading(false);
       }
     };
 
-    if (projectId && currentUserId) {
+    console.log('🔄 [Project Detail] useEffect triggered');
+    console.log('  → projectId:', projectId, 'type:', typeof projectId);
+    console.log('  → currentUserId:', currentUserId);
+    console.log('  → Should load?', !!(projectId !== undefined && !Number.isNaN(projectId) && currentUserId));
+
+    if (projectId !== undefined && !Number.isNaN(projectId) && currentUserId) {
       loadProjectData();
+    } else {
+      console.warn('⚠️ [Project Detail] Not loading - missing projectId or currentUserId');
     }
   }, [projectId, currentUserId]);
 
@@ -334,7 +368,8 @@ export default function ProjectTasksPage() {
   }, [selectedStatus, assigneeFilteredTasks]);
 
   // Validate project ID (after all hooks)
-  if (Number.isNaN(projectId) || projectId <= 0) {
+  // Allow projectId >= 0 (Project ID 0 is the Personal Tasks Repository)
+  if (Number.isNaN(projectId) || projectId < 0) {
     return (
       <SidebarInset>
         <div className="flex h-full items-center justify-center">

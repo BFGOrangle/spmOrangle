@@ -20,6 +20,9 @@ public class Tag {
     @Column(name = "tag_name", nullable = false, unique = true)
     private String tagName;
 
+    @Column(name = "delete_ind", nullable = false)
+    private boolean deleteInd = false;
+
     @ManyToMany(mappedBy = "tags")
     private Set<Task> tasks = new HashSet<>();
 

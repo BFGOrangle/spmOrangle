@@ -5,6 +5,7 @@ import com.spmorangle.crm.taskmanagement.model.TaskAssigneeCK;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface TaskAssigneeRepository extends JpaRepository<TaskAssignee, TaskAssigneeCK> {
@@ -20,4 +21,8 @@ public interface TaskAssigneeRepository extends JpaRepository<TaskAssignee, Task
     List<Long> findAssigneeIdsByTaskId(Long taskId);
 
     List<TaskAssignee> findByTaskId(Long taskId);
+
+    List<TaskAssignee> findByTaskIdIn(Collection<Long> taskIds);
+
+    int countByTaskId(Long taskId);
 }

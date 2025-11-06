@@ -86,10 +86,11 @@ export const CalendarWeekView: React.FC<WeekViewProps> = ({
                       <Card
                         key={event.id}
                         className={cn(
-                          "p-1 sm:p-2 cursor-pointer hover:shadow-md transition-shadow text-white text-xs",
+                          "p-1 sm:p-2 cursor-pointer hover:shadow-md transition-shadow text-white text-xs border-l-4",
                           eventIsOverdue 
                             ? "bg-red-600 ring-2 ring-red-600 ring-offset-1" 
-                            : event.color
+                            : event.color,
+                          event.borderColor
                         )}
                         onClick={(e) => {
                           e.stopPropagation();

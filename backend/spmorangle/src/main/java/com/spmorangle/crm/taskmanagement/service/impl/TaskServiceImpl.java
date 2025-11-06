@@ -1,7 +1,11 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
+import com.spmorangle.common.enums.UserType;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.repository.DepartmentRepository;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.projectmanagement.dto.ProjectResponseDto;
 import com.spmorangle.crm.projectmanagement.service.ProjectService;
 import com.spmorangle.crm.taskmanagement.dto.*;
@@ -14,6 +18,7 @@ import com.spmorangle.crm.taskmanagement.model.Task;
 import com.spmorangle.crm.taskmanagement.repository.TaskAssigneeRepository;
 import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.*;
+import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
 import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
 import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
@@ -24,6 +29,7 @@ import com.spmorangle.crm.taskmanagement.enums.Status;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,14 +49,15 @@ public class TaskServiceImpl implements TaskService {
     private final CollaboratorService collaboratorService;
     private final SubtaskService subtaskService;
     private final ProjectService projectService;
+    private final DepartmentRepository departmentRepository;
+    private final DepartmentQueryService departmentQueryService;
+    private final DepartmentalVisibilityService departmentalVisibilityService;
     private final TagService tagService;
     private final RecurrenceService recurrenceService;
     private final NotificationMessagePublisher notificationPublisher;
     private final UserRepository userRepository;
     private final TaskAssigneeRepository taskAssigneeRepository;
     private final ReportService reportService;
-    private final DepartmentQueryService departmentQueryService;
-    private final DepartmentalVisibilityService departmentalVisibilityService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -62,11 +69,11 @@ public class TaskServiceImpl implements TaskService {
     @Transactional(rollbackFor = Exception.class)
     public CreateTaskResponseDto createTask(CreateTaskDto createTaskDto, Long taskOwnerId, Long currentUserId) {
         log.info("🔵 Creating task with title: '{}' for user: {}", createTaskDto.getTitle(), currentUserId);
-        log.info("📋 CreateTaskDto details - ProjectId: {}, OwnerId: {}, AssignedUserIds: {}", 
-                 createTaskDto.getProjectId(), createTaskDto.getOwnerId(), createTaskDto.getAssignedUserIds());
-        
+        log.info("📋 CreateTaskDto details - ProjectId: {}, OwnerId: {}, AssignedUserIds: {}",
+                createTaskDto.getProjectId(), createTaskDto.getOwnerId(), createTaskDto.getAssignedUserIds());
+
         Task task = new Task();
-        
+
         task.setProjectId(createTaskDto.getProjectId());
         task.setOwnerId(taskOwnerId);
         task.setTaskType(createTaskDto.getTaskType());
@@ -94,19 +101,39 @@ public class TaskServiceImpl implements TaskService {
 
         // Validate recurrence configuration
         validateRecurrence(
-            createTaskDto.getIsRecurring(),
-            createTaskDto.getRecurrenceRuleStr(),
-            createTaskDto.getStartDate(),
-            createTaskDto.getEndDate()
+                createTaskDto.getIsRecurring(),
+                createTaskDto.getRecurrenceRuleStr(),
+                createTaskDto.getStartDate(),
+                createTaskDto.getEndDate()
         );
 
         Task savedTask = taskRepository.save(task);
         log.info("✅ Task created with ID: {}", savedTask.getId());
-        
+
+        // Automatically assign the task owner as an assignee
         List<Long> assignedUserIds = new ArrayList<>();
+        try {
+            log.info("👤 Automatically assigning task owner {} as an assignee", taskOwnerId);
+            AddCollaboratorRequestDto ownerCollaboratorRequest = AddCollaboratorRequestDto.builder()
+                    .taskId(savedTask.getId())
+                    .collaboratorId(taskOwnerId)
+                    .build();
+            collaboratorService.addCollaborator(ownerCollaboratorRequest, currentUserId);
+            assignedUserIds.add(taskOwnerId);
+            log.info("✅ Task owner {} successfully assigned to task {}", taskOwnerId, savedTask.getId());
+        } catch (Exception e) {
+            log.error("❌ Failed to assign task owner {} to task {}: {}", taskOwnerId, savedTask.getId(), e.getMessage(), e);
+        }
+
         if (createTaskDto.getAssignedUserIds() != null && !createTaskDto.getAssignedUserIds().isEmpty()) {
-            log.info("👥 Assigning task to {} users: {}", createTaskDto.getAssignedUserIds().size(), createTaskDto.getAssignedUserIds());
+            log.info("👥 Assigning task to {} additional users: {}", createTaskDto.getAssignedUserIds().size(), createTaskDto.getAssignedUserIds());
             for (Long userId : createTaskDto.getAssignedUserIds()) {
+                // Skip if this is the owner (already assigned above)
+                if (userId.equals(taskOwnerId)) {
+                    log.info("⏭️ Skipping assignment of user {} - already assigned as task owner", userId);
+                    continue;
+                }
+
                 try {
                     log.info("🔄 Attempting to assign task {} to user {}", savedTask.getId(), userId);
                     AddCollaboratorRequestDto collaboratorRequest = AddCollaboratorRequestDto.builder()
@@ -122,30 +149,30 @@ public class TaskServiceImpl implements TaskService {
                 }
             }
         } else {
-            log.info("⚠️ No users to assign - assignedUserIds is null or empty");
+            log.info("⚠️ No additional users to assign - assignedUserIds is null or empty");
         }
-        
+
         // Publish task creation notification
         try {
             if (!assignedUserIds.isEmpty()) {
                 TaskNotificationMessageDto message = TaskNotificationMessageDto.forTaskCreated(
-                    savedTask.getId(),
-                    taskOwnerId,
-                    savedTask.getProjectId(),
-                    savedTask.getTitle(),
-                    savedTask.getDescription(),
-                    assignedUserIds
+                        savedTask.getId(),
+                        taskOwnerId,
+                        savedTask.getProjectId(),
+                        savedTask.getTitle(),
+                        savedTask.getDescription(),
+                        assignedUserIds
                 );
-                
+
                 notificationPublisher.publishTaskNotification(message);
                 log.info("Published task creation notification for task ID: {}", savedTask.getId());
             }
         } catch (Exception e) {
             log.error("Failed to publish task creation notification for task ID: {} - Error: {}",
-                     savedTask.getId(), e.getMessage(), e);
+                    savedTask.getId(), e.getMessage(), e);
             // Don't fail task creation if notification publishing fails
         }
-        
+
         return CreateTaskResponseDto.builder()
                 .id(savedTask.getId())
                 .projectId(savedTask.getProjectId())
@@ -177,20 +204,38 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting tasks for project: {}", projectId);
         List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
 
-        Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
-        tasks = tasks.stream()
-                .filter(task -> canUserSeeTaskByDepartment(task, visibleDepartmentIds))
-                .collect(Collectors.toList());
+        // Check if this is a "related project" (user is not a member)
+        boolean isRelatedProject = !projectService.isUserProjectMember(userId, projectId);
+
+        // Apply department filtering ONLY for related projects (AC Scenario 2)
+        if (isRelatedProject) {
+            log.info("User {} viewing related project {} - filtering tasks by department visibility", userId, projectId);
+            Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
+            tasks = tasks.stream()
+                    .filter(task -> canUserSeeTaskByDepartment(task, visibleDepartmentIds))
+                    .collect(Collectors.toList());
+            log.info("Filtered to {} tasks with assignees in visible departments", tasks.size());
+        } else {
+            log.info("User {} is a member of project {} - showing all tasks", userId, projectId);
+        }
 
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
         Long projectOwnerId = projectService.getOwnerId(projectId);
+        Set<Long> projectTaskIds = tasks.stream().map(Task::getId).collect(Collectors.toSet());
+        boolean hasDirectMembership = projectOwnerId.equals(userId)
+                || tasksUserIsCollaboratorFor.stream().anyMatch(projectTaskIds::contains);
+
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Task> visibleTasks = applyDepartmentScopeFilter(currentUser, tasks, projectTaskIds, hasDirectMembership, projectId);
 
         Map<Long, String> projectNames = resolveProjectNames(Collections.singleton(projectId));
-        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+        Map<Long, User> ownerDetails = resolveOwnerDetails(visibleTasks);
 
         List<TaskResponseDto> result = new ArrayList<>();
 
-        for(Task task : tasks) {
+        for (Task task : visibleTasks) {
             boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
             boolean userHasDeleteAccess = userId.equals(projectOwnerId);
 
@@ -206,34 +251,47 @@ public class TaskServiceImpl implements TaskService {
         log.info("Getting tasks for project on calendar view: {}", projectId);
         List<Task> tasks = taskRepository.findByProjectIdAndNotDeleted(projectId);
 
-        Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
-        tasks = tasks.stream()
-                .filter(task -> canUserSeeTaskByDepartment(task, visibleDepartmentIds))
-                .collect(Collectors.toList());
+        // Check if this is a "related project" (user is not a member)
+        boolean isRelatedProject = !projectService.isUserProjectMember(userId, projectId);
+
+        // Apply department filtering ONLY for related projects
+        if (isRelatedProject) {
+            Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
+            tasks = tasks.stream()
+                    .filter(task -> canUserSeeTaskByDepartment(task, visibleDepartmentIds))
+                    .collect(Collectors.toList());
+        }
 
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
         Long projectOwnerId = projectService.getOwnerId(projectId);
+        Set<Long> projectTaskIds = tasks.stream().map(Task::getId).collect(Collectors.toSet());
+        boolean hasDirectMembership = projectOwnerId.equals(userId)
+                || tasksUserIsCollaboratorFor.stream().anyMatch(projectTaskIds::contains);
+
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Task> visibleTasks = applyDepartmentScopeFilter(currentUser, tasks, projectTaskIds, hasDirectMembership, projectId);
 
         Map<Long, String> projectNames = resolveProjectNames(Collections.singleton(projectId));
-        Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+        Map<Long, User> ownerDetails = resolveOwnerDetails(visibleTasks);
 
         List<TaskResponseDto> result = new ArrayList<>();
 
-        for(Task task : tasks) {
+        for (Task task : visibleTasks) {
             boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
             boolean userHasDeleteAccess = userId.equals(projectOwnerId);
 
-            // Return recurring virtual tasks (but not if completed - avoid duplicates)
-            if(Boolean.TRUE.equals(task.getIsRecurring()) && task.getStatus() != Status.COMPLETED) {
+            if (Boolean.TRUE.equals(task.getIsRecurring()) && task.getStatus() != Status.COMPLETED) {
                 List<TaskResponseDto> virtualInstances = expandRecurringTaskForDisplay(
-                    task,
-                    userHasWriteAccess,
-                    userHasDeleteAccess,
-                    projectNames,
-                    ownerDetails,
-                    userId,
-                    calendarView,
-                    referenceDate
+                        task,
+                        userHasWriteAccess,
+                        userHasDeleteAccess,
+                        projectNames,
+                        ownerDetails,
+                        userId,
+                        calendarView,
+                        referenceDate
                 );
                 result.addAll(virtualInstances);
             } else {
@@ -242,6 +300,89 @@ public class TaskServiceImpl implements TaskService {
         }
 
         return result;
+    }
+
+    private List<Task> applyDepartmentScopeFilter(User user,
+                                                  List<Task> tasks,
+                                                  Set<Long> projectTaskIds,
+                                                  boolean hasDirectMembership,
+                                                  Long projectId) {
+        if (!isDepartmentScopedRole(user)) {
+            return tasks;
+        }
+
+        if (hasDirectMembership) {
+            return tasks;
+        }
+
+        Set<Long> visibleMemberIds = resolveVisibleMemberIds(user);
+        if (visibleMemberIds.isEmpty()) {
+            log.warn("User {} has no visible members for project {}", user.getId(), projectId);
+            throw new AccessDeniedException("Project is outside of your departmental scope");
+        }
+
+        Map<Long, List<Long>> assigneeIdsByTask = getAssigneeIdsByTask(projectTaskIds);
+        List<Task> filteredTasks = tasks.stream()
+                .filter(task -> isTaskVisibleToDepartment(task, visibleMemberIds, assigneeIdsByTask))
+                .collect(Collectors.toList());
+
+        if (filteredTasks.isEmpty()) {
+            log.warn("User {} attempted to access project {} outside of department scope", user.getId(), projectId);
+            throw new AccessDeniedException("Project is outside of your departmental scope");
+        }
+
+        return filteredTasks;
+    }
+
+    private boolean isDepartmentScopedRole(User user) {
+        if (user == null || user.getRoleType() == null) {
+            return false;
+        }
+
+        String role = user.getRoleType();
+        return UserType.MANAGER.getCode().equalsIgnoreCase(role)
+                || UserType.DIRECTOR.getCode().equalsIgnoreCase(role);
+    }
+
+    private Set<Long> resolveVisibleMemberIds(User user) {
+        Long departmentId = user.getDepartmentId();
+
+        if (departmentId == null) {
+            return Set.of(user.getId());
+        }
+
+        Set<Long> visibleDepartmentIds = departmentQueryService.getDescendants(departmentId, true).stream()
+                .map(DepartmentDto::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        Set<Long> memberIds = userRepository.findByDepartmentIds(visibleDepartmentIds, user.getId()).stream()
+                .filter(User::getIsActive)
+                .map(User::getId)
+                .collect(Collectors.toCollection(HashSet::new));
+        memberIds.add(user.getId());
+        return memberIds;
+    }
+
+    private Map<Long, List<Long>> getAssigneeIdsByTask(Set<Long> taskIds) {
+        if (taskIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return taskAssigneeRepository.findByTaskIdIn(taskIds).stream()
+                .collect(Collectors.groupingBy(TaskAssignee::getTaskId,
+                        Collectors.mapping(TaskAssignee::getUserId, Collectors.toList())));
+    }
+
+    private boolean isTaskVisibleToDepartment(Task task,
+                                              Set<Long> visibleMemberIds,
+                                              Map<Long, List<Long>> assigneeIdsByTask) {
+        if (visibleMemberIds.contains(task.getOwnerId())) {
+            return true;
+        }
+
+        return assigneeIdsByTask.getOrDefault(task.getId(), List.of()).stream()
+                .anyMatch(visibleMemberIds::contains);
     }
 
     @Override
@@ -255,8 +396,8 @@ public class TaskServiceImpl implements TaskService {
         boolean userHasDeleteAccess = canUserDeleteTask(taskId, currentUserId);
 
         Map<Long, String> projectNames = task.getProjectId() != null
-            ? resolveProjectNames(Collections.singleton(task.getProjectId()))
-            : Collections.emptyMap();
+                ? resolveProjectNames(Collections.singleton(task.getProjectId()))
+                : Collections.emptyMap();
         Map<Long, User> ownerDetails = resolveOwnerDetails(Collections.singletonList(task));
 
         return mapToTaskResponseDto(task, userHasEditAccess, userHasDeleteAccess, projectNames, ownerDetails, currentUserId);
@@ -287,14 +428,14 @@ public class TaskServiceImpl implements TaskService {
             // Return recurring virtual tasks
             if(Boolean.TRUE.equals(task.getIsRecurring())) {
                 List<TaskResponseDto> virtualInstances = expandRecurringTaskForDisplay(
-                    task,
-                    true,
-                    true,
-                    Collections.emptyMap(),
-                    ownerDetails,
-                    userId,
-                    calendarView,
-                    referenceDate
+                        task,
+                        true,
+                        true,
+                        Collections.emptyMap(),
+                        ownerDetails,
+                        userId,
+                        calendarView,
+                        referenceDate
                 );
                 result.addAll(virtualInstances);
             } else {
@@ -329,7 +470,7 @@ public class TaskServiceImpl implements TaskService {
         return tasks.stream()
                 .map(task -> {
                     boolean userHasDeleteAccess = task.getProjectId() != null
-                        && userId.equals(projectOwnerMap.get(task.getProjectId()));
+                            && userId.equals(projectOwnerMap.get(task.getProjectId()));
                     return mapToTaskResponseDto(task, true, userHasDeleteAccess, projectNames, ownerDetails, userId);
                 })
                 .collect(Collectors.toList());
@@ -369,14 +510,14 @@ public class TaskServiceImpl implements TaskService {
             // Return recurring virtual tasks (but not if completed - avoid duplicates)
             if(Boolean.TRUE.equals(task.getIsRecurring()) && task.getStatus() != Status.COMPLETED) {
                 List<TaskResponseDto> virtualInstances = expandRecurringTaskForDisplay(
-                    task,
-                    userHasWriteAccess,
-                    userHasDeleteAccess,
-                    projectNames,
-                    ownerDetails,
-                    userId,
-                    calendarView,
-                    referenceDate
+                        task,
+                        userHasWriteAccess,
+                        userHasDeleteAccess,
+                        projectNames,
+                        ownerDetails,
+                        userId,
+                        calendarView,
+                        referenceDate
                 );
                 result.addAll(virtualInstances);
             } else {
@@ -388,9 +529,9 @@ public class TaskServiceImpl implements TaskService {
     }
 
     /*
-    * This function serves to show tasks that users have members from their department as collaborators in tasks
-    * in another project
-    * */
+     * This function serves to show tasks that users have members from their department as collaborators in tasks
+     * in another project
+     * */
     @Override
     @Transactional(readOnly = true)
     public List<TaskResponseDto> getRelatedTasks(Long userId){
@@ -560,8 +701,8 @@ public class TaskServiceImpl implements TaskService {
 
         // Handle reverting a recurring task from COMPLETED back to TODO/IN_PROGRESS
         else if (oldStatus == Status.COMPLETED &&
-                 (updateTaskDto.getStatus() == Status.TODO || updateTaskDto.getStatus() == Status.IN_PROGRESS) &&
-                 Boolean.TRUE.equals(task.getIsRecurring())) {
+                (updateTaskDto.getStatus() == Status.TODO || updateTaskDto.getStatus() == Status.IN_PROGRESS) &&
+                Boolean.TRUE.equals(task.getIsRecurring())) {
             log.info("Recurring task moved from COMPLETED back to {}, checking for duplicate next instance", updateTaskDto.getStatus());
 
             // Apply field updates first
@@ -572,23 +713,23 @@ public class TaskServiceImpl implements TaskService {
             try {
                 OffsetDateTime fiveMinutesAgo = OffsetDateTime.now().minusMinutes(5);
                 List<Task> potentialDuplicates = taskRepository.findAll().stream()
-                    .filter(t -> !Objects.equals(t.getId(), task.getId())) // Not the same task
-                    .filter(t -> Boolean.TRUE.equals(t.getIsRecurring())) // Is recurring
-                    .filter(t -> t.getTitle().equals(task.getTitle())) // Same title
-                    .filter(t -> t.getRecurrenceRuleStr() != null &&
-                                 t.getRecurrenceRuleStr().equals(task.getRecurrenceRuleStr())) // Same recurrence rule
-                    .filter(t -> t.getStatus() == Status.TODO) // Status is TODO
-                    .filter(t -> t.getCreatedAt().isAfter(fiveMinutesAgo)) // Created recently
-                    .filter(t -> t.getProjectId() != null ?
-                                 t.getProjectId().equals(task.getProjectId()) :
-                                 task.getProjectId() == null) // Same project (or both null)
-                    .toList();
+                        .filter(t -> !Objects.equals(t.getId(), task.getId())) // Not the same task
+                        .filter(t -> Boolean.TRUE.equals(t.getIsRecurring())) // Is recurring
+                        .filter(t -> t.getTitle().equals(task.getTitle())) // Same title
+                        .filter(t -> t.getRecurrenceRuleStr() != null &&
+                                t.getRecurrenceRuleStr().equals(task.getRecurrenceRuleStr())) // Same recurrence rule
+                        .filter(t -> t.getStatus() == Status.TODO) // Status is TODO
+                        .filter(t -> t.getCreatedAt().isAfter(fiveMinutesAgo)) // Created recently
+                        .filter(t -> t.getProjectId() != null ?
+                                t.getProjectId().equals(task.getProjectId()) :
+                                task.getProjectId() == null) // Same project (or both null)
+                        .toList();
 
                 if (!potentialDuplicates.isEmpty()) {
                     // Delete the most recently created duplicate (likely the auto-generated next instance)
                     Task duplicate = potentialDuplicates.stream()
-                        .max((t1, t2) -> t1.getCreatedAt().compareTo(t2.getCreatedAt()))
-                        .orElse(null);
+                            .max((t1, t2) -> t1.getCreatedAt().compareTo(t2.getCreatedAt()))
+                            .orElse(null);
 
                     if (duplicate != null) {
                         log.info("Found and deleting duplicate next instance: {}", duplicate.getId());
@@ -632,15 +773,15 @@ public class TaskServiceImpl implements TaskService {
                     // Determine effective end date for recurrence generation
                     // If endDate is null, use 1 year ahead (only affects this single next instance lookup)
                     OffsetDateTime effectiveEndDate = task.getEndDate() != null
-                        ? task.getEndDate()
-                        : OffsetDateTime.now().plusYears(1);
+                            ? task.getEndDate()
+                            : OffsetDateTime.now().plusYears(1);
 
                     log.info("Generating next occurrence from {} to {}", nextStart, effectiveEndDate);
 
                     List<OffsetDateTime> nextOccurrences = recurrenceService.generateOccurrence(
-                        task.getRecurrenceRuleStr(),
-                        nextStart,
-                        effectiveEndDate
+                            task.getRecurrenceRuleStr(),
+                            nextStart,
+                            effectiveEndDate
                     );
 
                     // Only create next task if there are future occurrences
@@ -661,32 +802,32 @@ public class TaskServiceImpl implements TaskService {
                         // - If original task had dueDateTime, set next task's dueDateTime to nextOccurrence
                         // - If original task had NO dueDateTime (null), keep next task's dueDateTime as null
                         OffsetDateTime nextDueDateTime = task.getDueDateTime() != null
-                            ? nextOccurrence  // Set to calculated occurrence
-                            : null;            // Keep as null
+                                ? nextOccurrence  // Set to calculated occurrence
+                                : null;            // Keep as null
 
                         log.info("Next task dueDateTime: {}", nextDueDateTime);
 
                         // Create next task with same properties
                         CreateTaskDto recurringTaskDto = new CreateTaskDto(
-                            task.getProjectId(),
-                            task.getOwnerId(),
-                            task.getTitle(),
-                            task.getDescription(),
-                            Status.TODO,
-                            task.getTaskType(),
-                            tagNames,
-                            assignedUserIds,
-                            nextDueDateTime,     // null if original had null, otherwise nextOccurrence
-                            task.getIsRecurring(),
-                            task.getRecurrenceRuleStr(),
-                            nextOccurrence,      // startDate always set to the occurrence
-                            task.getEndDate(),   // Preserve original endDate (can be null)
-                            task.getPriority()   // Preserve priority from completed task
+                                task.getProjectId(),
+                                task.getOwnerId(),
+                                task.getTitle(),
+                                task.getDescription(),
+                                Status.TODO,
+                                task.getTaskType(),
+                                tagNames,
+                                assignedUserIds,
+                                nextDueDateTime,     // null if original had null, otherwise nextOccurrence
+                                task.getIsRecurring(),
+                                task.getRecurrenceRuleStr(),
+                                nextOccurrence,      // startDate always set to the occurrence
+                                task.getEndDate(),   // Preserve original endDate (can be null)
+                                task.getPriority()   // Preserve priority from completed task
                         );
 
                         this.createTask(recurringTaskDto, task.getOwnerId(), currentUserId);
                         log.info("✅ Created recurring task instance with startDate: {} and dueDateTime: {} for task: {}",
-                            nextOccurrence, nextDueDateTime, task.getId());
+                                nextOccurrence, nextDueDateTime, task.getId());
                     } else {
                         log.info("No more occurrences for recurring task: {}", task.getId());
                     }
@@ -786,8 +927,8 @@ public class TaskServiceImpl implements TaskService {
 
         Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
         tasks = tasks.stream()
-            .filter(task -> canUserSeeTaskByDepartment(task, visibleDepartmentIds))
-            .collect(Collectors.toList());
+                .filter(task -> canUserSeeTaskByDepartment(task, visibleDepartmentIds))
+                .collect(Collectors.toList());
 
         if(tasks.isEmpty()) {
             return Collections.emptyList();
@@ -795,24 +936,24 @@ public class TaskServiceImpl implements TaskService {
 
         // Fetch project names
         Set<Long> projectIds = tasks.stream()
-            .map(Task::getProjectId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-         Map<Long, String> projectNames = resolveProjectNames(projectIds);
+                .map(Task::getProjectId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> projectNames = resolveProjectNames(projectIds);
 
         Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
 
         // Convert to DTOs
         return tasks.stream()
-            .map(task -> mapToTaskResponseDto(
-                task,
-                false, // userHasEditAccess - not needed for digest
-                false, // userHasDeleteAccess - not needed for digest
-                projectNames,
-                ownerDetails,
-                userId
-            ))
-            .collect(Collectors.toList());
+                .map(task -> mapToTaskResponseDto(
+                        task,
+                        false, // userHasEditAccess - not needed for digest
+                        false, // userHasDeleteAccess - not needed for digest
+                        projectNames,
+                        ownerDetails,
+                        userId
+                ))
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -822,24 +963,24 @@ public class TaskServiceImpl implements TaskService {
 
         Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
         tasks = tasks.stream()
-            .filter(task -> canUserSeeTaskByDepartment(task, visibleDepartmentIds))
-            .collect(Collectors.toList());
-            
+                .filter(task -> canUserSeeTaskByDepartment(task, visibleDepartmentIds))
+                .collect(Collectors.toList());
+
         if(tasks.isEmpty()) {
             return Collections.emptyList();
         }
 
         Set<Long> projectIds = tasks.stream()
-            .map(Task::getProjectId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
+                .map(Task::getProjectId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
         Map<Long, String> projectNames = resolveProjectNames(projectIds);
 
         Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
 
         return tasks.stream()
-            .map(task -> mapToTaskResponseDtoLightweight(task, projectNames, ownerDetails))
-            .collect(Collectors.toList());
+                .map(task -> mapToTaskResponseDtoLightweight(task, projectNames, ownerDetails))
+                .collect(Collectors.toList());
     }
 
     private TaskResponseDto mapToTaskResponseDtoLightweight(
@@ -1024,7 +1165,7 @@ public class TaskServiceImpl implements TaskService {
                 .priority(task.getPriority())
                 .build();
     }
-    
+
     /**
      * Handle time tracking when task status changes
      */
@@ -1148,10 +1289,10 @@ public class TaskServiceImpl implements TaskService {
         // Validate recurrence configuration only if recurrence fields were updated
         if (recurrenceFieldsUpdated) {
             validateRecurrence(
-                task.getIsRecurring(),
-                task.getRecurrenceRuleStr(),
-                task.getStartDate(),
-                task.getEndDate()
+                    task.getIsRecurring(),
+                    task.getRecurrenceRuleStr(),
+                    task.getStartDate(),
+                    task.getEndDate()
             );
         }
 
@@ -1160,121 +1301,121 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private void handleRecurringTaskEdit(Task task, UpdateTaskDto updateTaskDto, Long currentUserId) {
-            // Update this instance only
-            if(updateTaskDto.getRecurrenceEditMode() == RecurrenceEditMode.THIS_INSTANCE) {
-                // Add exDate to current task
-                String updatedRRule = appendExDate(task.getRecurrenceRuleStr(), updateTaskDto.getInstanceDate());
-                task.setRecurrenceRuleStr(updatedRRule);
-                taskRepository.save(task);
+        // Update this instance only
+        if(updateTaskDto.getRecurrenceEditMode() == RecurrenceEditMode.THIS_INSTANCE) {
+            // Add exDate to current task
+            String updatedRRule = appendExDate(task.getRecurrenceRuleStr(), updateTaskDto.getInstanceDate());
+            task.setRecurrenceRuleStr(updatedRRule);
+            taskRepository.save(task);
 
-                // Create standalone task
-                // Create new task dto
-                // Prep inputs for DTO
-                List<String> tagNames = task.getTags() != null
-                        ? task.getTags().stream().map(Tag::getTagName).toList()
-                        : null;
+            // Create standalone task
+            // Create new task dto
+            // Prep inputs for DTO
+            List<String> tagNames = task.getTags() != null
+                    ? task.getTags().stream().map(Tag::getTagName).toList()
+                    : null;
 
-                // Get assigned user IDs from current task to replicate collaborators
-                List<Long> assignedUserIds = collaboratorService.getCollaboratorIdsByTaskId(task.getId());
+            // Get assigned user IDs from current task to replicate collaborators
+            List<Long> assignedUserIds = collaboratorService.getCollaboratorIdsByTaskId(task.getId());
 
-                CreateTaskDto standaloneTaskDto = new CreateTaskDto(task.getProjectId(),
-                            task.getOwnerId(),
-                            updateTaskDto.getTitle() != null ? updateTaskDto.getTitle() : task.getTitle(),
-                            updateTaskDto.getDescription() != null ? updateTaskDto.getDescription() : task.getDescription(),
-                            updateTaskDto.getStatus() != null ? updateTaskDto.getStatus() : Status.TODO,
-                            updateTaskDto.getTaskType() != null ? updateTaskDto.getTaskType() : task.getTaskType(),
-                            tagNames,
-                            assignedUserIds,
-                            updateTaskDto.getInstanceDate(),
-                            false,
-                            null,
-                            null,
-                            null,
-                            updateTaskDto.getPriority() != null ? updateTaskDto.getPriority() : task.getPriority());
-                this.createTask(standaloneTaskDto, task.getOwnerId(), currentUserId);
+            CreateTaskDto standaloneTaskDto = new CreateTaskDto(task.getProjectId(),
+                    task.getOwnerId(),
+                    updateTaskDto.getTitle() != null ? updateTaskDto.getTitle() : task.getTitle(),
+                    updateTaskDto.getDescription() != null ? updateTaskDto.getDescription() : task.getDescription(),
+                    updateTaskDto.getStatus() != null ? updateTaskDto.getStatus() : Status.TODO,
+                    updateTaskDto.getTaskType() != null ? updateTaskDto.getTaskType() : task.getTaskType(),
+                    tagNames,
+                    assignedUserIds,
+                    updateTaskDto.getInstanceDate(),
+                    false,
+                    null,
+                    null,
+                    null,
+                    updateTaskDto.getPriority() != null ? updateTaskDto.getPriority() : task.getPriority());
+            this.createTask(standaloneTaskDto, task.getOwnerId(), currentUserId);
 
+        }
+
+        // Update this and future instances
+        else if(updateTaskDto.getRecurrenceEditMode() == RecurrenceEditMode.THIS_AND_FUTURE_INSTANCES) {
+            // Cap original rule and create recurring task
+            // Get until date
+            OffsetDateTime untilDate = updateTaskDto.getInstanceDate().minusDays(1).withHour(23).withMinute(59).withSecond(59);
+
+            String updatedRRule = appendUntilDate(task.getRecurrenceRuleStr(), untilDate);
+            task.setRecurrenceRuleStr(updatedRRule);
+            task.setEndDate(untilDate);
+            taskRepository.save(task);
+
+            log.info("Capped Original task {} with UNTIL: {}", task.getId(), updatedRRule);
+
+            // Create standalone task
+            // Create new task dto
+            // Prep inputs for DTO
+            List<String> tagNames = task.getTags() != null
+                    ? task.getTags().stream().map(Tag::getTagName).toList()
+                    : null;
+
+            // Get assigned user IDs from current task to replicate collaborators
+            List<Long> assignedUserIds = collaboratorService.getCollaboratorIdsByTaskId(task.getId());
+
+            // Use original reccurring rule
+            String rrule = task.getRecurrenceRuleStr();
+
+            // Remove UNTIL=...; or UNTIL=... at the end
+            rrule = rrule.replaceAll(";?UNTIL=[^;]+;?", "");
+
+            // Clean up any accidental double semicolons
+            rrule = rrule.replaceAll(";;", ";");
+
+            // Trim just in case
+            rrule = rrule.trim();
+
+            CreateTaskDto standaloneTaskDto = new CreateTaskDto(task.getProjectId(),
+                    task.getOwnerId(),
+                    updateTaskDto.getTitle() != null ? updateTaskDto.getTitle() : task.getTitle(),
+                    updateTaskDto.getDescription() != null ? updateTaskDto.getDescription() : task.getDescription(),
+                    updateTaskDto.getStatus() != null ? updateTaskDto.getStatus() : Status.TODO,
+                    updateTaskDto.getTaskType() != null ? updateTaskDto.getTaskType() : task.getTaskType(),
+                    tagNames,
+                    assignedUserIds,
+                    updateTaskDto.getInstanceDate(),
+                    false,
+                    rrule,
+                    null,
+                    null,
+                    updateTaskDto.getPriority() != null ? updateTaskDto.getPriority() : task.getPriority());
+            this.createTask(standaloneTaskDto, task.getOwnerId(), currentUserId);
+            log.info("Create new recurring task starting from: {}", updateTaskDto.getInstanceDate());
+
+
+        }
+
+        // Update future instances only
+        else if(updateTaskDto.getRecurrenceEditMode() == RecurrenceEditMode.ALL_FUTURE_INSTANCES) {
+            // Change task directly
+            if(updateTaskDto.getTitle() != null) {
+                task.setTitle(updateTaskDto.getTitle());
             }
-
-            // Update this and future instances
-            else if(updateTaskDto.getRecurrenceEditMode() == RecurrenceEditMode.THIS_AND_FUTURE_INSTANCES) {
-                // Cap original rule and create recurring task
-                // Get until date
-                OffsetDateTime untilDate = updateTaskDto.getInstanceDate().minusDays(1).withHour(23).withMinute(59).withSecond(59);
-
-                String updatedRRule = appendUntilDate(task.getRecurrenceRuleStr(), untilDate);
-                task.setRecurrenceRuleStr(updatedRRule);
-                task.setEndDate(untilDate);
-                taskRepository.save(task);
-
-                log.info("Capped Original task {} with UNTIL: {}", task.getId(), updatedRRule);
-
-                // Create standalone task
-                // Create new task dto
-                // Prep inputs for DTO
-                List<String> tagNames = task.getTags() != null
-                        ? task.getTags().stream().map(Tag::getTagName).toList()
-                        : null;
-
-                // Get assigned user IDs from current task to replicate collaborators
-                List<Long> assignedUserIds = collaboratorService.getCollaboratorIdsByTaskId(task.getId());
-
-                // Use original reccurring rule
-                String rrule = task.getRecurrenceRuleStr();
-
-                // Remove UNTIL=...; or UNTIL=... at the end
-                rrule = rrule.replaceAll(";?UNTIL=[^;]+;?", "");
-
-                // Clean up any accidental double semicolons
-                rrule = rrule.replaceAll(";;", ";");
-
-                // Trim just in case
-                rrule = rrule.trim();
-
-                CreateTaskDto standaloneTaskDto = new CreateTaskDto(task.getProjectId(),
-                            task.getOwnerId(),
-                            updateTaskDto.getTitle() != null ? updateTaskDto.getTitle() : task.getTitle(),
-                            updateTaskDto.getDescription() != null ? updateTaskDto.getDescription() : task.getDescription(),
-                            updateTaskDto.getStatus() != null ? updateTaskDto.getStatus() : Status.TODO,
-                            updateTaskDto.getTaskType() != null ? updateTaskDto.getTaskType() : task.getTaskType(),
-                            tagNames,
-                            assignedUserIds,
-                            updateTaskDto.getInstanceDate(),
-                            false,
-                            rrule,
-                            null,
-                            null,
-                            updateTaskDto.getPriority() != null ? updateTaskDto.getPriority() : task.getPriority());
-                this.createTask(standaloneTaskDto, task.getOwnerId(), currentUserId);
-                log.info("Create new recurring task starting from: {}", updateTaskDto.getInstanceDate());
-
-
+            if(updateTaskDto.getDescription() != null) {
+                task.setDescription(updateTaskDto.getDescription());
             }
-
-            // Update future instances only
-            else if(updateTaskDto.getRecurrenceEditMode() == RecurrenceEditMode.ALL_FUTURE_INSTANCES) {
-                // Change task directly
-                if(updateTaskDto.getTitle() != null) {
-                    task.setTitle(updateTaskDto.getTitle());
-                }
-                if(updateTaskDto.getDescription() != null) {
-                    task.setDescription(updateTaskDto.getDescription());
-                }
-                if(updateTaskDto.getTaskType() != null) {
-                    task.setTaskType(updateTaskDto.getTaskType());
-                }
-                if(updateTaskDto.getStatus() != null) {
-                    task.setStatus(updateTaskDto.getStatus());
-                }
-                if(updateTaskDto.getTags() != null) {
-                    task.getTags().clear();
-                    task.getTags().addAll(tagService.findOrCreateTags(updateTaskDto.getTags()));
-                }
-                task.setUpdatedBy(currentUserId);
-                task.setUpdatedAt(OffsetDateTime.now());
-                taskRepository.save(task);
-                log.info("Updated all future instances for task: {}", task.getId());
-
+            if(updateTaskDto.getTaskType() != null) {
+                task.setTaskType(updateTaskDto.getTaskType());
             }
+            if(updateTaskDto.getStatus() != null) {
+                task.setStatus(updateTaskDto.getStatus());
+            }
+            if(updateTaskDto.getTags() != null) {
+                task.getTags().clear();
+                task.getTags().addAll(tagService.findOrCreateTags(updateTaskDto.getTags()));
+            }
+            task.setUpdatedBy(currentUserId);
+            task.setUpdatedAt(OffsetDateTime.now());
+            taskRepository.save(task);
+            log.info("Updated all future instances for task: {}", task.getId());
+
+        }
     }
 
     private String appendExDate(String rrule, OffsetDateTime exceptionDate) {
@@ -1323,41 +1464,41 @@ public class TaskServiceImpl implements TaskService {
     // Helper method to publish status changes
     private void publishStatusChangeNotification(Task task, Status oldStatus, Status newStatus, Long editorId) {
         try {
-            // Get all assignees 
+            // Get all assignees
             List<Long> assigneeIds = collaboratorService.getCollaboratorIdsByTaskId(task.getId());
             List<Long> recipientsToNotify = assigneeIds.stream().filter(id -> !id.equals(editorId)).toList();
 
             // Publish if there are recipients
             if (!recipientsToNotify.isEmpty()) {
                 TaskNotificationMessageDto dto = TaskNotificationMessageDto.forStatusChange(
-                    task.getId(),
-                    editorId,
-                    task.getProjectId(),
-                    task.getTitle(),
-                    oldStatus.toString(),
-                    newStatus.toString(),
-                    recipientsToNotify
+                        task.getId(),
+                        editorId,
+                        task.getProjectId(),
+                        task.getTitle(),
+                        oldStatus.toString(),
+                        newStatus.toString(),
+                        recipientsToNotify
                 );
 
                 notificationPublisher.publishTaskNotification(dto);
             }
-            
+
         } catch(Exception e) {
             log.error("Failed to publish status change notification for task ID: {} - Error: {}",
-                 task.getId(), e.getMessage(), e);
+                    task.getId(), e.getMessage(), e);
         }
     }
 
     // Expand recurring task template into virtual instances
     private List<TaskResponseDto> expandRecurringTaskForDisplay(
-        Task template,
-        boolean userHasWriteAccess,
-        boolean userHasDeleteAccess,
-        Map<Long, String> projectNames,
-        Map<Long, User> ownerDetails,
-        Long userId,
-        CalendarView calendarView,
-        OffsetDateTime referenceDate
+            Task template,
+            boolean userHasWriteAccess,
+            boolean userHasDeleteAccess,
+            Map<Long, String> projectNames,
+            Map<Long, User> ownerDetails,
+            Long userId,
+            CalendarView calendarView,
+            OffsetDateTime referenceDate
     ) {
         List<TaskResponseDto> virtualInstances = new ArrayList<>();
 
@@ -1402,13 +1543,13 @@ public class TaskServiceImpl implements TaskService {
 
             for(OffsetDateTime occurrence : occurrences) {
                 TaskResponseDto virtualDto = createVirtualInstanceDto(
-                template,
-                occurrence,
-                userHasWriteAccess,
-                userHasDeleteAccess,
-                projectNames,
-                ownerDetails,
-                userId
+                        template,
+                        occurrence,
+                        userHasWriteAccess,
+                        userHasDeleteAccess,
+                        projectNames,
+                        ownerDetails,
+                        userId
                 );
                 log.info("Created virtual instance: dueDateTime={}, startDate={}", virtualDto.getDueDateTime(), virtualDto.getStartDate());
                 virtualInstances.add(virtualDto);
@@ -1425,13 +1566,13 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private TaskResponseDto createVirtualInstanceDto(
-        Task template,
-        OffsetDateTime occurrence,
-        boolean userHasWriteAccess,
-        boolean userHasDeleteAccess,
-        Map<Long, String> projectNames,
-        Map<Long, User> ownerDetails,
-        Long userId
+            Task template,
+            OffsetDateTime occurrence,
+            boolean userHasWriteAccess,
+            boolean userHasDeleteAccess,
+            Map<Long, String> projectNames,
+            Map<Long, User> ownerDetails,
+            Long userId
     ) {
         // Load subtasks - wrap in try-catch to prevent transaction rollback
         List<SubtaskResponseDto> subtasks;
@@ -1463,34 +1604,34 @@ public class TaskServiceImpl implements TaskService {
         OffsetDateTime virtualDueDateTime = template.getDueDateTime() != null ? occurrence : null;
 
         return TaskResponseDto.builder()
-            .id(template.getId())
-            .projectId(template.getProjectId())
-            .projectName(projectName)
-            .ownerId(template.getOwnerId())
-            .ownerName(owner != null ? owner.getUserName() : null)
-            .ownerDepartment(owner != null ? departmentQueryService.getById(owner.getDepartmentId()).map(DepartmentDto::getName).orElse(null) : null)
-            .taskType(template.getTaskType())
-            .title(template.getTitle())
-            .description(template.getDescription())
-            .status(template.getStatus())
-            .tags(template.getTags() != null
-                    ? template.getTags().stream().map(Tag::getTagName).toList()
-                    : null)
-            .assignedUserIds(assignedUserIds)
-            .userHasEditAccess(userHasWriteAccess)
-            .userHasDeleteAccess(userHasDeleteAccess)
-            .createdAt(template.getCreatedAt())
-            .updatedAt(template.getUpdatedAt())
-            .createdBy(template.getCreatedBy())
-            .updatedBy(template.getUpdatedBy())
-            .dueDateTime(virtualDueDateTime)  // Null if template has no due date
-            .subtasks(subtasks)
-            .isRecurring(true)
-            .recurrenceRuleStr(template.getRecurrenceRuleStr())
-            .startDate(occurrence)  // Always set to occurrence for calendar day filtering
-            .endDate(template.getEndDate())
-            .priority(template.getPriority())
-            .build();
+                .id(template.getId())
+                .projectId(template.getProjectId())
+                .projectName(projectName)
+                .ownerId(template.getOwnerId())
+                .ownerName(owner != null ? owner.getUserName() : null)
+                .ownerDepartment(owner != null ? departmentQueryService.getById(owner.getDepartmentId()).map(DepartmentDto::getName).orElse(null) : null)
+                .taskType(template.getTaskType())
+                .title(template.getTitle())
+                .description(template.getDescription())
+                .status(template.getStatus())
+                .tags(template.getTags() != null
+                        ? template.getTags().stream().map(Tag::getTagName).toList()
+                        : null)
+                .assignedUserIds(assignedUserIds)
+                .userHasEditAccess(userHasWriteAccess)
+                .userHasDeleteAccess(userHasDeleteAccess)
+                .createdAt(template.getCreatedAt())
+                .updatedAt(template.getUpdatedAt())
+                .createdBy(template.getCreatedBy())
+                .updatedBy(template.getUpdatedBy())
+                .dueDateTime(virtualDueDateTime)  // Null if template has no due date
+                .subtasks(subtasks)
+                .isRecurring(true)
+                .recurrenceRuleStr(template.getRecurrenceRuleStr())
+                .startDate(occurrence)  // Always set to occurrence for calendar day filtering
+                .endDate(template.getEndDate())
+                .priority(template.getPriority())
+                .build();
     }
 
     private Set<Long> getUserVisibleDepartmentIds(Long userId) {
@@ -1504,10 +1645,16 @@ public class TaskServiceImpl implements TaskService {
                 return Collections.emptySet();
             }
 
+            log.info("Getting visible departments for user {} (username: {}) in department {}",
+                    userId, user.getUserName(), userDepartmentId);
+
             // Check if what other departments are visible to our user
-            return departmentQueryService.getById(userDepartmentId)
-                .map(deptDto -> departmentalVisibilityService.visibleDepartmentsForAssignedDept(deptDto.getId()))
-                .orElse(Collections.emptySet());
+            Set<Long> visibleDeptIds = departmentQueryService.getById(userDepartmentId)
+                    .map(deptDto -> departmentalVisibilityService.visibleDepartmentsForAssignedDept(deptDto.getId()))
+                    .orElse(Collections.emptySet());
+
+            log.info("User {} can see {} departments: {}", userId, visibleDeptIds.size(), visibleDeptIds);
+            return visibleDeptIds;
         } catch (Exception e) {
             log.error("Error getting visible department IDs for user {}: {}", userId, e.getMessage(), e);
             // Return empty set on error to prevent transaction rollback
@@ -1518,6 +1665,7 @@ public class TaskServiceImpl implements TaskService {
     private Boolean canUserSeeTaskByDepartment(Task task, Set<Long> userVisibleDepartmentIds) {
         try {
             if (userVisibleDepartmentIds.isEmpty()) {
+                log.debug("User has no visible departments - cannot see task {}", task.getId());
                 return false;
             }
 
@@ -1525,17 +1673,32 @@ public class TaskServiceImpl implements TaskService {
             List<Long> assigneeIds = new ArrayList<>(taskAssigneeRepository.findAssigneeIdsByTaskId(task.getId()));
             assigneeIds.add(task.getOwnerId());
 
+            log.debug("Checking visibility for task {} (title: '{}', owner: {}, assignees: {})",
+                    task.getId(), task.getTitle(), task.getOwnerId(), assigneeIds);
+
             for(Long assigneeId : assigneeIds) {
                 User assignee = userRepository.findById(assigneeId).orElse(null);
                 if(assignee == null || assignee.getDepartmentId() == null) {
+                    log.debug("Assignee {} not found or has no department", assigneeId);
                     continue;
                 }
 
+                log.debug("Checking if assignee {} in department {} is visible",
+                        assigneeId, assignee.getDepartmentId());
+
                 if(departmentalVisibilityService.canUserSeeTask(userVisibleDepartmentIds, assigneeId)) {
+                    log.info("User CAN see task {} - assignee {} is in visible department {}",
+                            task.getId(), assigneeId, assignee.getDepartmentId());
                     return true;
                 }
             }
 
+            log.info("User CANNOT see task {} - no assignees in visible departments. User visible depts: {}, Task assignee depts: {}",
+                    task.getId(), userVisibleDepartmentIds,
+                    assigneeIds.stream()
+                            .map(id -> userRepository.findById(id).map(User::getDepartmentId).orElse(null))
+                            .filter(deptId -> deptId != null)
+                            .toList());
             return false;
         } catch (Exception e) {
             log.error("Error checking department visibility for task {}: {}", task.getId(), e.getMessage(), e);

@@ -4,6 +4,8 @@ import com.spmorangle.common.converter.UserConverter;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.model.Department;
+import com.spmorangle.crm.departmentmgmt.repository.DepartmentRepository;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentalVisibilityService;
 import com.spmorangle.crm.projectmanagement.dto.CreateProjectDto;
@@ -51,6 +53,9 @@ class ProjectServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private DepartmentRepository departmentRepository;
 
     @Mock
     private DepartmentQueryService departmentQueryService;
@@ -142,9 +147,9 @@ class ProjectServiceImplTest {
                 default -> "Dept " + deptId;
             };
             return Optional.of(DepartmentDto.builder()
-                .id(deptId)
-                .name(deptName)
-                .build());
+                    .id(deptId)
+                    .name(deptName)
+                    .build());
         });
 
         // Mock DepartmentalVisibilityService
@@ -518,6 +523,8 @@ class ProjectServiceImplTest {
             when(userRepository.findUsersInProject(eq(projectId))).thenReturn(Collections.singletonList(testUser1));
             when(userRepository.findById(eq(userId))).thenReturn(Optional.of(testUserForGetProjects));
             when(projectRepository.findUserProjects(eq(userId))).thenReturn(Collections.singletonList(testProject));
+            when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(testProject));
+            when(projectMemberRepository.findByProjectId(eq(projectId))).thenReturn(Collections.emptyList());
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
 
             try (MockedStatic<UserConverter> mockedUserConverter = mockStatic(UserConverter.class)) {
@@ -671,6 +678,11 @@ class ProjectServiceImplTest {
             crossDeptProject.setCreatedBy(888L);
             crossDeptProject.setDeleteInd(false);
 
+            // Setup lenient mocks for findById to support isUserProjectMember checks
+            lenient().when(projectRepository.findById(1L)).thenReturn(Optional.of(ownedProject));
+            lenient().when(projectRepository.findById(2L)).thenReturn(Optional.of(memberProject));
+            lenient().when(projectRepository.findById(3L)).thenReturn(Optional.of(crossDeptProject));
+
             // Setup unrelated project (no connection to user or department)
             unrelatedProject = new Project();
             unrelatedProject.setId(4L);
@@ -679,6 +691,34 @@ class ProjectServiceImplTest {
             unrelatedProject.setOwnerId(777L);
             unrelatedProject.setCreatedBy(777L);
             unrelatedProject.setDeleteInd(false);
+
+            // Setup department mocks
+            Department engineeringDept = new Department();
+            engineeringDept.setId(1L);
+            engineeringDept.setName("Engineering");
+
+            Department hrDept = new Department();
+            hrDept.setId(2L);
+            hrDept.setName("HR");
+
+            DepartmentDto engineeringDeptDto = DepartmentDto.builder()
+                    .id(1L)
+                    .name("Engineering")
+                    .build();
+
+            DepartmentDto hrDeptDto = DepartmentDto.builder()
+                    .id(2L)
+                    .name("HR")
+                    .build();
+
+            lenient().when(departmentRepository.findByNameIgnoreCase("Engineering"))
+                    .thenReturn(Optional.of(engineeringDept));
+            lenient().when(departmentRepository.findByNameIgnoreCase("HR"))
+                    .thenReturn(Optional.of(hrDept));
+            lenient().when(departmentQueryService.getDescendants(1L, true))
+                    .thenReturn(Collections.singletonList(engineeringDeptDto));
+            lenient().when(departmentQueryService.getDescendants(2L, true))
+                    .thenReturn(Collections.singletonList(hrDeptDto));
         }
 
         @Test
@@ -705,27 +745,40 @@ class ProjectServiceImplTest {
         }
 
         @Test
-        @DisplayName("STAFF should NOT see cross-department projects where they're not members")
-        void getUserProjects_Staff_ExcludesNonMemberProjects() {
+        @DisplayName("STAFF should see related cross-department projects where colleagues are members")
+        void getUserProjects_Staff_IncludesRelatedProjects() {
             // Given
             Long staffUserId = 100L;
-            List<Project> onlyMemberProjects = Collections.singletonList(memberProject);
+            List<Project> memberProjects = Collections.singletonList(memberProject);
+            List<Project> relatedProjects = Collections.singletonList(crossDeptProject); // Staff should now see this
 
             when(userRepository.findById(staffUserId)).thenReturn(Optional.of(staffUser));
-            when(projectRepository.findUserProjects(staffUserId)).thenReturn(onlyMemberProjects);
+            when(projectRepository.findUserProjects(staffUserId)).thenReturn(memberProjects);
+            when(projectRepository.findProjectsWithDepartmentStaff(eq(staffUserId), any()))
+                    .thenReturn(relatedProjects);
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+            when(departmentQueryService.getById(100L))
+                    .thenReturn(Optional.of(DepartmentDto.builder().id(100L).name("Engineering").build()));
+            when(departmentalVisibilityService.visibleDepartmentsForAssignedDept(100L))
+                    .thenReturn(Collections.singleton(100L));
+            when(projectMemberRepository.findByProjectId(any())).thenReturn(Collections.emptyList());
 
             // When
             List<ProjectResponseDto> result = projectService.getUserProjects(staffUserId);
 
             // Then
             assertThat(result).isNotNull();
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).getId()).isEqualTo(2L);
-
-            // Verify crossDeptProject and unrelatedProject are NOT in results
+            assertThat(result).hasSize(2); // memberProject + crossDeptProject
             assertThat(result.stream().map(ProjectResponseDto::getId))
-                    .doesNotContain(3L, 4L);
+                    .containsExactlyInAnyOrder(2L, 3L);
+
+            // Verify related project is marked with isRelated = true
+            ProjectResponseDto relatedProjectDto = result.stream()
+                    .filter(p -> p.getId() == 3L)
+                    .findFirst()
+                    .orElse(null);
+            assertThat(relatedProjectDto).isNotNull();
+            assertThat(relatedProjectDto.getIsRelated()).isTrue();
         }
 
         @Test
@@ -754,14 +807,26 @@ class ProjectServiceImplTest {
         void getUserProjects_Manager_ReturnsRelatedCrossDeptProjects() {
             // Given
             Long managerId = 200L;
+            Long deptId = 100L;
             List<Project> memberProjects = Collections.singletonList(ownedProject);
             List<Project> relatedProjects = Collections.singletonList(crossDeptProject);
 
+            // Mock department visibility
+            DepartmentDto managerDept = DepartmentDto.builder()
+                    .id(deptId)
+                    .name("Engineering")
+                    .build();
+            when(departmentQueryService.getById(deptId)).thenReturn(Optional.of(managerDept));
+            when(departmentalVisibilityService.visibleDepartmentsForAssignedDept(deptId))
+                    .thenReturn(Collections.singleton(deptId));
+            when(departmentalVisibilityService.canUserSeeTask(any(), any())).thenReturn(true);
+
             when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
             when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
-            when(projectRepository.findProjectsWithDepartmentStaff(managerId, 100L))
+            when(projectRepository.findProjectsWithDepartmentStaff(eq(managerId), eq(Collections.singleton(deptId))))
                     .thenReturn(relatedProjects);
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+            when(projectMemberRepository.findByProjectId(any())).thenReturn(Collections.emptyList());
 
             // When
             List<ProjectResponseDto> result = projectService.getUserProjects(managerId);
@@ -778,12 +843,22 @@ class ProjectServiceImplTest {
         void getUserProjects_Manager_ExcludesUnrelatedCrossDeptProjects() {
             // Given
             Long managerId = 200L;
+            Long deptId = 100L;
             List<Project> memberProjects = Collections.singletonList(ownedProject);
             List<Project> relatedProjects = Collections.emptyList(); // No staff from Engineering in other projects
 
+            // Mock department visibility
+            DepartmentDto managerDept = DepartmentDto.builder()
+                    .id(deptId)
+                    .name("Engineering")
+                    .build();
+            when(departmentQueryService.getById(deptId)).thenReturn(Optional.of(managerDept));
+            when(departmentalVisibilityService.visibleDepartmentsForAssignedDept(deptId))
+                    .thenReturn(Collections.singleton(deptId));
+
             when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
             when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
-            when(projectRepository.findProjectsWithDepartmentStaff(managerId, 100L))
+            when(projectRepository.findProjectsWithDepartmentStaff(eq(managerId), eq(Collections.singleton(deptId))))
                     .thenReturn(relatedProjects);
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
 
@@ -863,14 +938,26 @@ class ProjectServiceImplTest {
         void getUserProjects_VerifyIsRelatedFlag() {
             // Given
             Long managerId = 200L;
+            Long deptId = 100L;
             List<Project> memberProjects = Collections.singletonList(ownedProject);
             List<Project> relatedProjects = Collections.singletonList(crossDeptProject);
 
+            // Mock department visibility
+            DepartmentDto managerDept = DepartmentDto.builder()
+                    .id(deptId)
+                    .name("Engineering")
+                    .build();
+            when(departmentQueryService.getById(deptId)).thenReturn(Optional.of(managerDept));
+            when(departmentalVisibilityService.visibleDepartmentsForAssignedDept(deptId))
+                    .thenReturn(Collections.singleton(deptId));
+            when(departmentalVisibilityService.canUserSeeTask(any(), any())).thenReturn(true);
+
             when(userRepository.findById(managerId)).thenReturn(Optional.of(managerUser));
             when(projectRepository.findUserProjects(managerId)).thenReturn(memberProjects);
-            when(projectRepository.findProjectsWithDepartmentStaff(managerId, 100L))
+            when(projectRepository.findProjectsWithDepartmentStaff(eq(managerId), eq(Collections.singleton(deptId))))
                     .thenReturn(relatedProjects);
             when(taskRepository.findByProjectIdAndNotDeleted(any())).thenReturn(Collections.emptyList());
+            when(projectMemberRepository.findByProjectId(any())).thenReturn(Collections.emptyList());
 
             // When
             List<ProjectResponseDto> result = projectService.getUserProjects(managerId);

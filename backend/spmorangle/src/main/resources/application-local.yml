@@ -77,15 +77,21 @@ supabase:
     region: ap-southeast-1
     bucket: syncup_bucket
 
-#logging:
-#  level:
+logging:
+  level:
+    # Department visibility logging
+    com.spmorangle.crm.departmentmgmt.service.impl.DepartmentalVisibilityServiceImpl: INFO
+    com.spmorangle.crm.taskmanagement.service.impl.TaskServiceImpl: INFO
+    # Uncomment below for more detailed debugging
+    # com.spmorangle.crm.departmentmgmt.service.impl.DepartmentalVisibilityServiceImpl: DEBUG
+    # com.spmorangle.crm.taskmanagement.service.impl.TaskServiceImpl: DEBUG
     # org.springframework.amqp: DEBUG
     # com.spmorangle.crm.notification: DEBUG
     # com.spmorangle.crm.taskmanagement.service: DEBUG
     # org.springframework.transaction: TRACE
     # org.springframework.orm.jpa: DEBUG
     # org.hibernate.SQL: DEBUG
-#    com.spmorangle.crm.reporting.service.impl.ReportServiceImpl: DEBUG
+    # com.spmorangle.crm.reporting.service.impl.ReportServiceImpl: DEBUG
 
 
 overdue:

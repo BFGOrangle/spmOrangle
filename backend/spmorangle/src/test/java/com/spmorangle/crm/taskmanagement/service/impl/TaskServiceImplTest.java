@@ -1,8 +1,11 @@
 package com.spmorangle.crm.taskmanagement.service.impl;
 
+import com.spmorangle.common.enums.UserType;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
 import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.model.Department;
+import com.spmorangle.crm.departmentmgmt.repository.DepartmentRepository;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.departmentmgmt.service.DepartmentalVisibilityService;
 import com.spmorangle.crm.notification.messaging.publisher.NotificationMessagePublisher;
@@ -34,6 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -55,6 +59,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -97,6 +102,9 @@ class TaskServiceImplTest {
     private ReportService reportService;
 
     @Mock
+    private DepartmentRepository departmentRepository;
+
+    @Mock
     private DepartmentQueryService departmentQueryService;
 
     @Mock
@@ -115,18 +123,20 @@ class TaskServiceImplTest {
         fixedDateTime = OffsetDateTime.now();
 
         testTask1 = createTestTask(1L, 101L, 201L, "Task 1", "Description 1",
-                                  Status.TODO, Arrays.asList("tag1", "tag2"));
+                Status.TODO, Arrays.asList("tag1", "tag2"));
 
         testTask2 = createTestTask(2L, 102L, 201L, "Task 2", "Description 2",
-                                  Status.IN_PROGRESS, Collections.singletonList("tag3"));
+                Status.IN_PROGRESS, Collections.singletonList("tag3"));
 
         testTask3 = createTestTask(3L, 103L, 201L, "Task 3", null,
-                                  Status.COMPLETED, Collections.emptyList());
+                Status.COMPLETED, Collections.emptyList());
 
         // Mock subtaskService to return empty lists for all task IDs (lenient for tests that don't use it)
         lenient().when(subtaskService.getSubtasksByTaskId(anyLong(), anyLong())).thenReturn(Collections.emptyList());
 
         lenient().when(projectService.getProjectOwners(any())).thenReturn(Collections.emptyMap());
+        // Mock isUserProjectMember to return true by default (user is a member of the project)
+        lenient().when(projectService.isUserProjectMember(anyLong(), anyLong())).thenReturn(true);
         lenient().when(projectService.getProjectsByIds(any())).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             Set<Long> ids = (Set<Long>) invocation.getArgument(0);
@@ -145,6 +155,11 @@ class TaskServiceImplTest {
                             .completedTaskCount(0)
                             .build())
                     .toList();
+        });
+
+        lenient().when(userRepository.findById(anyLong())).thenAnswer(invocation -> {
+            Long id = invocation.getArgument(0);
+            return Optional.of(createUser(id));
         });
 
         lenient().when(userRepository.findAllById(any())).thenAnswer(invocation -> {
@@ -169,9 +184,9 @@ class TaskServiceImplTest {
         lenient().when(departmentQueryService.getById(anyLong())).thenAnswer(invocation -> {
             Long deptId = invocation.getArgument(0);
             return Optional.of(DepartmentDto.builder()
-                .id(deptId)
-                .name("Dept " + deptId)
-                .build());
+                    .id(deptId)
+                    .name("Dept " + deptId)
+                    .build());
         });
 
         // Mock DepartmentalVisibilityService
@@ -185,7 +200,7 @@ class TaskServiceImplTest {
     }
 
     private Task createTestTask(Long id, Long projectId, Long ownerId, String title,
-                               String description, Status status, List<String> tagNames) {
+                                String description, Status status, List<String> tagNames) {
         Task task = new Task();
         task.setId(id);
         task.setProjectId(projectId);
@@ -320,7 +335,7 @@ class TaskServiceImplTest {
             // Given
             Long userId = 201L;
             Task taskWithNullDescription = createTestTask(4L, 104L, 201L, "Task with null desc",
-                                                         null, Status.TODO, Collections.emptyList());
+                    null, Status.TODO, Collections.emptyList());
             when(taskRepository.findUserTasks(userId)).thenReturn(Collections.singletonList(taskWithNullDescription));
 
             // When
@@ -339,7 +354,7 @@ class TaskServiceImplTest {
             // Given
             Long userId = 201L;
             Task taskWithEmptyTags = createTestTask(5L, 105L, 201L, "Task with empty tags",
-                                                   "Description", Status.BLOCKED, Collections.emptyList());
+                    "Description", Status.BLOCKED, Collections.emptyList());
             when(taskRepository.findUserTasks(userId)).thenReturn(Collections.singletonList(taskWithEmptyTags));
 
             // When
@@ -358,7 +373,7 @@ class TaskServiceImplTest {
             // Given
             Long userId = 201L;
             Task taskWithNullTags = createTestTask(6L, 106L, 201L, "Task with null tags",
-                                                  "Description", Status.TODO, null);
+                    "Description", Status.TODO, null);
             when(taskRepository.findUserTasks(userId)).thenReturn(Collections.singletonList(taskWithNullTags));
 
             // When
@@ -565,10 +580,10 @@ class TaskServiceImplTest {
             // Given
             Long userId = 201L;
             List<Task> mixedTasks = Arrays.asList(
-                testTask1, // Normal task
-                testTask3, // Null description, empty tags
-                createTestTask(11L, 111L, 201L, "", "Empty title task", Status.COMPLETED, null), // Empty title
-                createTestTask(12L, 112L, 201L, "Whitespace task", "   ", Status.IN_PROGRESS, Arrays.asList("", "   ", "valid")) // Whitespace and empty tags
+                    testTask1, // Normal task
+                    testTask3, // Null description, empty tags
+                    createTestTask(11L, 111L, 201L, "", "Empty title task", Status.COMPLETED, null), // Empty title
+                    createTestTask(12L, 112L, 201L, "Whitespace task", "   ", Status.IN_PROGRESS, Arrays.asList("", "   ", "valid")) // Whitespace and empty tags
             );
             when(taskRepository.findUserTasks(userId)).thenReturn(mixedTasks);
 
@@ -902,10 +917,14 @@ class TaskServiceImplTest {
             savedTask.setTags(createTagsFromNames(Arrays.asList("tag1", "tag2")));
             savedTask.setCreatedBy(456L);
             savedTask.setCreatedAt(fixedDateTime);
-            
+
             // Mock tagService to return Tag entities (lenient for tests that don't use tags)
             lenient().when(tagService.findOrCreateTags(Arrays.asList("tag1", "tag2")))
                     .thenReturn(createTagsFromNames(Arrays.asList("tag1", "tag2")));
+
+            // Mock isUserProjectMember to return true by default (user is a member of the project)
+            // Use nullable() to handle both null and non-null projectIds
+            lenient().when(projectService.isUserProjectMember(anyLong(), nullable(Long.class))).thenReturn(true);
         }
 
         @Test
@@ -934,16 +953,16 @@ class TaskServiceImplTest {
             assertThat(result.getCreatedAt()).isEqualTo(fixedDateTime);
 
             verify(taskRepository).save(argThat(task ->
-                Objects.equals(task.getProjectId(), 101L) &&
-                Objects.equals(task.getOwnerId(), 456L) &&
-                Objects.equals(task.getCreatedBy(), 456L) &&
-                Objects.equals(task.getTitle(), "Test Task with Specified Owner") &&
-                Objects.equals(task.getDescription(), "Test Description") &&
-                Objects.equals(task.getStatus(), Status.TODO) &&
-                Objects.equals(task.getTaskType(), TaskType.FEATURE) &&
-                task.getTags() != null &&
-                task.getTags().stream().map(com.spmorangle.crm.taskmanagement.model.Tag::getTagName).collect(Collectors.toSet())
-                    .equals(Set.of("tag1", "tag2"))
+                    Objects.equals(task.getProjectId(), 101L) &&
+                            Objects.equals(task.getOwnerId(), 456L) &&
+                            Objects.equals(task.getCreatedBy(), 456L) &&
+                            Objects.equals(task.getTitle(), "Test Task with Specified Owner") &&
+                            Objects.equals(task.getDescription(), "Test Description") &&
+                            Objects.equals(task.getStatus(), Status.TODO) &&
+                            Objects.equals(task.getTaskType(), TaskType.FEATURE) &&
+                            task.getTags() != null &&
+                            task.getTags().stream().map(com.spmorangle.crm.taskmanagement.model.Tag::getTagName).collect(Collectors.toSet())
+                                    .equals(Set.of("tag1", "tag2"))
             ));
         }
 
@@ -968,11 +987,12 @@ class TaskServiceImplTest {
             CreateTaskResponseDto result = taskService.createTask(validCreateTaskDto, specifiedOwnerId, currentUserId);
 
             // Then
-            assertThat(result.getAssignedUserIds()).containsExactly(789L, 101L);
+            // Owner (456L) is now automatically added as a collaborator
+            assertThat(result.getAssignedUserIds()).containsExactlyInAnyOrder(456L, 789L, 101L);
 
-            verify(collaboratorService, times(2)).addCollaborator(argThat(request ->
-                request.getTaskId().equals(1L) &&
-                (request.getCollaboratorId().equals(789L) || request.getCollaboratorId().equals(101L))
+            verify(collaboratorService, times(3)).addCollaborator(argThat(request ->
+                    request.getTaskId().equals(1L) &&
+                            (request.getCollaboratorId().equals(456L) || request.getCollaboratorId().equals(789L) || request.getCollaboratorId().equals(101L))
             ), eq(123L));
         }
 
@@ -1000,8 +1020,11 @@ class TaskServiceImplTest {
             CreateTaskResponseDto result = taskService.createTask(dtoWithEmptyAssignedUserIds, specifiedOwnerId, currentUserId);
 
             // Then
-            assertThat(result.getAssignedUserIds()).isEmpty();
-            verify(collaboratorService, never()).addCollaborator(any(), anyLong());
+            // Owner (456L) is now automatically added as a collaborator even with empty assignedUserIds
+            assertThat(result.getAssignedUserIds()).containsExactly(456L);
+            verify(collaboratorService, times(1)).addCollaborator(argThat(request ->
+                    request.getTaskId().equals(1L) && request.getCollaboratorId().equals(456L)
+            ), eq(123L));
         }
 
         @Test
@@ -1028,8 +1051,11 @@ class TaskServiceImplTest {
             CreateTaskResponseDto result = taskService.createTask(dtoWithNullAssignedUserIds, specifiedOwnerId, currentUserId);
 
             // Then
-            assertThat(result.getAssignedUserIds()).isEmpty();
-            verify(collaboratorService, never()).addCollaborator(any(), anyLong());
+            // Owner (456L) is now automatically added as a collaborator even with null assignedUserIds
+            assertThat(result.getAssignedUserIds()).containsExactly(456L);
+            verify(collaboratorService, times(1)).addCollaborator(argThat(request ->
+                    request.getTaskId().equals(1L) && request.getCollaboratorId().equals(456L)
+            ), eq(123L));
         }
 
         @Test
@@ -1042,9 +1068,20 @@ class TaskServiceImplTest {
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
             when(taskRepository.findById(savedTask.getId())).thenReturn(Optional.of(savedTask));
 
+            // Mock successful owner assignment
+            when(collaboratorService.addCollaborator(argThat(request ->
+                    request != null && request.getCollaboratorId().equals(456L)), anyLong()))
+                    .thenReturn(AddCollaboratorResponseDto.builder()
+                            .taskId(1L)
+                            .collaboratorId(456L)
+                            .assignedById(456L)
+                            .assignedAt(fixedDateTime)
+                            .build());
+            // Mock failure for user 789L
             when(collaboratorService.addCollaborator(argThat(request ->
                     request != null && request.getCollaboratorId().equals(789L)), anyLong()))
                     .thenThrow(new RuntimeException("Assignment failed for user 789"));
+            // Mock success for user 101L
             when(collaboratorService.addCollaborator(argThat(request ->
                     request != null && request.getCollaboratorId().equals(101L)), anyLong()))
                     .thenReturn(AddCollaboratorResponseDto.builder()
@@ -1058,8 +1095,9 @@ class TaskServiceImplTest {
             CreateTaskResponseDto result = taskService.createTask(validCreateTaskDto, specifiedOwnerId, currentUserId);
 
             // Then
-            assertThat(result.getAssignedUserIds()).containsExactly(101L);
-            verify(collaboratorService, times(2)).addCollaborator(any(), anyLong());
+            // Owner (456L) is auto-assigned successfully, 789L fails, 101L succeeds
+            assertThat(result.getAssignedUserIds()).containsExactlyInAnyOrder(456L, 101L);
+            verify(collaboratorService, times(3)).addCollaborator(any(), anyLong());
         }
 
         @Test
@@ -1097,10 +1135,10 @@ class TaskServiceImplTest {
             assertThat(result.getCreatedBy()).isEqualTo(456L);
 
             verify(taskRepository).save(argThat(task ->
-                Objects.equals(task.getOwnerId(), 456L) &&
-                Objects.equals(task.getCreatedBy(), 456L) &&
-                Objects.equals(task.getTitle(), "Minimal Task") &&
-                Objects.equals(task.getTaskType(), TaskType.BUG)
+                    Objects.equals(task.getOwnerId(), 456L) &&
+                            Objects.equals(task.getCreatedBy(), 456L) &&
+                            Objects.equals(task.getTitle(), "Minimal Task") &&
+                            Objects.equals(task.getTaskType(), TaskType.BUG)
             ));
         }
 
@@ -1119,9 +1157,9 @@ class TaskServiceImplTest {
 
             // Then
             verify(taskRepository).save(argThat(task ->
-                task.getCreatedAt() != null &&
-                task.getCreatedAt().isBefore(OffsetDateTime.now().plusSeconds(1)) &&
-                task.getCreatedAt().isAfter(OffsetDateTime.now().minusSeconds(10))
+                    task.getCreatedAt() != null &&
+                            task.getCreatedAt().isBefore(OffsetDateTime.now().plusSeconds(1)) &&
+                            task.getCreatedAt().isAfter(OffsetDateTime.now().minusSeconds(10))
             ));
         }
 
@@ -1305,10 +1343,14 @@ class TaskServiceImplTest {
             savedTask.setTags(createTagsFromNames(Arrays.asList("tag1", "tag2")));
             savedTask.setCreatedBy(123L);
             savedTask.setCreatedAt(fixedDateTime);
-            
+
             // Mock tagService to return Tag entities (lenient for tests that don't use tags)
             lenient().when(tagService.findOrCreateTags(Arrays.asList("tag1", "tag2")))
                     .thenReturn(createTagsFromNames(Arrays.asList("tag1", "tag2")));
+
+            // Mock isUserProjectMember to return true by default (user is a member of the project)
+            // Use nullable() to handle both null and non-null projectIds
+            lenient().when(projectService.isUserProjectMember(anyLong(), nullable(Long.class))).thenReturn(true);
         }
 
         @Test
@@ -1337,16 +1379,16 @@ class TaskServiceImplTest {
             assertThat(result.getCreatedAt()).isEqualTo(fixedDateTime);
 
             verify(taskRepository).save(argThat(task ->
-                Objects.equals(task.getProjectId(), 101L) &&
-                Objects.equals(task.getOwnerId(), 123L) &&
-                Objects.equals(task.getCreatedBy(), 123L) &&
-                Objects.equals(task.getTitle(), "Test Task with Current User as Owner") &&
-                Objects.equals(task.getDescription(), "Test Description") &&
-                Objects.equals(task.getStatus(), Status.TODO) &&
-                Objects.equals(task.getTaskType(), TaskType.FEATURE) &&
-                task.getTags() != null &&
-                task.getTags().stream().map(com.spmorangle.crm.taskmanagement.model.Tag::getTagName).collect(Collectors.toSet())
-                    .equals(Set.of("tag1", "tag2"))
+                    Objects.equals(task.getProjectId(), 101L) &&
+                            Objects.equals(task.getOwnerId(), 123L) &&
+                            Objects.equals(task.getCreatedBy(), 123L) &&
+                            Objects.equals(task.getTitle(), "Test Task with Current User as Owner") &&
+                            Objects.equals(task.getDescription(), "Test Description") &&
+                            Objects.equals(task.getStatus(), Status.TODO) &&
+                            Objects.equals(task.getTaskType(), TaskType.FEATURE) &&
+                            task.getTags() != null &&
+                            task.getTags().stream().map(com.spmorangle.crm.taskmanagement.model.Tag::getTagName).collect(Collectors.toSet())
+                                    .equals(Set.of("tag1", "tag2"))
             ));
         }
 
@@ -1367,16 +1409,21 @@ class TaskServiceImplTest {
             assertThat(result.getOwnerId()).isEqualTo(currentUserId);
 
             verify(taskRepository).save(any(Task.class));
-            verify(collaboratorService, times(2)).addCollaborator(any(AddCollaboratorRequestDto.class), anyLong());
+            // Owner (123L) is now automatically added + 2 additional collaborators (789L, 101L)
+            verify(collaboratorService, times(3)).addCollaborator(any(AddCollaboratorRequestDto.class), anyLong());
 
-            // Verify the specific collaborator requests
+            // Verify the specific collaborator requests including the owner
             verify(collaboratorService).addCollaborator(argThat(request ->
-                request.getTaskId().equals(1L) &&
-                request.getCollaboratorId().equals(789L)
+                    request.getTaskId().equals(1L) &&
+                            request.getCollaboratorId().equals(123L) // Owner auto-assigned
             ), eq(currentUserId));
             verify(collaboratorService).addCollaborator(argThat(request ->
-                request.getTaskId().equals(1L) &&
-                request.getCollaboratorId().equals(101L)
+                    request.getTaskId().equals(1L) &&
+                            request.getCollaboratorId().equals(789L)
+            ), eq(currentUserId));
+            verify(collaboratorService).addCollaborator(argThat(request ->
+                    request.getTaskId().equals(1L) &&
+                            request.getCollaboratorId().equals(101L)
             ), eq(currentUserId));
         }
 
@@ -1406,7 +1453,10 @@ class TaskServiceImplTest {
             assertThat(result.getOwnerId()).isEqualTo(currentUserId);
 
             verify(taskRepository).save(any(Task.class));
-            verify(collaboratorService, never()).addCollaborator(any(), anyLong());
+            // Owner (123L) is now automatically added as a collaborator even with empty assignedUserIds
+            verify(collaboratorService, times(1)).addCollaborator(argThat(request ->
+                    request.getTaskId().equals(1L) && request.getCollaboratorId().equals(123L)
+            ), eq(currentUserId));
         }
 
         @Test
@@ -1436,8 +1486,8 @@ class TaskServiceImplTest {
             assertThat(result.getOwnerId()).isEqualTo(currentUserId); // Should use current user, not DTO's ownerId
 
             verify(taskRepository).save(argThat(task ->
-                Objects.equals(task.getOwnerId(), currentUserId) &&
-                Objects.equals(task.getCreatedBy(), currentUserId)
+                    Objects.equals(task.getOwnerId(), currentUserId) &&
+                            Objects.equals(task.getCreatedBy(), currentUserId)
             ));
         }
 
@@ -1477,9 +1527,9 @@ class TaskServiceImplTest {
             assertThat(result.getTags()).isNullOrEmpty();
 
             verify(taskRepository).save(argThat(task ->
-                Objects.equals(task.getOwnerId(), currentUserId) &&
-                Objects.equals(task.getCreatedBy(), currentUserId) &&
-                Objects.equals(task.getTitle(), "Minimal Task")
+                    Objects.equals(task.getOwnerId(), currentUserId) &&
+                            Objects.equals(task.getCreatedBy(), currentUserId) &&
+                            Objects.equals(task.getTitle(), "Minimal Task")
             ));
         }
 
@@ -1492,9 +1542,9 @@ class TaskServiceImplTest {
             OffsetDateTime beforeUpdate = OffsetDateTime.now();
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .title("Updated Title")
-                .build();
+                    .taskId(taskId)
+                    .title("Updated Title")
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask1));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -1524,9 +1574,9 @@ class TaskServiceImplTest {
 
             for (Status newStatus : allStatuses) {
                 UpdateTaskDto statusDto = UpdateTaskDto.builder()
-                    .taskId(taskId)
-                    .status(newStatus)
-                    .build();
+                        .taskId(taskId)
+                        .status(newStatus)
+                        .build();
 
                 when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask1));
                 when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -1551,9 +1601,9 @@ class TaskServiceImplTest {
 
             for (TaskType newType : allTaskTypes) {
                 UpdateTaskDto typeDto = UpdateTaskDto.builder()
-                    .taskId(taskId)
-                    .taskType(newType)
-                    .build();
+                        .taskId(taskId)
+                        .taskType(newType)
+                        .build();
 
                 when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask1));
                 when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -1578,10 +1628,10 @@ class TaskServiceImplTest {
             String specialDescription = "Description with unicode: 你好世界 🚀💯 ñáéíóú";
 
             UpdateTaskDto specialDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .title(specialTitle)
-                .description(specialDescription)
-                .build();
+                    .taskId(taskId)
+                    .title(specialTitle)
+                    .description(specialDescription)
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(testTask1));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -1606,10 +1656,10 @@ class TaskServiceImplTest {
         @BeforeEach
         void setUp() {
             projectTask = createTestTask(1L, 101L, 201L, "Project Task",
-                "Description", Status.TODO, Collections.emptyList());
+                    "Description", Status.TODO, Collections.emptyList());
 
             personalTask = createTestTask(2L, null, 202L, "Personal Task",
-                "Description", Status.TODO, Collections.emptyList());
+                    "Description", Status.TODO, Collections.emptyList());
         }
 
         @Test
@@ -1625,7 +1675,7 @@ class TaskServiceImplTest {
 
             // When
             assertThatCode(() -> taskService.deleteTask(taskId, projectOwnerId))
-                .doesNotThrowAnyException();
+                    .doesNotThrowAnyException();
 
             // Then
             verify(taskRepository).save(argThat(task -> {
@@ -1648,7 +1698,7 @@ class TaskServiceImplTest {
 
             // When
             assertThatCode(() -> taskService.deleteTask(taskId, taskOwnerId))
-                .doesNotThrowAnyException();
+                    .doesNotThrowAnyException();
 
             // Then
             verify(taskRepository).save(argThat(task -> {
@@ -1672,8 +1722,8 @@ class TaskServiceImplTest {
 
             // When & Then
             assertThatThrownBy(() -> taskService.deleteTask(taskId, unauthorizedUserId))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Only project owner or collaborators can delete the task");
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Only project owner or collaborators can delete the task");
 
             verify(taskRepository, never()).save(any(Task.class));
         }
@@ -1689,8 +1739,8 @@ class TaskServiceImplTest {
 
             // When & Then
             assertThatThrownBy(() -> taskService.deleteTask(taskId, userId))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Task not found");
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("Task not found");
 
             verify(taskRepository, never()).save(any(Task.class));
         }
@@ -1754,8 +1804,8 @@ class TaskServiceImplTest {
 
             // When & Then
             assertThatThrownBy(() -> taskService.deleteTask(taskId, collaboratorId))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Only project owner or collaborators can delete the task");
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Only project owner or collaborators can delete the task");
 
             verify(taskRepository, never()).save(any(Task.class));
         }
@@ -1771,8 +1821,8 @@ class TaskServiceImplTest {
 
             // When & Then
             assertThatThrownBy(() -> taskService.deleteTask(taskId, unauthorizedUserId))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Only project owner or collaborators can delete the task");
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Only project owner or collaborators can delete the task");
 
             verify(taskRepository, never()).save(any(Task.class));
         }
@@ -1791,7 +1841,7 @@ class TaskServiceImplTest {
 
             // When
             assertThatCode(() -> taskService.deleteTask(taskId, taskOwnerId))
-                .doesNotThrowAnyException();
+                    .doesNotThrowAnyException();
 
             // Then
             verify(taskRepository).save(any(Task.class));
@@ -1828,10 +1878,10 @@ class TaskServiceImplTest {
         @BeforeEach
         void setUp() {
             projectTask = createTestTask(1L, 101L, 201L, "Project Task",
-                "Description", Status.TODO, Collections.emptyList());
+                    "Description", Status.TODO, Collections.emptyList());
 
             personalTask = createTestTask(2L, null, 202L, "Personal Task",
-                "Description", Status.TODO, Collections.emptyList());
+                    "Description", Status.TODO, Collections.emptyList());
         }
 
         @Test
@@ -1935,8 +1985,8 @@ class TaskServiceImplTest {
 
             // When & Then
             assertThatThrownBy(() -> taskService.canUserDeleteTask(taskId, userId))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Task not found");
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("Task not found");
 
             verify(taskRepository).findById(taskId);
         }
@@ -2056,12 +2106,12 @@ class TaskServiceImplTest {
             Long projectOwnerId = 300L;
 
             Task ownedTask = createTestTask(1L, projectId, userId, "Owned Task",
-                "Description", Status.TODO, Collections.emptyList());
+                    "Description", Status.TODO, Collections.emptyList());
 
             when(taskRepository.findByProjectIdAndNotDeleted(projectId))
-                .thenReturn(Collections.singletonList(ownedTask));
+                    .thenReturn(Collections.singletonList(ownedTask));
             when(collaboratorService.getTasksForWhichUserIsCollaborator(userId))
-                .thenReturn(Collections.emptyList());
+                    .thenReturn(Collections.emptyList());
             when(projectService.getOwnerId(projectId)).thenReturn(projectOwnerId);
 
             // When
@@ -2081,12 +2131,12 @@ class TaskServiceImplTest {
             Long projectId = 101L;
 
             Task task = createTestTask(1L, projectId, 201L, "Task",
-                "Description", Status.TODO, Collections.emptyList());
+                    "Description", Status.TODO, Collections.emptyList());
 
             when(taskRepository.findByProjectIdAndNotDeleted(projectId))
-                .thenReturn(Collections.singletonList(task));
+                    .thenReturn(Collections.singletonList(task));
             when(collaboratorService.getTasksForWhichUserIsCollaborator(userId))
-                .thenReturn(Collections.emptyList());
+                    .thenReturn(Collections.emptyList());
             when(projectService.getOwnerId(projectId)).thenReturn(userId);
 
             // When
@@ -2107,12 +2157,12 @@ class TaskServiceImplTest {
             Long taskId = 1L;
 
             Task task = createTestTask(taskId, projectId, 201L, "Task",
-                "Description", Status.TODO, Collections.emptyList());
+                    "Description", Status.TODO, Collections.emptyList());
 
             when(taskRepository.findByProjectIdAndNotDeleted(projectId))
-                .thenReturn(Collections.singletonList(task));
+                    .thenReturn(Collections.singletonList(task));
             when(collaboratorService.getTasksForWhichUserIsCollaborator(userId))
-                .thenReturn(Collections.singletonList(taskId));
+                    .thenReturn(Collections.singletonList(taskId));
             when(projectService.getOwnerId(projectId)).thenReturn(projectOwnerId);
 
             // When
@@ -2133,16 +2183,16 @@ class TaskServiceImplTest {
             Long projectOwnerId = 300L;
 
             Task ownedTask = createTestTask(1L, projectId, userId, "Owned Task",
-                "Description", Status.TODO, Collections.emptyList());
+                    "Description", Status.TODO, Collections.emptyList());
             Task collaboratorTask = createTestTask(2L, projectId, 202L, "Collaborator Task",
-                "Description", Status.TODO, Collections.emptyList());
+                    "Description", Status.TODO, Collections.emptyList());
             Task otherTask = createTestTask(3L, projectId, 203L, "Other Task",
-                "Description", Status.TODO, Collections.emptyList());
+                    "Description", Status.TODO, Collections.emptyList());
 
             when(taskRepository.findByProjectIdAndNotDeleted(projectId))
-                .thenReturn(Arrays.asList(ownedTask, collaboratorTask, otherTask));
+                    .thenReturn(Arrays.asList(ownedTask, collaboratorTask, otherTask));
             when(collaboratorService.getTasksForWhichUserIsCollaborator(userId))
-                .thenReturn(Collections.singletonList(2L));
+                    .thenReturn(Collections.singletonList(2L));
             when(projectService.getOwnerId(projectId)).thenReturn(projectOwnerId);
 
             // When
@@ -2153,6 +2203,39 @@ class TaskServiceImplTest {
             assertThat(result.get(0).isUserHasEditAccess()).isTrue(); // Owned task
             assertThat(result.get(1).isUserHasEditAccess()).isTrue(); // Collaborator task
             assertThat(result.get(2).isUserHasEditAccess()).isFalse(); // Other task
+        }
+
+        @Test
+        @DisplayName("Manager cannot access project outside department scope")
+        void getProjectTasks_ManagerOutsideScope_ThrowsAccessDenied() {
+            Long userId = 500L;
+            Long projectId = 808L;
+
+            User manager = createUser(userId);
+            manager.setRoleType(UserType.MANAGER.getCode());
+            manager.setDepartmentId(50L);
+            manager.setIsActive(true);
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(manager));
+
+            when(departmentQueryService.getDescendants(50L, true))
+                    .thenReturn(List.of(DepartmentDto.builder().id(50L).name("Marketing").parentId(null).build()));
+            when(userRepository.findByDepartmentIds(Set.of(50L), userId))
+                    .thenReturn(List.of(manager));
+
+            Task externalTask = createTestTask(1L, projectId, 900L, "External", "Desc", Status.TODO, Collections.emptyList());
+            externalTask.setOwnerId(888L);
+
+            when(taskRepository.findByProjectIdAndNotDeleted(projectId))
+                    .thenReturn(List.of(externalTask));
+            when(collaboratorService.getTasksForWhichUserIsCollaborator(userId))
+                    .thenReturn(Collections.emptyList());
+            when(projectService.getOwnerId(projectId)).thenReturn(777L);
+            when(taskAssigneeRepository.findByTaskIdIn(Set.of(1L))).thenReturn(Collections.emptyList());
+
+            assertThatThrownBy(() -> taskService.getProjectTasks(userId, projectId))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessageContaining("departmental scope");
         }
     }
 
@@ -2176,9 +2259,9 @@ class TaskServiceImplTest {
         void updateTask_TodoToInProgress_StartsTimeTracking() {
             // Given
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.IN_PROGRESS)
-                .build();
+                    .taskId(taskId)
+                    .status(Status.IN_PROGRESS)
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -2199,9 +2282,9 @@ class TaskServiceImplTest {
             task.setStatus(Status.IN_PROGRESS);
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.COMPLETED)
-                .build();
+                    .taskId(taskId)
+                    .status(Status.COMPLETED)
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -2222,9 +2305,9 @@ class TaskServiceImplTest {
             task.setStatus(Status.COMPLETED);
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.IN_PROGRESS)
-                .build();
+                    .taskId(taskId)
+                    .status(Status.IN_PROGRESS)
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -2245,9 +2328,9 @@ class TaskServiceImplTest {
             task.setStatus(Status.TODO);
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .title("Updated Title")
-                .build(); // No status change
+                    .taskId(taskId)
+                    .title("Updated Title")
+                    .build(); // No status change
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -2273,15 +2356,15 @@ class TaskServiceImplTest {
             task.setEndDate(OffsetDateTime.now().plusDays(10));
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.COMPLETED)
-                .build();
+                    .taskId(taskId)
+                    .status(Status.COMPLETED)
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(projectService.getOwnerId(101L)).thenReturn(userId);
             lenient().when(recurrenceService.generateOccurrence(anyString(), any(OffsetDateTime.class), any(OffsetDateTime.class)))
-                .thenReturn(Collections.singletonList(OffsetDateTime.now().plusDays(1)));
+                    .thenReturn(Collections.singletonList(OffsetDateTime.now().plusDays(1)));
             lenient().when(collaboratorService.getCollaboratorIdsByTaskId(taskId)).thenReturn(Collections.emptyList());
 
             // When
@@ -2304,11 +2387,11 @@ class TaskServiceImplTest {
             task.setDueDateTime(OffsetDateTime.now());
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.IN_PROGRESS)
-                .recurrenceEditMode(com.spmorangle.crm.taskmanagement.enums.RecurrenceEditMode.ALL_FUTURE_INSTANCES)
-                .instanceDate(OffsetDateTime.now())
-                .build();
+                    .taskId(taskId)
+                    .status(Status.IN_PROGRESS)
+                    .recurrenceEditMode(com.spmorangle.crm.taskmanagement.enums.RecurrenceEditMode.ALL_FUTURE_INSTANCES)
+                    .instanceDate(OffsetDateTime.now())
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -2326,20 +2409,20 @@ class TaskServiceImplTest {
         void updateTask_TimeTrackingFails_ContinuesTaskUpdate() {
             // Given
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.IN_PROGRESS)
-                .build();
+                    .taskId(taskId)
+                    .status(Status.IN_PROGRESS)
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(projectService.getOwnerId(101L)).thenReturn(userId);
             // Simulate time tracking failure - this should be caught and logged
             lenient().doThrow(new RuntimeException("Time tracking service unavailable"))
-                .when(reportService).startTimeTracking(anyLong(), anyLong());
+                    .when(reportService).startTimeTracking(anyLong(), anyLong());
 
             // When & Then - Should not throw exception
             assertThatCode(() -> taskService.updateTask(updateDto, userId))
-                .doesNotThrowAnyException();
+                    .doesNotThrowAnyException();
 
             // Task should still be saved
             verify(taskRepository).save(argThat(t -> t.getStatus() == Status.IN_PROGRESS));
@@ -2352,9 +2435,9 @@ class TaskServiceImplTest {
             task.setStatus(Status.TODO);
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.COMPLETED)
-                .build();
+                    .taskId(taskId)
+                    .status(Status.COMPLETED)
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -2374,9 +2457,9 @@ class TaskServiceImplTest {
             task.setStatus(Status.TODO);
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.BLOCKED)
-                .build();
+                    .taskId(taskId)
+                    .status(Status.BLOCKED)
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -2423,14 +2506,14 @@ class TaskServiceImplTest {
 
             // Include dueDateTime and recurrence fields to prevent them from being nulled out by applyFieldUpdates
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.COMPLETED)
-                .dueDateTime(recurringTask.getDueDateTime())
-                .isRecurring(recurringTask.getIsRecurring())
-                .recurrenceRuleStr(recurringTask.getRecurrenceRuleStr())
-                .startDate(recurringTask.getStartDate())
-                .endDate(recurringTask.getEndDate())
-                .build();
+                    .taskId(taskId)
+                    .status(Status.COMPLETED)
+                    .dueDateTime(recurringTask.getDueDateTime())
+                    .isRecurring(recurringTask.getIsRecurring())
+                    .recurrenceRuleStr(recurringTask.getRecurrenceRuleStr())
+                    .startDate(recurringTask.getStartDate())
+                    .endDate(recurringTask.getEndDate())
+                    .build();
 
             OffsetDateTime nextStart = recurringTask.getDueDateTime().plusDays(1);
             OffsetDateTime nextOccurrence = nextStart; // The next occurrence date
@@ -2438,17 +2521,17 @@ class TaskServiceImplTest {
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(projectService.getOwnerId(101L)).thenReturn(userId);
-            
+
             // Mock validation call in applyFieldUpdates (uses task's original startDate and endDate)
             lenient().when(recurrenceService.generateOccurrence(
-                eq("FREQ=DAILY;COUNT=5"),
-                eq(recurringTask.getStartDate()),
-                eq(recurringTask.getEndDate())
+                    eq("FREQ=DAILY;COUNT=5"),
+                    eq(recurringTask.getStartDate()),
+                    eq(recurringTask.getEndDate())
             )).thenReturn(Collections.singletonList(recurringTask.getStartDate()));
-            
+
             // Mock generateOccurrence to return next occurrence based on nextStart (dueDate + 1 day)
             when(recurrenceService.generateOccurrence(eq("FREQ=DAILY;COUNT=5"), eq(nextStart), eq(recurringTask.getEndDate())))
-                .thenReturn(Collections.singletonList(nextOccurrence));
+                    .thenReturn(Collections.singletonList(nextOccurrence));
             when(collaboratorService.getCollaboratorIdsByTaskId(taskId)).thenReturn(Collections.emptyList());
             // Mock dependencies for createTask call inside the recurrence logic
             lenient().when(tagService.findOrCreateTags(any())).thenReturn(Collections.emptySet());
@@ -2461,9 +2544,9 @@ class TaskServiceImplTest {
             assertThat(result.getStatus()).isEqualTo(Status.COMPLETED);
             // Verify recurrence service was called with nextStart = dueDate + 1 day
             verify(recurrenceService, atLeastOnce()).generateOccurrence(
-                eq("FREQ=DAILY;COUNT=5"),
-                eq(nextStart),
-                eq(recurringTask.getEndDate())
+                    eq("FREQ=DAILY;COUNT=5"),
+                    eq(nextStart),
+                    eq(recurringTask.getEndDate())
             );
             // Verify task creation was attempted (createTask also saves)
             verify(taskRepository, atLeastOnce()).save(any(Task.class));
@@ -2476,15 +2559,15 @@ class TaskServiceImplTest {
             recurringTask.setStatus(Status.IN_PROGRESS);
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.COMPLETED)
-                .build();
+                    .taskId(taskId)
+                    .status(Status.COMPLETED)
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(projectService.getOwnerId(101L)).thenReturn(userId);
             lenient().when(recurrenceService.generateOccurrence(anyString(), any(OffsetDateTime.class), any(OffsetDateTime.class)))
-                .thenReturn(Collections.emptyList()); // No more occurrences
+                    .thenReturn(Collections.emptyList()); // No more occurrences
 
             // When
             UpdateTaskResponseDto result = taskService.updateTask(updateDto, userId);
@@ -2514,9 +2597,9 @@ class TaskServiceImplTest {
             recurringTask.setTags(new HashSet<>(tags));
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.COMPLETED)
-                .build();
+                    .taskId(taskId)
+                    .status(Status.COMPLETED)
+                    .build();
 
             OffsetDateTime nextOccurrence = now.plusDays(7);
 
@@ -2524,7 +2607,7 @@ class TaskServiceImplTest {
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(projectService.getOwnerId(101L)).thenReturn(userId);
             lenient().when(recurrenceService.generateOccurrence(anyString(), any(OffsetDateTime.class), any(OffsetDateTime.class)))
-                .thenReturn(Collections.singletonList(nextOccurrence));
+                    .thenReturn(Collections.singletonList(nextOccurrence));
             lenient().when(collaboratorService.getCollaboratorIdsByTaskId(taskId)).thenReturn(Arrays.asList(301L, 302L));
 
             // When
@@ -2542,23 +2625,23 @@ class TaskServiceImplTest {
             recurringTask.setStatus(Status.IN_PROGRESS);
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.COMPLETED)
-                .build();
+                    .taskId(taskId)
+                    .status(Status.COMPLETED)
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(projectService.getOwnerId(101L)).thenReturn(userId);
             lenient().when(recurrenceService.generateOccurrence(anyString(), any(OffsetDateTime.class), any(OffsetDateTime.class)))
-                .thenThrow(new RuntimeException("Invalid recurrence rule"));
+                    .thenThrow(new RuntimeException("Invalid recurrence rule"));
 
             // When & Then - Should not throw exception
             assertThatCode(() -> taskService.updateTask(updateDto, userId))
-                .doesNotThrowAnyException();
+                    .doesNotThrowAnyException();
 
             // Original task should still be marked as completed
             verify(taskRepository).save(argThat(task ->
-                task.getStatus() == Status.COMPLETED
+                    task.getStatus() == Status.COMPLETED
             ));
         }
 
@@ -2570,9 +2653,9 @@ class TaskServiceImplTest {
             recurringTask.setRecurrenceRuleStr(null); // Missing recurrence rule
 
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.COMPLETED)
-                .build();
+                    .taskId(taskId)
+                    .status(Status.COMPLETED)
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -2596,14 +2679,14 @@ class TaskServiceImplTest {
 
             // Include dueDateTime and recurrence fields to prevent them from being nulled out by applyFieldUpdates
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.COMPLETED)
-                .dueDateTime(recurringTask.getDueDateTime())
-                .isRecurring(recurringTask.getIsRecurring())
-                .recurrenceRuleStr(recurringTask.getRecurrenceRuleStr())
-                .startDate(recurringTask.getStartDate())
-                .endDate(recurringTask.getEndDate())
-                .build();
+                    .taskId(taskId)
+                    .status(Status.COMPLETED)
+                    .dueDateTime(recurringTask.getDueDateTime())
+                    .isRecurring(recurringTask.getIsRecurring())
+                    .recurrenceRuleStr(recurringTask.getRecurrenceRuleStr())
+                    .startDate(recurringTask.getStartDate())
+                    .endDate(recurringTask.getEndDate())
+                    .build();
 
             OffsetDateTime nextStart = recurringTask.getDueDateTime().plusDays(1);
             OffsetDateTime nextOccurrence = nextStart;
@@ -2611,16 +2694,16 @@ class TaskServiceImplTest {
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(projectService.getOwnerId(101L)).thenReturn(userId);
-            
+
             // Mock validation call in applyFieldUpdates (uses task's original startDate and endDate)
             lenient().when(recurrenceService.generateOccurrence(
-                eq("FREQ=DAILY;COUNT=5"),
-                eq(recurringTask.getStartDate()),
-                eq(recurringTask.getEndDate())
+                    eq("FREQ=DAILY;COUNT=5"),
+                    eq(recurringTask.getStartDate()),
+                    eq(recurringTask.getEndDate())
             )).thenReturn(Collections.singletonList(recurringTask.getStartDate()));
-            
+
             when(recurrenceService.generateOccurrence(eq("FREQ=DAILY;COUNT=5"), eq(nextStart), eq(recurringTask.getEndDate())))
-                .thenReturn(Collections.singletonList(nextOccurrence));
+                    .thenReturn(Collections.singletonList(nextOccurrence));
             when(collaboratorService.getCollaboratorIdsByTaskId(taskId)).thenReturn(collaboratorIds);
             // Mock dependencies for createTask call inside the recurrence logic
             lenient().when(tagService.findOrCreateTags(any())).thenReturn(Collections.emptySet());
@@ -2646,28 +2729,28 @@ class TaskServiceImplTest {
 
             // Include dueDateTime and recurrence fields to prevent them from being nulled out by applyFieldUpdates
             UpdateTaskDto updateDto = UpdateTaskDto.builder()
-                .taskId(taskId)
-                .status(Status.COMPLETED)
-                .dueDateTime(specificDueDate)
-                .isRecurring(recurringTask.getIsRecurring())
-                .recurrenceRuleStr(recurringTask.getRecurrenceRuleStr())
-                .startDate(recurringTask.getStartDate())
-                .endDate(recurringTask.getEndDate())
-                .build();
+                    .taskId(taskId)
+                    .status(Status.COMPLETED)
+                    .dueDateTime(specificDueDate)
+                    .isRecurring(recurringTask.getIsRecurring())
+                    .recurrenceRuleStr(recurringTask.getRecurrenceRuleStr())
+                    .startDate(recurringTask.getStartDate())
+                    .endDate(recurringTask.getEndDate())
+                    .build();
 
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(recurringTask));
             when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(projectService.getOwnerId(101L)).thenReturn(userId);
-            
+
             // Mock validation call in applyFieldUpdates (uses task's original startDate and endDate)
             lenient().when(recurrenceService.generateOccurrence(
-                eq("FREQ=DAILY;COUNT=5"),
-                eq(recurringTask.getStartDate()),
-                eq(recurringTask.getEndDate())
+                    eq("FREQ=DAILY;COUNT=5"),
+                    eq(recurringTask.getStartDate()),
+                    eq(recurringTask.getEndDate())
             )).thenReturn(Collections.singletonList(recurringTask.getStartDate()));
-            
+
             when(recurrenceService.generateOccurrence(eq("FREQ=DAILY;COUNT=5"), eq(expectedNextStart), eq(recurringTask.getEndDate())))
-                .thenReturn(Collections.singletonList(expectedNextStart));
+                    .thenReturn(Collections.singletonList(expectedNextStart));
             when(collaboratorService.getCollaboratorIdsByTaskId(taskId)).thenReturn(Collections.emptyList());
             // Mock dependencies for createTask call inside the recurrence logic
             lenient().when(tagService.findOrCreateTags(any())).thenReturn(Collections.emptySet());
@@ -2679,9 +2762,9 @@ class TaskServiceImplTest {
             // Then - Verify generateOccurrence is called with nextStart = dueDate + 1 day
             // Note: Called twice - once for validation in applyFieldUpdates, once for next occurrence calculation
             verify(recurrenceService, times(2)).generateOccurrence(
-                eq("FREQ=DAILY;COUNT=5"),
-                argThat(nextStart -> nextStart.isEqual(expectedNextStart)),
-                eq(recurringTask.getEndDate())
+                    eq("FREQ=DAILY;COUNT=5"),
+                    argThat(nextStart -> nextStart.isEqual(expectedNextStart)),
+                    eq(recurringTask.getEndDate())
             );
         }
     }

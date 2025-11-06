@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Briefcase, Calendar, CheckCircle, Circle, Plus, Filter } from "lucide-react";
-import { ProjectResponse, TaskResponse } from "@/services/project-service";
+import { ProjectResponse } from "@/services/project-service";
 import { projectService } from "@/services/project-service";
 import FullPageSpinnerLoader from "@/components/full-page-spinner-loader";
 import { ErrorMessageCallout } from "@/components/error-message-callout";
@@ -113,10 +113,6 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterOwner, setFilterOwner] = useState<"all" | "owned">("all");
-  const [relatedTasks, setRelatedTasks] = useState<TaskResponse[]>([]);
-  const [isRelatedLoading, setIsRelatedLoading] = useState(true);
-  const [relatedError, setRelatedError] = useState<string | null>(null);
-  const [relatedProjectDetails, setRelatedProjectDetails] = useState<ProjectResponse[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { currentUser } = useCurrentUser();
 
@@ -128,114 +124,53 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
     return user?.role != 'STAFF'
   }
 
+  const isManager = (user: CurrentUser | null) => {
+    return user?.role === 'MANAGER'
+  }
+
   const loadProjects = async () => {
     setIsLoading(true);
-    setIsRelatedLoading(true);
     setError(null);
-    setRelatedError(null);
 
-    const [projectsResult, relatedTasksResult] = await Promise.allSettled([
-      projectService.getUserProjects(0), // Using dummy userId, will be handled by authenticated client
-      projectService.getRelatedProjectTasks(),
-    ]);
-
-    if (projectsResult.status === "fulfilled") {
-      setProjects(projectsResult.value);
-    } else {
-      const cause = projectsResult.reason;
-      console.error("Error loading projects:", cause);
+    try {
+      const allProjects = await projectService.getUserProjects(0); // Using dummy userId, will be handled by authenticated client
+      setProjects(allProjects);
+    } catch (err) {
+      console.error("Error loading projects:", err);
       setProjects([]);
-      setError(cause instanceof Error ? cause.message : "Failed to load projects");
-    }
-
-    if (relatedTasksResult.status === "fulfilled") {
-      const projectScopedTasks = relatedTasksResult.value.filter(
-        (task): task is TaskResponse & { projectId: number } => typeof task.projectId === "number",
-      );
-      setRelatedTasks(projectScopedTasks);
-
-      const knownProjectIds = new Set((projectsResult.status === "fulfilled" ? projectsResult.value : []).map(project => project.id));
-      const relatedProjectIds = new Set<number>();
-      projectScopedTasks.forEach(task => {
-        if (typeof task.projectId === "number") {
-          relatedProjectIds.add(task.projectId);
-        }
-      });
-
-      const missingProjectIds = Array.from(relatedProjectIds).filter((projectId) => !knownProjectIds.has(projectId));
-
-      if (missingProjectIds.length > 0) {
-        try {
-          const missingProjects = await projectService.getProjectsByIds(missingProjectIds);
-          setRelatedProjectDetails(missingProjects);
-        } catch (err) {
-          console.error("Error loading related project details:", err);
-          setRelatedProjectDetails([]);
-        }
-      } else {
-        setRelatedProjectDetails([]);
-      }
-    } else {
-      const cause = relatedTasksResult.reason;
-      console.error("Error loading related project tasks:", cause);
-      setRelatedTasks([]);
-      setRelatedError(cause instanceof Error ? cause.message : "Failed to load related projects");
-      setRelatedProjectDetails([]);
+      setError(err instanceof Error ? err.message : "Failed to load projects");
     }
 
     setIsLoading(false);
-    setIsRelatedLoading(false);
   };
 
-  const handleProjectCreated = (project: ProjectResponse) => {
+  const handleProjectCreated = () => {
     // Add the new project to the list and refresh
     loadProjects();
   };
 
-  // Filter projects based on ownership
-  const filteredProjects = useMemo(() => {
-    if (filterOwner === "all") {
-      return projects;
-    }
-    
-    // Filter for projects owned by current user
-    if (!currentUser?.backendStaffId) {
-      return projects; // Fallback to showing all if no user ID
-    }
-    
-    return projects.filter(project => project.ownerId === currentUser.backendStaffId);
-  }, [projects, filterOwner, currentUser?.backendStaffId]);
+  // Separate projects into member projects (isRelated = false) and related projects (isRelated = true)
+  const memberProjects = useMemo(() => {
+    return projects.filter(p => !p.isRelated);
+  }, [projects]);
 
   const relatedProjects = useMemo(() => {
-    if (relatedTasks.length === 0) {
-      return [] as ProjectResponse[];
+    return projects.filter(p => p.isRelated);
+  }, [projects]);
+
+  // Filter member projects based on ownership
+  const filteredProjects = useMemo(() => {
+    if (filterOwner === "all") {
+      return memberProjects;
     }
 
-    // Get all project IDs that the user is a full member of (to exclude from related)
-    const userProjectIds = new Set(projects.map(p => p.id));
-
-    // Get project IDs from related tasks
-    const relatedProjectIds = new Set<number>();
-    for (const task of relatedTasks) {
-      if (typeof task.projectId === "number") {
-        relatedProjectIds.add(task.projectId);
-      }
+    // Filter for projects owned by current user
+    if (!currentUser?.backendStaffId) {
+      return memberProjects; // Fallback to showing all if no user ID
     }
 
-    // Filter out projects where user is already a full member
-    // Only show projects where user has view-only access (tasks assigned but not a member)
-    const viewOnlyProjectIds = new Set<number>();
-    relatedProjectIds.forEach(id => {
-      if (!userProjectIds.has(id)) {
-        viewOnlyProjectIds.add(id);
-      }
-    });
-
-    // Get the view-only projects from relatedProjectDetails
-    const viewOnlyProjects = relatedProjectDetails.filter(project => viewOnlyProjectIds.has(project.id));
-
-    return viewOnlyProjects;
-  }, [projects, relatedTasks, relatedProjectDetails]);
+    return memberProjects.filter(project => project.ownerId === currentUser.backendStaffId);
+  }, [memberProjects, filterOwner, currentUser?.backendStaffId]);
 
   if (isLoading) {
     return <FullPageSpinnerLoader />;
@@ -285,10 +220,12 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => setIsCreateModalOpen(true)} className="cursor-pointer">
-            <Plus className="h-4 w-4 mr-2" />
-            New Project
-          </Button>
+          {isManager(currentUser) && (
+            <Button onClick={() => setIsCreateModalOpen(true)} className="cursor-pointer">
+              <Plus className="h-4 w-4 mr-2" />
+              New Project
+            </Button>
+          )}
         </div>
       </div>
 
@@ -299,15 +236,19 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
             {filterOwner === "owned" ? "No projects owned" : "No projects yet"}
           </h3>
           <p className="text-muted-foreground mb-4">
-            {filterOwner === "owned" 
-              ? "You don't own any projects yet. Try switching to 'All Projects' or create a new one." 
-              : "Create your first project to get started with task management"
+            {filterOwner === "owned"
+              ? "You don't own any projects yet. Try switching to 'All Projects'" + (isManager(currentUser) ? " or create a new one." : ".")
+              : isManager(currentUser)
+                ? "Create your first project to get started with task management"
+                : "No projects available yet"
             }
           </p>
-          <Button onClick={() => setIsCreateModalOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Project
-          </Button>
+          {isManager(currentUser) && (
+            <Button onClick={() => setIsCreateModalOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Project
+            </Button>
+          )}
         </div>
       ) : (
         <div
@@ -324,29 +265,16 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
         </div>
       )}
 
-      {isNotStaff(currentUser) && <section className="mt-10">
+      {relatedProjects.length > 0 && <section className="mt-10">
         <div className="flex flex-col gap-1">
           <h2 className="text-2xl font-semibold">Related Projects</h2>
           <p className="text-sm text-muted-foreground">
-            Projects that include collaborators from your department where you have view-only access
+            Projects that include colleagues from your department where you have view-only access
           </p>
         </div>
 
         <div className="mt-4">
-          {isRelatedLoading ? (
-            <div className="rounded-lg border border-dashed border-muted p-6 text-center text-muted-foreground">
-              Loading related projects...
-            </div>
-          ) : relatedError ? (
-            <div className="space-y-4">
-              <ErrorMessageCallout errorMessage={relatedError} />
-              <div>
-                <Button onClick={loadProjects} variant="outline" size="sm">
-                  Retry loading related projects
-                </Button>
-              </div>
-            </div>
-          ) : relatedProjects.length === 0 ? (
+          {relatedProjects.length === 0 ? (
             <div
               className="rounded-lg border border-dashed border-muted p-6 text-center text-muted-foreground"
               data-testid="related-projects-empty"

@@ -15,6 +15,7 @@ import com.spmorangle.crm.taskmanagement.repository.TaskRepository;
 import com.spmorangle.crm.taskmanagement.service.CollaboratorService;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAlreadyExistsException;
 import com.spmorangle.crm.taskmanagement.service.exception.CollaboratorAssignmentNotFoundException;
+import com.spmorangle.crm.taskmanagement.service.exception.MaxAssigneesExceededException;
 import com.spmorangle.crm.taskmanagement.service.exception.TaskNotFoundException;
 import com.spmorangle.crm.taskmanagement.service.exception.UserNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class CollaboratorServiceImpl implements CollaboratorService {
     private final TaskRepository taskRepository;
     private final ReportService reportService;
     private final NotificationMessagePublisher notificationMessagePublisher;
+    private final com.spmorangle.crm.projectmanagement.service.ProjectService projectService;
 
     @Override
     public AddCollaboratorResponseDto addCollaborator(AddCollaboratorRequestDto requestDto, Long assignedById) {
@@ -43,9 +45,21 @@ public class CollaboratorServiceImpl implements CollaboratorService {
                  taskId, collaboratorId, assignedById);
 
         // Validate task exists
-        if (!taskRepository.existsById(taskId)) {
-            log.error("❌ [COLLABORATOR] Task not found - TaskId: {}", taskId);
-            throw new TaskNotFoundException(taskId);
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> {
+                    log.error("❌ [COLLABORATOR] Task not found - TaskId: {}", taskId);
+                    return new TaskNotFoundException(taskId);
+                });
+
+        // Authorization check: User must be a project member to add collaborators
+        // Skip check for personal tasks (projectId is null or 0)
+        Long taskProjectId = task.getProjectId();
+        boolean isPersonalTask = (taskProjectId == null || taskProjectId == 0);
+
+        if (!isPersonalTask && !projectService.isUserProjectMember(assignedById, taskProjectId)) {
+            log.error("❌ [COLLABORATOR] User {} is not a member of project {}", assignedById, taskProjectId);
+            throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
+                "Cannot add collaborators to tasks in a view-only project. You must be a project member or owner.");
         }
 
         // Validate collaborator user exists
@@ -65,6 +79,13 @@ public class CollaboratorServiceImpl implements CollaboratorService {
             throw new CollaboratorAlreadyExistsException(taskId, collaboratorId);
         }
 
+        // Check if adding this collaborator would exceed the maximum limit
+        int currentAssigneeCount = taskAssigneeRepository.countByTaskId(taskId);
+        if (currentAssigneeCount >= MaxAssigneesExceededException.getMaxAssignees()) {
+            log.error("❌ [COLLABORATOR] Max assignees exceeded - TaskId: {}, CurrentCount: {}", taskId, currentAssigneeCount);
+            throw new MaxAssigneesExceededException(taskId, currentAssigneeCount);
+        }
+
         TaskAssignee taskAssignee = new TaskAssignee();
         taskAssignee.setTaskId(taskId);
         taskAssignee.setUserId(collaboratorId);
@@ -79,12 +100,11 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         try {
             reportService.syncTimeTrackingOnAssigneeAdd(taskId, collaboratorId);
         } catch (Exception e) {
-            log.error("❌ [COLLABORATOR] Failed to sync time tracking for new assignee - TaskId: {}, CollaboratorId: {}", 
+            log.error("❌ [COLLABORATOR] Failed to sync time tracking for new assignee - TaskId: {}, CollaboratorId: {}",
                      taskId, collaboratorId, e);
             // Don't fail the operation if time tracking sync fails
         }
 
-        Task task = taskRepository.getTaskById(taskId);
         publishAssigneeAddedNotification(task, collaboratorId, assignedById);
 
         return AddCollaboratorResponseDto.builder()
@@ -100,13 +120,26 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         long taskId = requestDto.getTaskId();
         long collaboratorId = requestDto.getCollaboratorId();
 
+        // Get task for authorization check
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new TaskNotFoundException(taskId));
+
+        // Authorization check: User must be a project member to remove collaborators
+        // Skip check for personal tasks (projectId is null or 0)
+        Long taskProjectId = task.getProjectId();
+        boolean isPersonalTask = (taskProjectId == null || taskProjectId == 0);
+
+        if (!isPersonalTask && !projectService.isUserProjectMember(assignedById, taskProjectId)) {
+            throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
+                "Cannot remove collaborators from tasks in a view-only project. You must be a project member or owner.");
+        }
+
         if (!taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(taskId, collaboratorId, assignedById)) {
             throw new CollaboratorAssignmentNotFoundException(taskId, collaboratorId);
         }
 
         taskAssigneeRepository.deleteById(new TaskAssigneeCK(taskId, collaboratorId, assignedById));
 
-        Task task = taskRepository.getTaskById(taskId);
         publishAssigneeRemovedNotification(task, collaboratorId, assignedById);
 
         // Sync time tracking if task is IN_PROGRESS
