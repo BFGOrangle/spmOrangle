@@ -92,7 +92,7 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
                     <p><a href="%s" style="display: inline-block; margin-top: 10px; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">View Task</a></p>
                 </div>
                 <p>Please take action as soon as possible.</p>
-                <p>Best regards,<br><strong>SPM Orange Team</strong></p>
+                <p>Best regards,<br><strong>SPM Orangle Team</strong></p>
             </body>
             </html>
             """,
@@ -143,7 +143,7 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
                     %s
                 </div>
                 <p>Please review and prioritize these tasks.</p>
-                <p>Best regards,<br><strong>SPM Orange Team</strong></p>
+                <p>Best regards,<br><strong>SPM Orangle Team</strong></p>
             </body>
             </html>
             """,

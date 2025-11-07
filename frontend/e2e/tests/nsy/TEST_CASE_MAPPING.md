@@ -491,7 +491,7 @@
 
 ### Run All Notification Tests
 ```bash
-npx playwright test frontend/e2e/tests/reports/nsy/
+npx playwright test frontend/e2e/tests/nsy/
 ```
 
 ### Run by Test File
