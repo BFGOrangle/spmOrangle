@@ -94,7 +94,7 @@ public class PreDueTaskEmailServiceImpl implements PreDueTaskEmailService {
                 <p><a href="%s" style="display: inline-block; margin-top: 10px; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">View Task</a></p>
             </div>
             <p>Please prioritise this task.</p>
-            <p>Best regards,<br><strong>SPM Orange Team</strong></p>
+            <p>Best regards,<br><strong>SPM Orangle Team</strong></p>
         </body>
         </html>
         """,
@@ -146,7 +146,7 @@ public class PreDueTaskEmailServiceImpl implements PreDueTaskEmailService {
                     %s
                 </div>
                 <p>Please review and prioritize these tasks.</p>
-                <p>Best regards,<br><strong>SPM Orange Team</strong></p>
+                <p>Best regards,<br><strong>SPM Orangle Team</strong></p>
             </body>
             </html>
             """,
