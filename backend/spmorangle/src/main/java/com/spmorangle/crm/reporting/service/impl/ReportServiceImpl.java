@@ -112,9 +112,9 @@ public class ReportServiceImpl implements ReportService {
             }
         }
         
-        // Get department breakdown (always show all departments)
+        // Get department breakdown (filtered by department if specified)
         Map<String, TaskSummaryReportDto.TaskStatusCounts> departmentBreakdown = new HashMap<>();
-        List<Object[]> deptCounts = reportingRepository.getTaskCountsByDepartmentAndStatus(startDate, endDate);
+        List<Object[]> deptCounts = reportingRepository.getTaskCountsByDepartmentAndStatus(departmentFilter, startDate, endDate);
 
         for (Object[] row : deptCounts) {
             Long departmentId = (Long) row[0];

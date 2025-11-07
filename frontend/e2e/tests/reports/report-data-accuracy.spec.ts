@@ -233,18 +233,7 @@ test.describe('Report Data Accuracy - Cross-Format Consistency', () => {
 
     // Parse CSV and extract task summary data
     const csvContent = await readCsvContent(csvResult.path);
-
-    // Debug: Log CSV content to understand format
-    console.log('CSV Content (first 10 rows):');
-    csvContent.slice(0, 10).forEach((row, i) => {
-      console.log(`Row ${i}:`, row);
-    });
-
     const csvSummary = await parseCsvTaskSummary(csvResult.path);
-
-    // Debug: Log parsed summary
-    console.log('Parsed CSV Summary:', csvSummary);
-    console.log('JSON Summary:', jsonSummary);
 
     // Assert - CSV should contain task summary data
     expect(csvContent.length).toBeGreaterThan(0);

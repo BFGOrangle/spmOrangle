@@ -200,14 +200,8 @@ test.describe('Staff Breakdown Table - Department Filtering', () => {
 
     if (rowCount > 0) {
       const firstRowDept = await staffRows.first().getByTestId('staff-department').textContent();
-
-      // Debug: Log raw department text
-      console.log('First row department (raw):', firstRowDept);
-
       // Strip task count from department name (e.g., "HR Team (40)" -> "HR Team")
       const departmentToFilter = firstRowDept?.trim().replace(/\s*\(\d+\)$/, '') || '';
-
-      console.log('Department to filter:', departmentToFilter);
 
       if (departmentToFilter) {
         // Act - Generate report filtered by specific department
@@ -222,21 +216,11 @@ test.describe('Staff Breakdown Table - Department Filtering', () => {
         const filteredRows = hrPage.getByTestId('staff-breakdown-row');
         const filteredCount = await filteredRows.count();
 
-        console.log(`Filtered count: ${filteredCount} rows`);
-
         for (let i = 0; i < filteredCount; i++) {
           const row = filteredRows.nth(i);
           const deptText = await row.getByTestId('staff-department').textContent();
-
-          // Debug: Log each row's department
-          console.log(`Row ${i} department (raw):`, deptText);
-
           // Strip task count from displayed department for comparison
           const displayedDept = deptText?.trim().replace(/\s*\(\d+\)$/, '') || '';
-
-          console.log(`Row ${i} department (stripped):`, displayedDept);
-          console.log(`Expected:`, departmentToFilter);
-
           expect(displayedDept).toBe(departmentToFilter);
         }
       }
@@ -360,14 +344,8 @@ test.describe('Staff Breakdown Table - Filter Changes', () => {
     if (initialCount > 0) {
       // Get a department from the first row
       const firstDept = await initialRows.first().getByTestId('staff-department').textContent();
-
-      // Debug: Log raw department text
-      console.log('First dept (raw):', firstDept);
-
       // Strip task count from department name (e.g., "HR Team (40)" -> "HR Team")
       const departmentToFilter = firstDept?.trim().replace(/\s*\(\d+\)$/, '') || '';
-
-      console.log('Department to filter:', departmentToFilter);
 
       if (departmentToFilter) {
         // Act - Change department filter and regenerate
@@ -382,22 +360,12 @@ test.describe('Staff Breakdown Table - Filter Changes', () => {
         const filteredRows = hrPage.getByTestId('staff-breakdown-row');
         const filteredCount = await filteredRows.count();
 
-        console.log(`Filtered count: ${filteredCount} rows`);
-
         // Assert - All visible staff should be from the filtered department
         for (let i = 0; i < filteredCount; i++) {
           const row = filteredRows.nth(i);
           const deptText = await row.getByTestId('staff-department').textContent();
-
-          // Debug: Log each row's department
-          console.log(`Row ${i} dept (raw):`, deptText);
-
           // Strip task count from displayed department for comparison
           const displayedDept = deptText?.trim().replace(/\s*\(\d+\)$/, '') || '';
-
-          console.log(`Row ${i} dept (stripped):`, displayedDept);
-          console.log(`Expected:`, departmentToFilter);
-
           expect(displayedDept).toBe(departmentToFilter);
         }
       }
