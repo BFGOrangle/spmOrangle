@@ -537,7 +537,7 @@ describe("AppSidebar", () => {
     expect(screen.getByText("My Profile")).toBeInTheDocument();
   });
 
-  it("shows Reports link for MANAGER users", () => {
+  it("hides Reports link for MANAGER users", () => {
     renderWithSidebarProvider(<AppSidebar />, {
       currentUser: {
         id: "1",
@@ -547,14 +547,17 @@ describe("AppSidebar", () => {
       },
       isAdmin: false,
       isStaff: false,
+      isManager: true,
     });
 
-    // Reports should be visible
-    expect(screen.getByText("Reports")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /reports/i })).toHaveAttribute(
-      "href",
-      "/reports",
-    );
+    // Reports should not be visible
+    expect(screen.queryByText("Reports")).not.toBeInTheDocument();
+
+    // Other navigation items should still be visible
+    expect(screen.getByText("My Analytics")).toBeInTheDocument();
+    expect(screen.getByText("Projects")).toBeInTheDocument();
+    expect(screen.getByText("Tasks")).toBeInTheDocument();
+    expect(screen.getByText("My Profile")).toBeInTheDocument();
   });
   describe("Admin menu items", () => {
     it("shows Administration section and User Management link for HR users", () => {
