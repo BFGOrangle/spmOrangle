@@ -83,16 +83,16 @@ const managerItems = [
 ];
 
 export function AppSidebar() {
-  const { isStaff } = useCurrentUser();
+  const { isStaff, isManager } = useCurrentUser();
 
-  // Filter out Reports for STAFF users
+  // Filter out Reports for STAFF and MANAGER users
   const visibleItems = items.filter((item) => {
-    if (item.url === "/reports" && isStaff) {
+    if (item.url === "/reports" && (isStaff || isManager)) {
       return false;
     }
     return true;
   });
-  const { isAdmin, isManager } = useCurrentUser();
+  const { isAdmin } = useCurrentUser();
 
   return (
     <Sidebar>
