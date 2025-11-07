@@ -229,9 +229,9 @@ test.describe('Report Generation - Overall Schedule Report', () => {
     // Assert - verify TODO tasks are displayed (projected tasks)
     const taskSummary = await reportsPage.getTaskSummaryData();
     expect(taskSummary.todoTasks).toBeGreaterThanOrEqual(0);
-    
-    // Verify TODO label is visible
-    await expect(hrPage.getByText(/to do/i)).toBeVisible();
+
+    // Verify TODO label is visible (use .first() to handle multiple matches)
+    await expect(hrPage.getByText(/to do/i).first()).toBeVisible();
   });
 
   test('should show completed tasks in report', async ({ hrPage }) => {

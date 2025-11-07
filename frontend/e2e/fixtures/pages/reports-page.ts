@@ -283,8 +283,8 @@ export class ReportsPage extends BasePage {
    * Best practice: Use .first() to handle multiple elements with same text (card titles vs table headers)
    */
   async assertTaskCountsDisplayed(): Promise<void> {
-    await expect(this.page.getByText(/total tasks/i)).toBeVisible();
     // Use .first() to handle multiple elements with same text
+    await expect(this.page.getByText(/total tasks/i).first()).toBeVisible();
     await expect(this.page.getByText(/completed/i).first()).toBeVisible();
     await expect(this.page.getByText(/in progress/i).first()).toBeVisible();
   }

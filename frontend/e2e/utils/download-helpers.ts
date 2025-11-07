@@ -99,6 +99,14 @@ export async function readCsvContent(filePath: string): Promise<string[][]> {
 /**
  * Parse task summary data from CSV report
  * Searches for task summary section and extracts totals
+ * CSV format from backend:
+ * - Row 1: "TASK SUMMARY"
+ * - Row 2: "Status", "Count", "Percentage"
+ * - Row 3: "Total Tasks", <number>, "100%"
+ * - Row 4: "Completed", <number>, "<percentage>%"
+ * - Row 5: "In Progress", <number>, "<percentage>%"
+ * - Row 6: "To Do", <number>, "<percentage>%"
+ * - Row 7: "Blocked", <number>, "<percentage>%"
  */
 export async function parseCsvTaskSummary(filePath: string): Promise<{
   totalTasks: number;
@@ -116,41 +124,65 @@ export async function parseCsvTaskSummary(filePath: string): Promise<{
   let todoTasks = 0;
   let blockedTasks = 0;
 
-  // Search for task summary values in CSV
-  // CSV format varies, but typically has "Total Tasks", "Completed", etc. as labels
+  // Find the "TASK SUMMARY" section
+  let taskSummaryStartIndex = -1;
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    // Check if any cell contains "TASK SUMMARY"
+    if (row.some(cell => cell.trim().toUpperCase() === 'TASK SUMMARY')) {
+      taskSummaryStartIndex = i;
+      break;
+    }
+  }
 
-    // Check each cell in the row
-    for (let j = 0; j < row.length; j++) {
-      const cell = row[j].toLowerCase();
+  if (taskSummaryStartIndex === -1) {
+    console.warn('TASK SUMMARY section not found in CSV');
+    return { totalTasks, completedTasks, inProgressTasks, todoTasks, blockedTasks };
+  }
 
-      if (cell.includes('total tasks') || cell === 'total') {
-        // Next cell or same row should have the value
-        const valueCell = row[j + 1] || rows[i + 1]?.[j];
-        if (valueCell) {
-          totalTasks = parseInt(valueCell, 10) || 0;
-        }
-      } else if (cell === 'completed' || cell.includes('completed tasks')) {
-        const valueCell = row[j + 1] || rows[i + 1]?.[j];
-        if (valueCell) {
-          completedTasks = parseInt(valueCell, 10) || 0;
-        }
-      } else if (cell === 'in progress' || cell.includes('in progress')) {
-        const valueCell = row[j + 1] || rows[i + 1]?.[j];
-        if (valueCell) {
-          inProgressTasks = parseInt(valueCell, 10) || 0;
-        }
-      } else if (cell === 'to do' || cell === 'todo' || cell.includes('todo tasks')) {
-        const valueCell = row[j + 1] || rows[i + 1]?.[j];
-        if (valueCell) {
-          todoTasks = parseInt(valueCell, 10) || 0;
-        }
-      } else if (cell === 'blocked' || cell.includes('blocked tasks')) {
-        const valueCell = row[j + 1] || rows[i + 1]?.[j];
-        if (valueCell) {
-          blockedTasks = parseInt(valueCell, 10) || 0;
-        }
+  // Skip the header row ("Status", "Count", "Percentage") and start parsing data rows
+  // Data rows start at taskSummaryStartIndex + 2 (after "TASK SUMMARY" and header row)
+  for (let i = taskSummaryStartIndex + 2; i < rows.length; i++) {
+    const row = rows[i];
+    
+    // Skip empty rows
+    if (row.length === 0 || row.every(cell => !cell || cell.trim() === '')) {
+      continue;
+    }
+
+    // Check if we've moved past the task summary section (e.g., hit "TASKS BY DEPARTMENT" or another section)
+    if (row.length > 0 && row[0] && (
+      row[0].trim().toUpperCase().includes('DEPARTMENT') ||
+      row[0].trim().toUpperCase().includes('PROJECT') ||
+      row[0].trim().toUpperCase().includes('TIME ANALYTICS') ||
+      row[0].trim().toUpperCase().includes('STAFF BREAKDOWN')
+    )) {
+      break;
+    }
+
+    // First column is the status label, second column is the count
+    if (row.length >= 2) {
+      const statusLabel = row[0].trim().toLowerCase();
+      const countValue = row[1].trim();
+
+      // Parse the count value (remove any non-numeric characters)
+      const parsed = parseInt(countValue.replace(/[^0-9]/g, ''), 10);
+      
+      if (isNaN(parsed)) {
+        continue;
+      }
+
+      // Match status labels
+      if (statusLabel === 'total tasks' || statusLabel.includes('total tasks')) {
+        totalTasks = parsed;
+      } else if (statusLabel === 'completed' || statusLabel.includes('completed')) {
+        completedTasks = parsed;
+      } else if (statusLabel === 'in progress' || statusLabel.includes('in progress')) {
+        inProgressTasks = parsed;
+      } else if (statusLabel === 'to do' || statusLabel === 'todo' || statusLabel.includes('todo')) {
+        todoTasks = parsed;
+      } else if (statusLabel === 'blocked' || statusLabel.includes('blocked')) {
+        blockedTasks = parsed;
       }
     }
   }

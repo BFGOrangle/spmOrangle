@@ -15,6 +15,7 @@ import java.util.List;
 @AllArgsConstructor
 public class ReportFilterDto {
     private Long departmentId;
+    private String department; // Department name (will be converted to departmentId)
     private List<Long> projectIds;
     
     @NotNull(message = "Start date is required")

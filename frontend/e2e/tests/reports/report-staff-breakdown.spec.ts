@@ -200,7 +200,8 @@ test.describe('Staff Breakdown Table - Department Filtering', () => {
 
     if (rowCount > 0) {
       const firstRowDept = await staffRows.first().getByTestId('staff-department').textContent();
-      const departmentToFilter = firstRowDept?.trim() || '';
+      // Strip task count from department name (e.g., "HR Team (40)" -> "HR Team")
+      const departmentToFilter = firstRowDept?.trim().replace(/\s*\(\d+\)$/, '') || '';
 
       if (departmentToFilter) {
         // Act - Generate report filtered by specific department
@@ -218,7 +219,9 @@ test.describe('Staff Breakdown Table - Department Filtering', () => {
         for (let i = 0; i < filteredCount; i++) {
           const row = filteredRows.nth(i);
           const deptText = await row.getByTestId('staff-department').textContent();
-          expect(deptText?.trim()).toBe(departmentToFilter);
+          // Strip task count from displayed department for comparison
+          const displayedDept = deptText?.trim().replace(/\s*\(\d+\)$/, '') || '';
+          expect(displayedDept).toBe(departmentToFilter);
         }
       }
     }
@@ -341,7 +344,8 @@ test.describe('Staff Breakdown Table - Filter Changes', () => {
     if (initialCount > 0) {
       // Get a department from the first row
       const firstDept = await initialRows.first().getByTestId('staff-department').textContent();
-      const departmentToFilter = firstDept?.trim() || '';
+      // Strip task count from department name (e.g., "HR Team (40)" -> "HR Team")
+      const departmentToFilter = firstDept?.trim().replace(/\s*\(\d+\)$/, '') || '';
 
       if (departmentToFilter) {
         // Act - Change department filter and regenerate
@@ -360,7 +364,9 @@ test.describe('Staff Breakdown Table - Filter Changes', () => {
         for (let i = 0; i < filteredCount; i++) {
           const row = filteredRows.nth(i);
           const deptText = await row.getByTestId('staff-department').textContent();
-          expect(deptText?.trim()).toBe(departmentToFilter);
+          // Strip task count from displayed department for comparison
+          const displayedDept = deptText?.trim().replace(/\s*\(\d+\)$/, '') || '';
+          expect(displayedDept).toBe(departmentToFilter);
         }
       }
     }

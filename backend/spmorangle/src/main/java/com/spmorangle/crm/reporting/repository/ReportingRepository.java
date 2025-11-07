@@ -34,13 +34,15 @@ public interface ReportingRepository extends JpaRepository<Task, Long> {
         SELECT u.departmentId, t.status, COUNT(t)
         FROM Task t
         JOIN User u ON t.ownerId = u.id
-        WHERE (CAST(t.createdAt AS DATE) >= :startDate)
+        WHERE (:departmentId IS NULL OR u.departmentId = :departmentId)
+        AND (CAST(t.createdAt AS DATE) >= :startDate)
         AND (CAST(t.createdAt AS DATE) <= :endDate)
         AND t.deleteInd = false
         AND u.departmentId IS NOT NULL
         GROUP BY u.departmentId, t.status
         """)
     List<Object[]> getTaskCountsByDepartmentAndStatus(
+        @Param("departmentId") Long departmentId,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
