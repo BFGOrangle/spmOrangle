@@ -514,15 +514,24 @@ Located in `application-local.yml` and `application-prod.yml`
 ```bash
 # API Configuration
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
-NEXT_PUBLIC_WS_BASE_URL=http://localhost:8080
 
 # AWS Cognito
-NEXT_PUBLIC_AWS_REGION=
-NEXT_PUBLIC_AWS_USER_POOL_ID=
-NEXT_PUBLIC_AWS_USER_POOL_CLIENT_ID=
+NEXT_PUBLIC_AWS_COGNITO_PUBLIC_USER_POOL_ID=
+NEXT_PUBLIC_AWS_COGNITO_APP_CLIENT_ID=
 
-# Feature Flags (Optional)
-NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
+# Test User Credentials
+TEST_HR_EMAIL=qyprojects@gmail.com
+TEST_HR_PASSWORD=Orangle255!
+
+TEST_MANAGER_EMAIL=contactus@seniorsync.sg
+TEST_MANAGER_PASSWORD=Orangle255!
+
+TEST_STAFF_EMAIL=orangletester1@gmail.com
+TEST_STAFF_PASSWORD=Orangle255!
+
+# Base URLs
+PLAYWRIGHT_BASE_URL=http://localhost:3000
+PLAYWRIGHT_API_URL=http://localhost:8080
 ```
 
 ## 👥 Contributors
