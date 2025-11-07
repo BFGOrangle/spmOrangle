@@ -27,6 +27,7 @@ interface UserContextType {
   currentUser: CurrentUser | null;
   setCurrentUser: (user: CurrentUser | null) => void;
   isLoading: boolean;
+  isManager: boolean;
   isAdmin: boolean;
   isStaff: boolean;
   signOut: () => Promise<void>;
@@ -171,6 +172,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         currentUser,
         setCurrentUser: handleSetCurrentUser,
         isLoading,
+        isManager,
         isAdmin: isHR,
         isStaff,
         signOut: handleSignOut,

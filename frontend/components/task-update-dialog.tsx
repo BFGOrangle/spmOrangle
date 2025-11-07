@@ -478,24 +478,17 @@ export function TaskUpdateDialog({
         await ensureManagedTagsExist(tags);
       }
 
-    // Check if due date has changed
-    const originalDueDate = task.dueDateTime ? (() => {
-      const date = new Date(task.dueDateTime);
-      const year = date.getFullYear();
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const day = date.getDate().toString().padStart(2, '0');
-      const hours = date.getHours().toString().padStart(2, '0');
-      const minutes = date.getMinutes().toString().padStart(2, '0');
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
-    })() : '';
-
-    if (dueDate !== originalDueDate) {
-      if (dueDate == '') {
-        updateRequest.dueDateTime = undefined // Clear due date
+      // ALWAYS send dueDateTime to backend (even if unchanged)
+      // This ensures the backend always has the current value and won't accidentally clear it
+      if (dueDate === '') {
+        // No due date set - send null to clear it (or keep it cleared)
+        updateRequest.dueDateTime = null as any;
+        console.log('📅 Sending dueDateTime as null (no due date set)');
       } else {
-        updateRequest.dueDateTime = dueDate ? formatDueDateTime(dueDate) : undefined;
+        // Due date exists - always send the current value
+        updateRequest.dueDateTime = formatDueDateTime(dueDate);
+        console.log('📅 Sending dueDateTime:', updateRequest.dueDateTime);
       }
-    }
 
       // Check if recurrence data has actually been changed by the user
       // Use the flag instead of comparing values (RecurrenceSelector causes timezone shifts)
@@ -521,6 +514,11 @@ export function TaskUpdateDialog({
       }
 
       console.log(isStatusOnlyChange ? "Status only change" : "Not showing recurrence dialog");
+      
+      console.log('📤 Final update request being sent:', {
+        ...updateRequest,
+        fields: Object.keys(updateRequest).filter(k => k !== 'taskId')
+      });
 
       setIsSubmitting(true);
 
@@ -535,6 +533,12 @@ export function TaskUpdateDialog({
 
   const performUpdate = async (updateRequest: UpdateTaskRequest) => {
     setIsSubmitting(true);
+    
+    // Log the exact request being sent to the API
+    console.log('🔍 performUpdate called with:', JSON.stringify(updateRequest, null, 2));
+    console.log('🔍 Request has dueDateTime key?', 'dueDateTime' in updateRequest);
+    console.log('🔍 dueDateTime value:', updateRequest.dueDateTime);
+    
     try {
       const updatedTask = await updateTaskMutation.mutateAsync(updateRequest);
       

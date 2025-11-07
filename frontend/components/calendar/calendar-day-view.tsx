@@ -94,10 +94,11 @@ export const CalendarDayView: React.FC<DayViewProps> = ({
                   <Card
                     key={event.id}
                     className={cn(
-                      "p-1 sm:p-2 cursor-pointer hover:shadow-md transition-shadow text-white text-xs flex-1 min-w-0",
+                      "p-1 sm:p-2 cursor-pointer hover:shadow-md transition-shadow text-white text-xs flex-1 min-w-0 border-l-4",
                       eventIsOverdue 
                         ? "bg-red-600 ring-2 ring-red-600 ring-offset-1" 
                         : event.color,
+                      event.borderColor,
                       getSearchHighlightClasses(event.isHighlighted || false, !!searchKeyword)
                     )}
                     onClick={(e) => {
@@ -139,7 +140,7 @@ export const CalendarDayView: React.FC<DayViewProps> = ({
             {allDayEvents.map((event) => (
               <Card
                 key={event.id}
-                className={`p-3 cursor-pointer hover:shadow-md transition-shadow ${event.color} text-white ${
+                className={`p-3 cursor-pointer hover:shadow-md transition-shadow border-l-4 ${event.color} ${event.borderColor} text-white ${
                   getSearchHighlightClasses(event.isHighlighted || false, !!searchKeyword)
                 }`}
                 onClick={() => onEventClick(event)}

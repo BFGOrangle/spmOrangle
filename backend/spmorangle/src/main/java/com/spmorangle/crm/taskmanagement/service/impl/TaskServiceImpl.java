@@ -861,7 +861,9 @@ public class TaskServiceImpl implements TaskService {
                         : null)
                 .userHasEditAccess(true) // User who just updated has edit access
                 .userHasDeleteAccess(canUserDeleteTask(updatedTask.getId(), currentUserId))
+                .createdAt(updatedTask.getCreatedAt())
                 .updatedAt(updatedTask.getUpdatedAt())
+                .createdBy(updatedTask.getCreatedBy())
                 .updatedBy(updatedTask.getUpdatedBy())
                 .dueDateTime(updatedTask.getDueDateTime())
                 .isRecurring(updatedTask.getIsRecurring())

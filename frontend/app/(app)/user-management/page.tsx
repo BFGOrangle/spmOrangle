@@ -85,12 +85,12 @@ export default function UserManagementPage() {
   const [reactivating, setReactivating] = useState<boolean>(false);
   const [userToReactivate, setUserToReactivate] = useState<UserResponseDto | null>(null);
 
-  const { currentUser, isAdmin } = useCurrentUser();
+  const { currentUser, isAdmin, isManager } = useCurrentUser();
   const router = useRouter();
 
   // Check authorization
   useEffect(() => {
-    if (!isAdmin) {
+    if (!(isAdmin || isManager)) {
       toast.error("Unauthorized", {
         description: "You do not have permission to access this page.",
       });
@@ -115,7 +115,7 @@ export default function UserManagementPage() {
   }, [isAdmin]);
 
   // Fetch all users
-  const fetchUsers = async () => {
+  const fetchAllUsers = async () => {
     try {
       setLoading(true);
       const allUsers = await userManagementService.getAllUsers();
@@ -131,11 +131,29 @@ export default function UserManagementPage() {
     }
   };
 
+  const fetchMyDeptUsers = async () => {
+    try {
+      setLoading(true);
+      const myDeptUsers = await userManagementService.getMyDeptUsers();
+      setUsers(myDeptUsers);
+      setFilteredUsers(myDeptUsers);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      toast.error("Failed to fetch users", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) {
-      fetchUsers();
+      fetchAllUsers();
+    } else if (isManager) {
+      fetchMyDeptUsers();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isManager]);
 
   // Filter users based on search query
   useEffect(() => {
@@ -172,7 +190,7 @@ export default function UserManagementPage() {
         password: "",
         roleType: "STAFF",
       });
-      fetchUsers();
+      fetchAllUsers();
     } catch (error) {
       console.error("Error creating user:", error);
       if (error instanceof BaseValidationError) {
@@ -212,7 +230,7 @@ export default function UserManagementPage() {
       setUpdateRoleDialogOpen(false);
       setSelectedUser(null);
       setNewRole("");
-      fetchUsers();
+      fetchAllUsers();
     } catch (error) {
       console.error("Error updating user role:", error);
       if (error instanceof BaseValidationError) {
@@ -243,7 +261,7 @@ export default function UserManagementPage() {
       toast.success("User deactivated successfully");
       setDeactivateDialogOpen(false);
       setUserToDeactivate(null);
-      fetchUsers();
+      fetchAllUsers();
     } catch (error) {
       console.error("Error deactivating user:", error);
       if (error instanceof BaseApiError) {
@@ -270,7 +288,7 @@ export default function UserManagementPage() {
       toast.success("User reactivated successfully");
       setReactivateDialogOpen(false);
       setUserToReactivate(null);
-      fetchUsers();
+      fetchAllUsers();
     } catch (error) {
       console.error("Error reactivating user:", error);
       if (error instanceof BaseApiError) {
@@ -306,7 +324,7 @@ export default function UserManagementPage() {
     setReactivateDialogOpen(true);
   };
 
-  if (!isAdmin) {
+  if (!isAdmin && !isManager) {
     return <FullPageSpinnerLoader />;
   }
 
@@ -328,10 +346,12 @@ export default function UserManagementPage() {
               Manage users, roles, and permissions
             </p>
           </div>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Create User
-          </Button>
+          {isAdmin && (
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Create User
+            </Button>
+          )}
         </div>
 
         <Card>
@@ -348,7 +368,7 @@ export default function UserManagementPage() {
                   className="pl-8 w-[250px]"
                 />
               </div>
-              <Button variant="outline" size="icon" onClick={fetchUsers}>
+              <Button variant="outline" size="icon" onClick={isAdmin ? fetchAllUsers : fetchMyDeptUsers}>
                 <RefreshCcw className="h-4 w-4" />
               </Button>
             </div>
@@ -363,7 +383,8 @@ export default function UserManagementPage() {
             <div className="text-center py-8 text-muted-foreground">
               <p>No users found</p>
               <p className="text-sm mt-2">
-                Create a new user or adjust your search filters
+                {isAdmin && "Create a new user "}
+                or adjust your search filters
               </p>
             </div>
           ) : (
@@ -390,38 +411,40 @@ export default function UserManagementPage() {
                         {user.isActive === false ? "Inactive" : "Active"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openUpdateRoleDialog(user)}
-                          disabled={user.isActive === false}
-                        >
-                          <Shield className="mr-1 h-3 w-3" />
-                          Change Role
-                        </Button>
-                        {user.isActive === false ? (
+                    {isAdmin && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
                           <Button
-                            variant="default"
+                            variant="outline"
                             size="sm"
-                            onClick={() => openReactivateDialog(user)}
+                            onClick={() => openUpdateRoleDialog(user)}
+                            disabled={user.isActive === false}
                           >
-                            <UserPlus className="mr-1 h-3 w-3" />
-                            Reactivate
+                            <Shield className="mr-1 h-3 w-3" />
+                            Change Role
                           </Button>
-                        ) : (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => openDeactivateDialog(user)}
-                          >
-                            <UserX className="mr-1 h-3 w-3" />
-                            Deactivate
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+                          {user.isActive === false ? (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => openReactivateDialog(user)}
+                            >
+                              <UserPlus className="mr-1 h-3 w-3" />
+                              Reactivate
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => openDeactivateDialog(user)}
+                            >
+                              <UserX className="mr-1 h-3 w-3" />
+                              Deactivate
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

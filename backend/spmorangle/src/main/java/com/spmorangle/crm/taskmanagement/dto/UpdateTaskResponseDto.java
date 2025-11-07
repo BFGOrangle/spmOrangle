@@ -23,7 +23,9 @@ public class UpdateTaskResponseDto {
     private final List<String> tags;
     private final boolean userHasEditAccess;
     private final boolean userHasDeleteAccess;
+    private final OffsetDateTime createdAt;
     private final OffsetDateTime updatedAt;
+    private final Long createdBy;
     private final Long updatedBy;
     private final OffsetDateTime dueDateTime;
     private final Boolean isRecurring;

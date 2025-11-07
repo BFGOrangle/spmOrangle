@@ -207,6 +207,17 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     @Override
+    public List<UserResponseDto> getUsersByDepartmentId(Long departmentId) {
+        log.info("Getting users by Department ID: {}", departmentId);
+        List<User> users = userRepository.findByDepartmentId(departmentId);
+        return users.stream()
+                .map(UserConverter::convert)
+                .toList();
+    }
+
+
+
+    @Override
     public List<UserResponseDto> getAssignableManagers(Long currentUserId) {
         log.info("Getting all active managers for cross-department assignment (excluding user {})", currentUserId);
         List<User> managers = userRepository.findAllActiveManagers();

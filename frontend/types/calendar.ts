@@ -27,6 +27,7 @@ export interface CalendarEvent {
   createdBy: number;
   createdByName?: string;
   color?: string;
+  borderColor?: string; // Border color to distinguish own tasks vs colleague tasks
   // Search-related properties
   isHighlighted?: boolean;
   matchedFields?: string[];
@@ -90,5 +91,6 @@ export interface CalendarPageState {
 }
 
 // Utility function types
-export type TaskToEventConverter = (task: TaskResponseDto, project?: ProjectResponse) => CalendarEvent;
+export type TaskToEventConverter = (task: TaskResponseDto, project?: ProjectResponse, currentUserId?: number) => CalendarEvent;
 export type EventColorGenerator = (taskType: string, status: string, isOverdue?: boolean) => string;
+export type BorderColorGenerator = (isOwnTask: boolean) => string;

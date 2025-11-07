@@ -76,6 +76,8 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
                 .atZoneSameInstant(SINGAPORE_ZONE)
                 .format(DATE_FORMATTER);
 
+        String taskUrl = String.format("https://spm-orangle.vercel.app/tasks/%d", task.getId());
+
         return String.format("""
             <html>
             <body style="font-family: Arial, sans-serif;">
@@ -87,9 +89,10 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
                     <p><strong>Due Date:</strong> %s</p>
                     <p><strong>Status:</strong> %s</p>
                     %s
+                    <p><a href="%s" style="display: inline-block; margin-top: 10px; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">View Task</a></p>
                 </div>
                 <p>Please take action as soon as possible.</p>
-                <p>Best regards,<br><strong>SPM Orange Team</strong></p>
+                <p>Best regards,<br><strong>SPM Orangle Team</strong></p>
             </body>
             </html>
             """,
@@ -99,7 +102,8 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
                 task.getStatus(),
                 task.getDescription() != null
                         ? "<p><strong>Description:</strong> " + task.getDescription() + "</p>"
-                        : ""
+                        : "",
+                taskUrl
         );
     }
 
@@ -112,16 +116,20 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
                     .atZoneSameInstant(SINGAPORE_ZONE)
                     .format(DATE_FORMATTER);
 
+            String taskUrl = String.format("https://spm-orangle.vercel.app/tasks/%d", task.getId());
+
             taskList.append(String.format("""
                 <div style="border-left: 4px solid #dc3545; padding-left: 15px; margin: 10px 0; background-color: #f8f9fa; padding: 10px;">
                     <h4 style="margin: 0 0 10px 0;">%s</h4>
                     <p style="margin: 5px 0;"><strong>Due Date:</strong> %s</p>
                     <p style="margin: 5px 0;"><strong>Status:</strong> %s</p>
+                    <p style="margin: 5px 0;"><a href="%s" style="color: #007bff; text-decoration: none;">View Task →</a></p>
                 </div>
                 """,
                     task.getTitle(),
                     formattedDueDate,
-                    task.getStatus()
+                    task.getStatus(),
+                    taskUrl
             ));
         }
 
@@ -135,7 +143,7 @@ public class OverdueTaskEmailServiceImpl implements OverdueTaskEmailService {
                     %s
                 </div>
                 <p>Please review and prioritize these tasks.</p>
-                <p>Best regards,<br><strong>SPM Orange Team</strong></p>
+                <p>Best regards,<br><strong>SPM Orangle Team</strong></p>
             </body>
             </html>
             """,
