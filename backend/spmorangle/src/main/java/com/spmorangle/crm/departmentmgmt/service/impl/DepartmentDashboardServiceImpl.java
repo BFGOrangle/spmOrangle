@@ -352,12 +352,8 @@ public class DepartmentDashboardServiceImpl implements DepartmentDashboardServic
         for (Task task : tasks) {
             boolean isBlocked = task.getStatus() == Status.BLOCKED;
 
-            if (visibleMemberIds.contains(task.getOwnerId())) {
-                taskIdsByUser.computeIfAbsent(task.getOwnerId(), key -> new HashSet<>()).add(task.getId());
-                if (isBlocked) {
-                    blockedCounts.merge(task.getOwnerId(), 1, Integer::sum);
-                }
-            }
+            // REMOVED: Task owner visibility check - now using assignees only
+            // Old logic: if (visibleMemberIds.contains(task.getOwnerId())) { ... }
 
             for (Long assigneeId : assigneeIdsByTask.getOrDefault(task.getId(), List.of())) {
                 if (!visibleMemberIds.contains(assigneeId)) {

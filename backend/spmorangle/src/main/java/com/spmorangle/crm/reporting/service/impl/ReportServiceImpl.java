@@ -443,11 +443,9 @@ public class ReportServiceImpl implements ReportService {
             return;
         }
         
-        // Check if task owner is the same as the new assignee (avoid duplicate)
-        if (task.getOwnerId().equals(userId)) {
-            log.info("User {} is the task owner, should already have tracking record", userId);
-            return;
-        }
+        // REMOVED: Task owner check - permissions now based on assignees only
+        // Old logic checked if user was task owner to avoid duplicate tracking
+        // This is no longer needed as owner has no special permissions
         
         // Create new tracking record with current time as start
         TaskTimeTracking tracking = new TaskTimeTracking();
@@ -473,11 +471,9 @@ public class ReportServiceImpl implements ReportService {
             return;
         }
         
-        // Don't remove tracking for task owner
-        if (task.getOwnerId().equals(userId)) {
-            log.info("User {} is the task owner, keeping tracking record", userId);
-            return;
-        }
+        // REMOVED: Task owner check - permissions now based on assignees only
+        // Old logic kept tracking for task owner when removed as assignee
+        // This is no longer needed as owner has no special permissions
         
         // Find and delete the tracking record if it exists and is not completed
         Optional<TaskTimeTracking> existingTracking = taskTimeTrackingRepository.findByTaskIdAndUserId(taskId, userId);

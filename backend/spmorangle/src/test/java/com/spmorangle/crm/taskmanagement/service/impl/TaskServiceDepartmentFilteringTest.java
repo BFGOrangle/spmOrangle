@@ -73,6 +73,26 @@ class TaskServiceDepartmentFilteringTest {
             .thenReturn(Collections.emptyList());
         lenient().when(projectService.getProjectOwners(any()))
             .thenReturn(Collections.emptyMap());
+
+        // Mock collaboratorService methods for default behavior
+        lenient().when(collaboratorService.getCollaboratorIdsByTaskId(anyLong()))
+            .thenReturn(Collections.emptyList());
+        lenient().when(collaboratorService.isUserTaskCollaborator(anyLong(), anyLong()))
+            .thenReturn(false);
+
+        // Mock subtaskService to return empty lists
+        lenient().when(subtaskService.getSubtasksByTaskId(anyLong(), anyLong()))
+            .thenReturn(Collections.emptyList());
+
+        // Mock taskRepository.findById() to return a task for canUserDeleteTask() checks
+        lenient().when(taskRepository.findById(anyLong()))
+            .thenAnswer(invocation -> {
+                Long taskId = invocation.getArgument(0);
+                Task task = new Task();
+                task.setId(taskId);
+                task.setDeleteInd(false);
+                return Optional.of(task);
+            });
     }
 
     @Nested
@@ -88,8 +108,9 @@ class TaskServiceDepartmentFilteringTest {
             User assignee = createUser(5L, DEPT_A_ID);
             DepartmentDto deptA = createDepartment(DEPT_A_ID, "Department A", null);
 
-            // Mock user lookup
+            // Mock user lookup - for viewing user and assignee
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findById(5L)).thenReturn(Optional.of(assignee));
 
             // Mock department query by ID
             when(departmentQueryService.getById(DEPT_A_ID))
@@ -105,7 +126,6 @@ class TaskServiceDepartmentFilteringTest {
             // Mock assignee lookup
             when(taskAssigneeRepository.findAssigneeIdsByTaskId(task.getId()))
                 .thenReturn(new ArrayList<>(List.of(5L)));
-            when(userRepository.findById(5L)).thenReturn(Optional.of(assignee));
 
             // Mock visibility check - assignee's dept is visible
             // Second parameter is the assignee USER ID (5L), not department ID
@@ -135,7 +155,10 @@ class TaskServiceDepartmentFilteringTest {
             DepartmentDto deptA = createDepartment(DEPT_A_ID, "Department A", null);
             DepartmentDto deptA1 = createDepartment(DEPT_A1_ID, "Department A.1", DEPT_A_ID);
 
+            // Mock user lookup - for viewing user and assignee
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findById(5L)).thenReturn(Optional.of(assignee));
+
             when(departmentQueryService.getById(DEPT_A_ID))
                 .thenReturn(Optional.of(deptA));
 
@@ -146,7 +169,7 @@ class TaskServiceDepartmentFilteringTest {
             when(taskRepository.findUserTasks(USER_ID)).thenReturn(List.of(task));
             when(taskAssigneeRepository.findAssigneeIdsByTaskId(task.getId()))
                 .thenReturn(new ArrayList<>(List.of(5L)));
-            when(userRepository.findById(5L)).thenReturn(Optional.of(assignee));
+
             // Second parameter is the assignee USER ID (5L), not department ID
             when(departmentalVisibilityService.canUserSeeTask(Set.of(DEPT_A_ID, DEPT_A1_ID), 5L))
                 .thenReturn(true);
@@ -212,7 +235,10 @@ class TaskServiceDepartmentFilteringTest {
             User assigneeA = createUser(5L, DEPT_A_ID);
             DepartmentDto deptA = createDepartment(DEPT_A_ID, "Department A", null);
 
+            // Mock user lookup - for viewing user and assignee
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findById(5L)).thenReturn(Optional.of(assigneeA));
+
             when(departmentQueryService.getById(DEPT_A_ID))
                 .thenReturn(Optional.of(deptA));
             when(departmentalVisibilityService.visibleDepartmentsForAssignedDept(DEPT_A_ID))
@@ -222,8 +248,6 @@ class TaskServiceDepartmentFilteringTest {
             when(taskAssigneeRepository.findAssigneeIdsByTaskId(task.getId()))
                 .thenReturn(new ArrayList<>(List.of(5L)));
 
-            // First assignee from Dept A - visible!
-            when(userRepository.findById(5L)).thenReturn(Optional.of(assigneeA));
             // Second parameter is the assignee USER ID (5L), not department ID
             when(departmentalVisibilityService.canUserSeeTask(Set.of(DEPT_A_ID, DEPT_A1_ID), 5L))
                 .thenReturn(true);

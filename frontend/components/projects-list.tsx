@@ -164,12 +164,13 @@ export function ProjectsList({ onProjectSelect }: ProjectsListProps) {
       return memberProjects;
     }
 
-    // Filter for projects owned by current user
+    // Filter for projects where current user is owner (via isOwner flag)
     if (!currentUser?.backendStaffId) {
       return memberProjects; // Fallback to showing all if no user ID
     }
 
-    return memberProjects.filter(project => project.ownerId === currentUser.backendStaffId);
+    // Use isOwner flag which indicates project ownership
+    return memberProjects.filter(project => project.isOwner);
   }, [memberProjects, filterOwner, currentUser?.backendStaffId]);
 
   if (isLoading) {

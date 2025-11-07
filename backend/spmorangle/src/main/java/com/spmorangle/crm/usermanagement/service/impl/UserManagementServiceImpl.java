@@ -216,4 +216,19 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
 
+
+    @Override
+    public List<UserResponseDto> getAssignableManagers(Long currentUserId) {
+        log.info("Getting all active managers for cross-department assignment (excluding user {})", currentUserId);
+        List<User> managers = userRepository.findAllActiveManagers();
+        log.info("Found {} active managers before filtering", managers.size());
+
+        List<UserResponseDto> filteredManagers = managers.stream()
+                .filter(user -> !user.getId().equals(currentUserId))
+                .map(UserConverter::convert)
+                .toList();
+
+        log.info("Returning {} managers after excluding current user", filteredManagers.size());
+        return filteredManagers;
+    }
 }

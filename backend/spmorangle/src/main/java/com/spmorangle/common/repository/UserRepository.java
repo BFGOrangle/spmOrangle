@@ -46,4 +46,11 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
             AND u.id != :excludeUserId
             """)
     List<User> findByDepartmentIds(@Param("departmentIds") Set<Long> departmentIds, @Param("excludeUserId") Long excludeUserId);
+
+    /**
+     * Find all active users with MANAGER role
+     * Used for cross-department task/project assignment
+     */
+    @Query("SELECT u FROM User u WHERE u.roleType = 'MANAGER' AND u.isActive = true ORDER BY u.userName")
+    List<User> findAllActiveManagers();
 }

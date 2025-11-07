@@ -76,6 +76,7 @@ public class ProjectServiceImpl implements ProjectService {
 
         Set<Long> visibleDepartmentIds = getUserVisibleDepartmentIds(userId);
         memberProjects = memberProjects.stream()
+            .filter(project -> project.getId() != 0L) // Exclude Personal Tasks Repository (Project ID 0)
             .filter(project -> canUserSeeProjectByDepartment(project, visibleDepartmentIds))
             .collect(Collectors.toList());
 
@@ -106,6 +107,7 @@ public class ProjectServiceImpl implements ProjectService {
             }
 
             relatedProjects = relatedProjects.stream()
+            .filter(project -> project.getId() != 0L) // Exclude Personal Tasks Repository (Project ID 0)
             .filter(project -> canUserSeeProjectByDepartment(project, visibleDepartmentIds))
             .collect(Collectors.toList());
 
@@ -129,26 +131,6 @@ public class ProjectServiceImpl implements ProjectService {
                 result.add(mapToProjectResponseDto(project, userId, true));
             }
         }
-
-        // Always include Project ID 0 (Personal Tasks Repository) for all users
-        // This allows users to access their personal tasks from the projects page
-        log.info("🔍 Checking if Project ID 0 exists in database...");
-        projectRepository.findById(0L).ifPresentOrElse(
-            personalTasksProject -> {
-                log.info("✅ Project ID 0 found in database: '{}'", personalTasksProject.getName());
-                // Check if Project ID 0 is not already in the result list
-                boolean alreadyIncluded = result.stream()
-                    .anyMatch(p -> p.getId() == 0L);
-
-                if (!alreadyIncluded) {
-                    log.info("📝 Adding Personal Tasks Repository (Project ID 0) to projects list");
-                    result.add(0, mapToProjectResponseDto(personalTasksProject, userId, false));
-                } else {
-                    log.info("ℹ️ Project ID 0 already included in result list, skipping");
-                }
-            },
-            () -> log.warn("⚠️ Project ID 0 NOT found in database - personal tasks project may not be seeded")
-        );
 
         log.info("Returning total of {} projects for user {}", result.size(), userId);
         log.info("📋 Project IDs in result: {}", result.stream().map(p -> p.getId()).toList());
@@ -201,39 +183,28 @@ public class ProjectServiceImpl implements ProjectService {
         Project savedProject = projectRepository.save(project);
         log.info("Project created with ID: {}", savedProject.getId());
 
-        // Get the manager's information
-        User manager = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        // Collect all project owner IDs using a Set to avoid duplicates
+        Set<Long> ownerIds = new HashSet<>();
 
-        // Collect all member IDs using a Set to avoid duplicates
-        Set<Long> memberIds = new HashSet<>();
+        // Add creator as owner
+        ownerIds.add(currentUserId);
 
-        // Add manager as a member
-        memberIds.add(currentUserId);
-
-        // Add all active users from manager's department
-        if (manager.getDepartmentId() != null) {
-            List<User> departmentUsers = userRepository.findByDepartmentId(manager.getDepartmentId());
-            departmentUsers.stream()
-                    .filter(User::getIsActive) // Only active users
-                    .map(User::getId)
-                    .forEach(memberIds::add);
-            log.info("Added {} active users from department id: {}", departmentUsers.size(), manager.getDepartmentId());
-        }
-
-        // Add additional members if specified
+        // Add additional members as owners if specified (from /assignable endpoint)
         if (createProjectDto.getAdditionalMemberIds() != null && !createProjectDto.getAdditionalMemberIds().isEmpty()) {
-            memberIds.addAll(createProjectDto.getAdditionalMemberIds());
-            log.info("Added {} additional members", createProjectDto.getAdditionalMemberIds().size());
+            ownerIds.addAll(createProjectDto.getAdditionalMemberIds());
+            log.info("Added {} additional project owners", createProjectDto.getAdditionalMemberIds().size());
         }
 
-        // Create ProjectMember entries for all members
+        // Create ProjectMember entries for all owners
         List<ProjectMember> projectMembers = new ArrayList<>();
-        for (Long memberId : memberIds) {
+        for (Long ownerId : ownerIds) {
             ProjectMember projectMember = new ProjectMember();
             projectMember.setProjectId(savedProject.getId());
-            projectMember.setUserId(memberId);
+            projectMember.setUserId(ownerId);
             projectMember.setAddedBy(currentUserId);
+            projectMember.setOwner(true); // All selected members are project owners
+            log.info("Marked user {} as project owner for project {}", ownerId, savedProject.getId());
+
             projectMembers.add(projectMember);
         }
 
@@ -250,15 +221,15 @@ public class ProjectServiceImpl implements ProjectService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteProject(Long projectId, Long currentUserId) {
         log.info("Deleting project: {} by user: {}", projectId, currentUserId);
-        
+
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new RuntimeException("Project not found"));
-        
-        // Only owner can delete the project
-        if (!project.getOwnerId().equals(currentUserId)) {
-            throw new RuntimeException("Only project owner can delete the project");
+
+        // Only project owners (checked via is_owner flag) can delete the project
+        if (!isUserProjectOwner(currentUserId, projectId)) {
+            throw new RuntimeException("Only project owners can delete the project");
         }
-        
+
         project.setDeleteInd(true);
         project.setUpdatedBy(currentUserId);
         project.setUpdatedAt(OffsetDateTime.now());
@@ -430,5 +401,124 @@ public class ProjectServiceImpl implements ProjectService {
         // Check if user is a project member
         List<ProjectMember> members = projectMemberRepository.findByProjectId(projectId);
         return members.stream().anyMatch(m -> m.getUserId() == userId);
+    }
+
+    @Override
+    public boolean isUserProjectOwner(Long userId, Long projectId) {
+        return projectMemberRepository.existsByProjectIdAndUserIdAndIsOwner(projectId, userId, true);
+    }
+
+    @Override
+    public List<Long> getProjectOwnerIds(Long projectId) {
+        List<ProjectMember> owners = projectMemberRepository.findOwnersByProjectId(projectId);
+        return owners.stream()
+                .map(ProjectMember::getUserId)
+                .toList();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void addProjectOwner(Long projectId, Long userId, Long addedBy) {
+        log.info("Adding project owner: userId={} to projectId={}", userId, projectId);
+
+        // Check if user is already a project member
+        boolean isMember = projectMemberRepository.existsByProjectIdAndUserId(projectId, userId);
+
+        if (isMember) {
+            // User is already a member, just update is_owner flag
+            List<ProjectMember> members = projectMemberRepository.findByProjectId(projectId);
+            ProjectMember member = members.stream()
+                    .filter(m -> m.getUserId() == userId)
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Project member not found"));
+
+            member.setOwner(true);
+            projectMemberRepository.save(member);
+            log.info("Updated existing member to owner");
+        } else {
+            // User is not a member, add them as owner
+            ProjectMember newOwner = new ProjectMember();
+            newOwner.setProjectId(projectId);
+            newOwner.setUserId(userId);
+            newOwner.setOwner(true);
+            newOwner.setAddedBy(addedBy);
+            projectMemberRepository.save(newOwner);
+            log.info("Added new member as owner");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void removeProjectOwner(Long projectId, Long userId) {
+        log.info("Removing project owner: userId={} from projectId={}", userId, projectId);
+
+        // Check if there are multiple owners
+        List<ProjectMember> owners = projectMemberRepository.findOwnersByProjectId(projectId);
+
+        if (owners.size() <= 1) {
+            throw new RuntimeException("Cannot remove the last owner from a project");
+        }
+
+        // Find the member and update is_owner flag
+        List<ProjectMember> members = projectMemberRepository.findByProjectId(projectId);
+        ProjectMember member = members.stream()
+                .filter(m -> m.getUserId() == userId && m.isOwner())
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("User is not a project owner"));
+
+        member.setOwner(false);
+        projectMemberRepository.save(member);
+        log.info("Removed owner status from user {}", userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void addProjectMember(Long projectId, Long userId, Long addedBy) {
+        log.info("Adding project member: userId={} to projectId={}", userId, projectId);
+
+        // Check if user is already a project member
+        boolean isMember = projectMemberRepository.existsByProjectIdAndUserId(projectId, userId);
+
+        if (isMember) {
+            log.info("User {} is already a member of project {}", userId, projectId);
+            return; // No-op if already a member
+        }
+
+        // Add user as a regular project member (not owner)
+        ProjectMember newMember = new ProjectMember();
+        newMember.setProjectId(projectId);
+        newMember.setUserId(userId);
+        newMember.setOwner(false); // Regular member, not owner
+        newMember.setAddedBy(addedBy);
+        projectMemberRepository.save(newMember);
+        log.info("Added user {} as project member (non-owner) to project {}", userId, projectId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void removeProjectMember(Long projectId, Long userId) {
+        log.info("Removing project member: userId={} from projectId={}", userId, projectId);
+
+        // Find the member
+        List<ProjectMember> members = projectMemberRepository.findByProjectId(projectId);
+        ProjectMember member = members.stream()
+                .filter(m -> m.getUserId() == userId)
+                .findFirst()
+                .orElse(null);
+
+        if (member == null) {
+            log.info("User {} is not a member of project {}, nothing to remove", userId, projectId);
+            return; // No-op if not a member
+        }
+
+        // Don't remove if user is an owner
+        if (member.isOwner()) {
+            log.info("User {} is a project owner, not removing from project {}", userId, projectId);
+            return; // Don't remove owners
+        }
+
+        // Remove the project member
+        projectMemberRepository.delete(member);
+        log.info("Removed user {} from project {}", userId, projectId);
     }
 }

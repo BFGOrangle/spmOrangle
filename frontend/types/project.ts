@@ -45,21 +45,28 @@ export interface SubtaskResponseDto {
 export interface TaskResponseDto {
   id: number;
   projectId?: number;
-  ownerId: number;
+  projectName?: string;
+  // DEPRECATED: ownerId, ownerName, ownerDepartment will be removed in future phase - use createdBy/createdByName instead
+  ownerId?: number;
+  ownerName?: string;
+  ownerDepartment?: string;
   taskType: TaskType;
   title: string;
   description?: string;
   status: TaskStatus;
   tags?: string[];
   assignedUserIds?: number[];
-  userHasEditAccess: boolean;
-  userHasDeleteAccess: boolean;
+  // Backend-calculated permission flags - ALWAYS use these instead of calculating permissions in frontend
+  userHasWriteAccess: boolean;  // Can current user edit this task?
+  userHasDeleteAccess: boolean; // Can current user delete this task?
   createdAt: string;
   updatedAt?: string;
   createdBy: number;
+  createdByName?: string;      // Name of user who created the task
   updatedBy?: number;
   subtasks?: SubtaskResponseDto[];
   dueDateTime?: string;
+  priority?: number;            // Priority from 1 (lowest) to 10 (highest)
   isRecurring?: boolean;
   recurrenceRuleStr?: string;
   startDate?: string;

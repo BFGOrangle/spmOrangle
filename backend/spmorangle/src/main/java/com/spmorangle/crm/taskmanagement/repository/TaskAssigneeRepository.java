@@ -25,4 +25,14 @@ public interface TaskAssigneeRepository extends JpaRepository<TaskAssignee, Task
     List<TaskAssignee> findByTaskIdIn(Collection<Long> taskIds);
 
     int countByTaskId(Long taskId);
+
+    @Query(nativeQuery = true, value = """
+        SELECT COUNT(*) > 0
+        FROM syncup.task_assignees ta
+        INNER JOIN syncup.tasks t ON ta.task_id = t.id
+        WHERE ta.user_id = :userId
+        AND t.project_id = :projectId
+        AND (t.delete_ind IS NULL OR t.delete_ind = false)
+        """)
+    boolean existsTaskAssigneeInProject(Long userId, Long projectId);
 }

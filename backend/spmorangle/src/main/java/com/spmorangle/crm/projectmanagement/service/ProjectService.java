@@ -17,4 +17,12 @@ public interface ProjectService {
     Map<Long, Long> getProjectOwners(Set<Long> projectIds);
     List<ProjectResponseDto> getProjectsByIds(Set<Long> projectIds);
     boolean isUserProjectMember(Long userId, Long projectId);
+
+    // New methods for owner management
+    boolean isUserProjectOwner(Long userId, Long projectId);
+    List<Long> getProjectOwnerIds(Long projectId);
+    void addProjectOwner(Long projectId, Long userId, Long addedBy);
+    void removeProjectOwner(Long projectId, Long userId);
+    void addProjectMember(Long projectId, Long userId, Long addedBy);
+    void removeProjectMember(Long projectId, Long userId);
 }

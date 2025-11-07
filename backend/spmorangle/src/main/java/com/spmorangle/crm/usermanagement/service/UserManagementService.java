@@ -24,4 +24,9 @@ public interface UserManagementService {
     String getAssigneeEmail(TaskAssignee assignee);
     String getAssigneeName(TaskAssignee assignee);
     List<UserResponseDto> getUsersByDepartmentId(Long departmentId);
+
+    /**
+     * Get all active managers for cross-department assignment, excluding the current user
+     */
+    List<UserResponseDto> getAssignableManagers(Long currentUserId);
 }

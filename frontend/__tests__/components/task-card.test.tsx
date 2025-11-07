@@ -141,7 +141,7 @@ const mockTaskResponse: TaskResponse = {
   createdAt: '2024-01-01T12:00:00Z',
   updatedAt: '2024-01-02T12:00:00Z',
   createdBy: 1,
-  userHasEditAccess: true,
+  userHasWriteAccess: true,
   userHasDeleteAccess: true,
   assignedUserIds: [1, 2],
   tags: ['urgent', 'frontend'],
@@ -362,7 +362,7 @@ describe('TaskCard', () => {
 
   describe('Access permissions', () => {
     it('shows edit options when user has edit access', () => {
-      const taskWithEditAccess = { ...mockTaskResponse, userHasEditAccess: true };
+      const taskWithEditAccess = { ...mockTaskResponse, userHasWriteAccess: true };
       renderWithQueryClient(
         <TaskCard task={taskWithEditAccess} currentUserId={1} />
       );
@@ -379,7 +379,7 @@ describe('TaskCard', () => {
     });
 
     it('hides edit options when user lacks edit access', () => {
-      const taskWithoutEditAccess = { ...mockTaskResponse, userHasEditAccess: false };
+      const taskWithoutEditAccess = { ...mockTaskResponse, userHasWriteAccess: false };
       renderWithQueryClient(
         <TaskCard task={taskWithoutEditAccess} currentUserId={1} />
       );
@@ -465,7 +465,7 @@ describe('TaskCard', () => {
       const incompleteTask = {
         id: 999,
         title: 'Incomplete Task',
-        userHasEditAccess: false,
+        userHasWriteAccess: false,
         userHasDeleteAccess: false,
       } as any;
 

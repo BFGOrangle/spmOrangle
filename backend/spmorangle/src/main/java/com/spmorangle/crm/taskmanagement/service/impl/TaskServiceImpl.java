@@ -71,7 +71,17 @@ public class TaskServiceImpl implements TaskService {
         log.info("🔵 Creating task with title: '{}' for user: {}", createTaskDto.getTitle(), currentUserId);
         log.info("📋 CreateTaskDto details - ProjectId: {}, OwnerId: {}, AssignedUserIds: {}",
                  createTaskDto.getProjectId(), createTaskDto.getOwnerId(), createTaskDto.getAssignedUserIds());
-        
+
+        // Permission check: For project tasks, user must be a project member
+        Long projectId = createTaskDto.getProjectId();
+        boolean isProjectTask = (projectId != null && projectId > 0);
+
+        if (isProjectTask && !projectService.isUserProjectMember(currentUserId, projectId)) {
+            log.error("❌ [CREATE TASK] User {} is not a member of project {}", currentUserId, projectId);
+            throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
+                "Cannot create task in this project. You must be a project member.");
+        }
+
         Task task = new Task();
         
         task.setProjectId(createTaskDto.getProjectId());
@@ -110,29 +120,13 @@ public class TaskServiceImpl implements TaskService {
         Task savedTask = taskRepository.save(task);
         log.info("✅ Task created with ID: {}", savedTask.getId());
 
-        // Automatically assign the task owner as an assignee
+        // REMOVED: Auto-assignment of task owner - task creators have no special permissions
+        // Task creators must be explicitly added as assignees to have edit/delete rights
         List<Long> assignedUserIds = new ArrayList<>();
-        try {
-            log.info("👤 Automatically assigning task owner {} as an assignee", taskOwnerId);
-            AddCollaboratorRequestDto ownerCollaboratorRequest = AddCollaboratorRequestDto.builder()
-                    .taskId(savedTask.getId())
-                    .collaboratorId(taskOwnerId)
-                    .build();
-            collaboratorService.addCollaborator(ownerCollaboratorRequest, currentUserId);
-            assignedUserIds.add(taskOwnerId);
-            log.info("✅ Task owner {} successfully assigned to task {}", taskOwnerId, savedTask.getId());
-        } catch (Exception e) {
-            log.error("❌ Failed to assign task owner {} to task {}: {}", taskOwnerId, savedTask.getId(), e.getMessage(), e);
-        }
 
         if (createTaskDto.getAssignedUserIds() != null && !createTaskDto.getAssignedUserIds().isEmpty()) {
-            log.info("👥 Assigning task to {} additional users: {}", createTaskDto.getAssignedUserIds().size(), createTaskDto.getAssignedUserIds());
+            log.info("👥 Assigning task to {} users: {}", createTaskDto.getAssignedUserIds().size(), createTaskDto.getAssignedUserIds());
             for (Long userId : createTaskDto.getAssignedUserIds()) {
-                // Skip if this is the owner (already assigned above)
-                if (userId.equals(taskOwnerId)) {
-                    log.info("⏭️ Skipping assignment of user {} - already assigned as task owner", userId);
-                    continue;
-                }
 
                 try {
                     log.info("🔄 Attempting to assign task {} to user {}", savedTask.getId(), userId);
@@ -185,7 +179,7 @@ public class TaskServiceImpl implements TaskService {
                 .tags(savedTask.getTags() != null
                         ? savedTask.getTags().stream().map(Tag::getTagName).toList()
                         : null)
-                .userHasEditAccess(true) // Creator always has edit access
+                .userHasEditAccess(canUserUpdateTask(savedTask.getId(), currentUserId))
                 .userHasDeleteAccess(canUserDeleteTask(savedTask.getId(), currentUserId))
                 .createdBy(savedTask.getCreatedBy())
                 .createdAt(savedTask.getCreatedAt())
@@ -220,10 +214,8 @@ public class TaskServiceImpl implements TaskService {
         }
 
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
-        Long projectOwnerId = projectService.getOwnerId(projectId);
         Set<Long> projectTaskIds = tasks.stream().map(Task::getId).collect(Collectors.toSet());
-        boolean hasDirectMembership = projectOwnerId.equals(userId)
-                || tasksUserIsCollaboratorFor.stream().anyMatch(projectTaskIds::contains);
+        boolean hasDirectMembership = projectService.isUserProjectMember(userId, projectId);
 
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -236,8 +228,8 @@ public class TaskServiceImpl implements TaskService {
         List<TaskResponseDto> result = new ArrayList<>();
 
         for (Task task : visibleTasks) {
-            boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
-            boolean userHasDeleteAccess = userId.equals(projectOwnerId);
+            boolean userHasWriteAccess = calculateUserWriteAccess(task, userId, tasksUserIsCollaboratorFor);
+            boolean userHasDeleteAccess = canUserDeleteTask(task.getId(), userId);
 
             result.add(mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, projectNames, ownerDetails, userId));
         }
@@ -263,9 +255,8 @@ public class TaskServiceImpl implements TaskService {
         }
 
         Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
-        Long projectOwnerId = projectService.getOwnerId(projectId);
         Set<Long> projectTaskIds = tasks.stream().map(Task::getId).collect(Collectors.toSet());
-        boolean hasDirectMembership = projectOwnerId.equals(userId)
+        boolean hasDirectMembership = projectService.isUserProjectMember(userId, projectId)
                 || tasksUserIsCollaboratorFor.stream().anyMatch(projectTaskIds::contains);
 
         User currentUser = userRepository.findById(userId)
@@ -279,8 +270,8 @@ public class TaskServiceImpl implements TaskService {
         List<TaskResponseDto> result = new ArrayList<>();
 
         for (Task task : visibleTasks) {
-            boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
-            boolean userHasDeleteAccess = userId.equals(projectOwnerId);
+            boolean userHasWriteAccess = calculateUserWriteAccess(task, userId, tasksUserIsCollaboratorFor);
+            boolean userHasDeleteAccess = canUserDeleteTask(task.getId(), userId);
 
             if (Boolean.TRUE.equals(task.getIsRecurring()) && task.getStatus() != Status.COMPLETED) {
                 List<TaskResponseDto> virtualInstances = expandRecurringTaskForDisplay(
@@ -307,11 +298,16 @@ public class TaskServiceImpl implements TaskService {
                                                   Set<Long> projectTaskIds,
                                                   boolean hasDirectMembership,
                                                   Long projectId) {
-        if (!isDepartmentScopedRole(user)) {
-            return tasks;
-        }
+        // REMOVED: Role-based bypass - ALL users now subject to assignee-based visibility
+        // Old logic: if (!isDepartmentScopedRole(user)) { return tasks; }
+        // This caused STAFF to see all tasks while MANAGERs had restricted visibility
 
-        if (hasDirectMembership) {
+        // REMOVED: Project membership bypass - visibility is now strictly assignee-based
+        // All users (including project members) only see tasks they're assigned to
+        // or tasks with assignees from their visible departments
+
+        // If the project has no tasks, return empty list (don't throw exception)
+        if (tasks.isEmpty()) {
             return tasks;
         }
 
@@ -377,9 +373,8 @@ public class TaskServiceImpl implements TaskService {
     private boolean isTaskVisibleToDepartment(Task task,
                                               Set<Long> visibleMemberIds,
                                               Map<Long, List<Long>> assigneeIdsByTask) {
-        if (visibleMemberIds.contains(task.getOwnerId())) {
-            return true;
-        }
+        // REMOVED: Task owner check - visibility now based on assignees only
+        // Old logic: if (visibleMemberIds.contains(task.getOwnerId())) { return true; }
 
         return assigneeIdsByTask.getOrDefault(task.getId(), List.of()).stream()
                 .anyMatch(visibleMemberIds::contains);
@@ -463,15 +458,15 @@ public class TaskServiceImpl implements TaskService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        Map<Long, Long> projectOwnerMap = projectService.getProjectOwners(projectIds);
         Map<Long, String> projectNames = resolveProjectNames(projectIds);
         Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
+        Set<Long> tasksUserIsCollaboratorFor = new HashSet<>(collaboratorService.getTasksForWhichUserIsCollaborator(userId));
 
         return tasks.stream()
                 .map(task -> {
-                    boolean userHasDeleteAccess = task.getProjectId() != null
-                        && userId.equals(projectOwnerMap.get(task.getProjectId()));
-                    return mapToTaskResponseDto(task, true, userHasDeleteAccess, projectNames, ownerDetails, userId);
+                    boolean userHasWriteAccess = calculateUserWriteAccess(task, userId, tasksUserIsCollaboratorFor);
+                    boolean userHasDeleteAccess = canUserDeleteTask(task.getId(), userId);
+                    return mapToTaskResponseDto(task, userHasWriteAccess, userHasDeleteAccess, projectNames, ownerDetails, userId);
                 })
                 .collect(Collectors.toList());
     }
@@ -492,7 +487,6 @@ public class TaskServiceImpl implements TaskService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        Map<Long, Long> projectOwnerMap = projectService.getProjectOwners(projectIds);
         Map<Long, String> projectNames = resolveProjectNames(projectIds);
         Map<Long, User> ownerDetails = resolveOwnerDetails(tasks);
 
@@ -502,10 +496,9 @@ public class TaskServiceImpl implements TaskService {
 
         for(Task task : tasks) {
 
-            // Long projectOwnerId = projectService.getOwnerId(task.getProjectId());
-
-            boolean userHasWriteAccess = task.getOwnerId().equals(userId) || tasksUserIsCollaboratorFor.contains(task.getId());
-            boolean userHasDeleteAccess = task.getProjectId() != null ? userId.equals(projectOwnerMap.get(task.getProjectId())) : task.getOwnerId().equals(userId);
+            // Calculate permissions using helper methods
+            boolean userHasWriteAccess = calculateUserWriteAccess(task, userId, tasksUserIsCollaboratorFor);
+            boolean userHasDeleteAccess = canUserDeleteTask(task.getId(), userId);
 
             // Return recurring virtual tasks (but not if completed - avoid duplicates)
             if(Boolean.TRUE.equals(task.getIsRecurring()) && task.getStatus() != Status.COMPLETED) {
@@ -625,12 +618,18 @@ public class TaskServiceImpl implements TaskService {
                 .map(Task::getProjectId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        Map<Long, Long> projectOwnerMap = projectIds.isEmpty()
-                ? Collections.emptyMap()
-                : projectService.getProjectOwners(projectIds);
 
+        // Filter out tasks from projects where user is a project owner
+        // Use isUserProjectOwner which checks project_members.is_owner flag
         relatedTasks = relatedTasks.stream()
-                .filter(task -> !Objects.equals(projectOwnerMap.get(task.getProjectId()), userId))
+                .filter(task -> {
+                    Long taskProjectId = task.getProjectId();
+                    if (taskProjectId == null) {
+                        return true; // Keep personal tasks (shouldn't happen in related tasks, but safe)
+                    }
+                    // Exclude if user is a project owner (checks is_owner flag)
+                    return !projectService.isUserProjectOwner(userId, taskProjectId);
+                })
                 .collect(Collectors.toList());
 
         if (relatedTasks.isEmpty()) {
@@ -899,27 +898,97 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public boolean canUserUpdateTask(Long taskId, Long userId) {
+        // STEP 0: Validate user exists first (before task lookup)
+        // Explicitly check user exists to ensure proper error message
+        userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Set<Long> userVisibleDepartmentIds = getUserVisibleDepartmentIds(userId);
+
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
-        if (task.getOwnerId().equals(userId)) {
+
+        // STEP 1: Check department visibility - can't edit what you can't see
+        if (!canUserSeeTaskByDepartment(task, userVisibleDepartmentIds)) {
+            log.info("User {} cannot update task {} - task not visible due to department restrictions", userId, taskId);
+            return false;
+        }
+
+        // STEP 2: Check edit permissions (after confirming visibility)
+
+        // REMOVED: Task owner check - permissions now based on assignees only
+        // Old logic: if (task.getOwnerId().equals(userId)) { return true; }
+
+        // Assignees/Collaborators can update
+        if (collaboratorService.isUserTaskCollaborator(taskId, userId)) {
             return true;
         }
-        return collaboratorService.isUserTaskCollaborator(taskId, userId);
+
+        // Project owners can update any task in their project (that they can see)
+        Long projectId = task.getProjectId();
+        if (projectId != null && projectId > 0) {
+            boolean isProjectOwner = projectService.isUserProjectOwner(userId, projectId);
+            if (isProjectOwner) {
+                log.info("User {} can update task {} as project owner of project {}",
+                         userId, taskId, projectId);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     @Override
     public boolean canUserDeleteTask(Long taskId, Long userId) {
+        // STEP 0: Return false if user doesn't exist (graceful handling for "can" check)
+        if (userId == null || userRepository.findById(userId).isEmpty()) {
+            return false;
+        }
+
+        Set<Long> userVisibleDepartmentIds = getUserVisibleDepartmentIds(userId);
+
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
         Long projectId = task.getProjectId();
 
-        if (projectId == null) {
-            return task.getOwnerId().equals(userId);
+        // For personal tasks, only assignees can delete
+        // REMOVED: Owner-based permission - now using assignees only
+        if (projectId == null || projectId == 0) {
+            return collaboratorService.isUserTaskCollaborator(taskId, userId);
         }
 
-        Long projectOwnerId = projectService.getOwnerId(projectId);
-        return projectOwnerId.equals(userId);
+        // STEP 1: Check department visibility - can't delete what you can't see
+        if (!canUserSeeTaskByDepartment(task, userVisibleDepartmentIds)) {
+            log.info("User {} cannot delete task {} - task not visible due to department restrictions", userId, taskId);
+            return false;
+        }
+
+        // STEP 2: For project tasks, any project owner can delete (after confirming visibility)
+        // Use isUserProjectOwner which checks project_members.is_owner flag
+        return projectService.isUserProjectOwner(userId, projectId);
+    }
+
+    /**
+     * Helper method to calculate write access for a task
+     * Write access is granted if:
+     * 1. User is a task assignee/collaborator, OR
+     * 2. User is a MANAGER AND project owner (for project tasks only)
+     */
+    private boolean calculateUserWriteAccess(Task task, Long userId, Set<Long> tasksUserIsCollaboratorFor) {
+        // 1. Check if user is task assignee
+        if (tasksUserIsCollaboratorFor.contains(task.getId())) {
+            return true;
+        }
+
+        // 2. Check if user is MANAGER AND project owner (for project tasks)
+        // Note: is_owner flag only applies to MANAGER role, so no additional role check needed
+        Long projectId = task.getProjectId();
+        if (projectId != null && projectId > 0) {
+            return projectService.isUserProjectOwner(userId, projectId);
+        }
+
+        return false;
     }
 
     @Override
@@ -1673,7 +1742,7 @@ public class TaskServiceImpl implements TaskService {
 
             // Create mutable list - repository returns immutable list from native query
             List<Long> assigneeIds = new ArrayList<>(taskAssigneeRepository.findAssigneeIdsByTaskId(task.getId()));
-            assigneeIds.add(task.getOwnerId());
+            // REMOVED: No longer include owner_id in department visibility checks
 
             log.debug("Checking visibility for task {} (title: '{}', owner: {}, assignees: {})",
                      task.getId(), task.getTitle(), task.getOwnerId(), assigneeIds);

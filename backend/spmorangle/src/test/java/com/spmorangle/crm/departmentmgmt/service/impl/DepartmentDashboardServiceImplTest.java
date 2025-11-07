@@ -105,13 +105,20 @@ class DepartmentDashboardServiceImplTest {
 
         when(taskRepository.findVisibleTasksForUsers(Set.of(8L, 12L))).thenReturn(List.of(task1, task2));
 
-        TaskAssignee taskAssignee = new TaskAssignee();
-        taskAssignee.setTaskId(102L);
-        taskAssignee.setUserId(8L);
-        taskAssignee.setAssignedId(managerUser.getId());
+        // Create assignees for both tasks - assign task1 to staffA and task2 to staffB
+        // This ensures both users appear in the team load
+        TaskAssignee taskAssignee1 = new TaskAssignee();
+        taskAssignee1.setTaskId(101L);
+        taskAssignee1.setUserId(8L); // staffA
+        taskAssignee1.setAssignedId(managerUser.getId());
+
+        TaskAssignee taskAssignee2 = new TaskAssignee();
+        taskAssignee2.setTaskId(102L);
+        taskAssignee2.setUserId(12L); // staffB
+        taskAssignee2.setAssignedId(managerUser.getId());
 
         when(taskAssigneeRepository.findByTaskIdIn(Set.of(101L, 102L)))
-                .thenReturn(List.of(taskAssignee));
+                .thenReturn(List.of(taskAssignee1, taskAssignee2));
 
         when(userRepository.findByIdIn(Mockito.<List<Long>>any()))
                 .thenReturn(List.of(staffA, staffB));
