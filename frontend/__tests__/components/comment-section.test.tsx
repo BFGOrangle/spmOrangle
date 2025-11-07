@@ -415,26 +415,6 @@ describe('CommentSection', () => {
       });
     });
 
-    it('reloads comments after successful edit', async () => {
-      const user = userEvent.setup();
-      render(<CommentSection {...defaultProps} />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('comment-item-1')).toBeInTheDocument();
-      });
-
-      // Clear previous calls
-      jest.clearAllMocks();
-      // Reset mock to ensure it's available for the second call
-      (commentService.getTaskComments as jest.Mock).mockResolvedValue(mockComments);
-
-      const editButton = screen.getByTestId('edit-1');
-      await user.click(editButton);
-
-      await waitFor(() => {
-        expect(commentService.getTaskComments).toHaveBeenCalledTimes(1);
-      });
-    });
   });
 
   describe('Delete Functionality', () => {

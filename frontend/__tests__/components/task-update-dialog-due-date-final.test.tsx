@@ -92,7 +92,7 @@ const mockTask: TaskResponse = {
   projectId: 1,
   ownerId: 1,
   createdBy: 1,
-  userHasEditAccess: true,
+  userHasWriteAccess: true,
   userHasDeleteAccess: true,
   tags: [],
   assignedUserIds: [],

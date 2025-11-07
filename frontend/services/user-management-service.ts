@@ -149,6 +149,14 @@ export class UserManagementService {
   async getCollaborators(): Promise<UserResponseDto[]> {
     return this.authenticatedClient.get<UserResponseDto[]>("/api/tasks/collaborators");
   }
+
+  /**
+   * Get assignable managers for cross-department project assignment (authenticated)
+   * Returns all active managers excluding the current user
+   */
+  async getAssignableManagers(): Promise<UserResponseDto[]> {
+    return this.authenticatedClient.get<UserResponseDto[]>("/api/user/assignable");
+  }
 }
 
 // Export a singleton instance

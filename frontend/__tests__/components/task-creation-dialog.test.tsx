@@ -397,8 +397,7 @@ describe('TaskCreationDialog', () => {
         expect(tagService.getTags).toHaveBeenCalled();
       });
 
-      expect(screen.getByText(/this personal task will be assigned to you/i)).toBeInTheDocument();
-      expect(screen.getByText(/john manager/i)).toBeInTheDocument();
+      expect(screen.getByText(/this will be a personal task assigned to you only/i)).toBeInTheDocument();
     });
 
     it('loads project members when project is selected', async () => {
@@ -457,8 +456,11 @@ describe('TaskCreationDialog', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/assign to \*/i)).toBeInTheDocument();
-        expect(screen.getByText(/myself \(john manager\)/i)).toBeInTheDocument();
+        // Check for the Collaborators label (using getAllByText since there are multiple matches)
+        const collaboratorsElements = screen.getAllByText(/collaborators/i);
+        expect(collaboratorsElements.length).toBeGreaterThan(0);
+        // Check for the Select Collaborators button
+        expect(screen.getByRole('button', { name: /select collaborators/i })).toBeInTheDocument();
       });
     });
 

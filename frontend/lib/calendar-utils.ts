@@ -57,7 +57,9 @@ export const taskToEvent: TaskToEventConverter = (task, project) => {
     projectName: project?.name,
     tags: task.tags,
     assignedUserIds: task.assignedUserIds,
-    ownerId: task.ownerId,
+    ownerId: task.ownerId, // DEPRECATED: kept for backward compatibility
+    createdBy: task.createdBy,
+    createdByName: task.createdByName,
     color: generateEventColor(task.taskType, task.status, taskIsOverdue),
   };
 
@@ -191,18 +193,18 @@ export const filterEventsForMonthView = (events: CalendarEvent[], startDate: Dat
   return filtered;
 };
 
-// Filter events by user assignment or ownership
+// Filter events by user assignment or created by user
 export const filterEventsByUserAccess = (events: CalendarEvent[], currentUserId?: number) => {
   if (!currentUserId) {
     return events; // Return all events if no user ID provided
   }
-  
+
   return events.filter(event => {
-    // Check if user is the owner
-    if (event.ownerId === currentUserId) {
+    // Check if user created the task
+    if (event.createdBy === currentUserId) {
       return true;
     }
-    
+
     // Check if user is assigned to the task
     if (event.assignedUserIds && event.assignedUserIds.includes(currentUserId)) {
       return true;

@@ -199,7 +199,7 @@ const getTaskDisplayProps = (task: TaskResponse) => {
     status: mapBackendStatus(task.status),
     key: `TASK-${task.id}`,
     priority: mapTaskTypeToPriority(task.taskType),
-    owner: task.ownerName || `User ${task.ownerId}`,
+    owner: task.createdByName || `User ${task.createdBy}`,
     ownerDepartment: task.ownerDepartment || "Unassigned department",
     collaborators: [] as string[], // TODO: Add collaborators when available in API
     dueDate: task.createdAt, // Using createdAt as placeholder for due date
@@ -207,7 +207,7 @@ const getTaskDisplayProps = (task: TaskResponse) => {
     attachments: 0, // TODO: Add attachment count when available
     project: task.projectName || (task.projectId ? `Project ${task.projectId}` : 'Personal Task'),
     subtasks: task.subtasks || [],
-    ownerId: task.ownerId,
+    ownerId: task.ownerId, // DEPRECATED: kept for backward compatibility
     projectId: task.projectId
   };
 };
@@ -374,7 +374,7 @@ const RelatedTaskCard = ({ task }: TaskBoardCardProps) => {
       <CardContent className="space-y-3 text-sm">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <UsersIcon className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Owned by user {task.ownerId}</span>
+          <span>Created by {task.createdByName || `User ${task.createdBy}`}</span>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Clock4 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -919,12 +919,12 @@ export default function TasksPage() {
   const displayTasks = tasks;
 
   const totals = useMemo(() => {
-    const owners = new Set<number>();
+    const creators = new Set<number>();
     let dueSoon = 0;
 
     tasks.forEach((task) => {
-      owners.add(task.ownerId);
-      
+      creators.add(task.createdBy);
+
       const createdDate = new Date(task.createdAt);
       const daysSinceCreated = Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
       if (daysSinceCreated <= 7) {
@@ -934,7 +934,7 @@ export default function TasksPage() {
 
     return {
       workItems: tasks.length,
-      owners: owners.size,
+      owners: creators.size, // Keeping 'owners' name for UI compatibility, but tracks creators
       collaborators: 0, // We don't have collaborators data in the simple API response
       dueSoon,
       subtaskTotal: 0, // We don't have subtasks in the current model

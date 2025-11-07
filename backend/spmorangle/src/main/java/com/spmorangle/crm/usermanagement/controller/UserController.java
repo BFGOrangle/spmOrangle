@@ -115,4 +115,12 @@ public class UserController {
         List<UserResponseDto> users = userManagementService.getAllUsers();
         return ResponseEntity.ok(users);
     }
+
+    @GetMapping("/assignable")
+    public ResponseEntity<List<UserResponseDto>> getAssignableManagers() {
+        Long currentUserId = userContextService.getRequestingUser().getId();
+        log.info("Getting assignable managers for cross-department assignment (excluding user {})", currentUserId);
+        List<UserResponseDto> managers = userManagementService.getAssignableManagers(currentUserId);
+        return ResponseEntity.ok(managers);
+    }
 }

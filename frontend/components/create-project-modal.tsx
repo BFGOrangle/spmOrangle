@@ -51,7 +51,7 @@ export function CreateProjectModal({
   const loadUsers = async () => {
     setLoadingUsers(true);
     try {
-      const users = await userManagementService.getAllUsers();
+      const users = await userManagementService.getAssignableManagers();
       setAllUsers(users);
     } catch (err) {
       console.error("Error loading users:", err);
@@ -61,12 +61,12 @@ export function CreateProjectModal({
     }
   };
 
-  // Filter users to show only those from other departments
+  // The /assignable endpoint already filters to:
+  // - Active managers only
+  // - Excludes current user
+  // So we only need to filter by department here
   const usersFromOtherDepartments = allUsers.filter(
-    (user) =>
-      user.isActive &&
-      user.id !== currentUser?.backendStaffId &&
-      user.department !== currentUser?.department
+    (user) => user.department !== currentUser?.department
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -116,8 +116,7 @@ export function CreateProjectModal({
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>
-            All active members from your department will be automatically added to this project.
-            You can also add members from other departments below.
+            You can add managers from other departments below.
           </DialogDescription>
         </DialogHeader>
 
@@ -164,7 +163,7 @@ export function CreateProjectModal({
 
           {/* Additional Members Section */}
           <div className="space-y-2">
-            <Label>Additional Members (from other departments)</Label>
+            <Label>Additional Managers (from other departments)</Label>
 
             {/* Selected Users */}
             {selectedUserIds.length > 0 && (
@@ -199,7 +198,7 @@ export function CreateProjectModal({
               </div>
             ) : usersFromOtherDepartments.length === 0 ? (
               <div className="text-sm text-muted-foreground py-4 text-center">
-                No users from other departments available
+                No managers from other departments available
               </div>
             ) : (
               <ScrollArea className="h-[200px] rounded-md border p-3">
