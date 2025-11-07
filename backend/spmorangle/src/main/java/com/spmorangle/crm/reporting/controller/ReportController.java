@@ -2,6 +2,8 @@ package com.spmorangle.crm.reporting.controller;
 
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.service.UserContextService;
+import com.spmorangle.crm.departmentmgmt.dto.DepartmentDto;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.reporting.dto.ReportFilterDto;
 import com.spmorangle.crm.reporting.dto.StaffBreakdownDto;
 import com.spmorangle.crm.reporting.dto.TaskSummaryReportDto;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @RestController
@@ -31,6 +34,7 @@ public class ReportController {
     private final ReportService reportService;
     private final UserContextService userContextService;
     private final ReportExportService reportExportService;
+    private final DepartmentQueryService departmentQueryService;
     
     @GetMapping("/task-summary")
     public ResponseEntity<TaskSummaryReportDto> getTaskSummaryReport(
@@ -90,12 +94,26 @@ public class ReportController {
     
     @GetMapping("/projects")
     public ResponseEntity<Map<String, Object>> getAvailableProjects(
-            @RequestParam(required = false) Long departmentId) {
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) String department) {
 
         User user = userContextService.getRequestingUser();
-        log.info("Getting available projects for user: {} in departmentId: {}", user.getId(), departmentId);
+        
+        // Convert department name to ID if provided
+        Long finalDepartmentId = departmentId;
+        if (finalDepartmentId == null && department != null && !department.isEmpty()) {
+            Optional<DepartmentDto> deptOpt = departmentQueryService.getByNameCaseInsensitive(department);
+            if (deptOpt.isPresent()) {
+                finalDepartmentId = deptOpt.get().getId();
+                log.info("Converted department name '{}' to ID: {}", department, finalDepartmentId);
+            } else {
+                log.warn("Department not found: {}", department);
+            }
+        }
+        
+        log.info("Getting available projects for user: {} in departmentId: {}", user.getId(), finalDepartmentId);
 
-        List<Object[]> projectData = reportService.getAvailableProjects(departmentId, user.getId());
+        List<Object[]> projectData = reportService.getAvailableProjects(finalDepartmentId, user.getId());
         
         // Convert to a more frontend-friendly format
         List<Map<String, Object>> projects = projectData.stream()
@@ -114,18 +132,40 @@ public class ReportController {
         log.info("Generating comprehensive report for user: {} with filters: {}", user.getId(), filters);
         
         try {
+            // Convert department name to ID if provided
+            Long departmentId = filters.getDepartmentId();
+            if (departmentId == null && filters.getDepartment() != null && !filters.getDepartment().isEmpty()) {
+                Optional<DepartmentDto> deptOpt = departmentQueryService.getByNameCaseInsensitive(filters.getDepartment());
+                if (deptOpt.isPresent()) {
+                    departmentId = deptOpt.get().getId();
+                    log.info("Converted department name '{}' to ID: {}", filters.getDepartment(), departmentId);
+                } else {
+                    log.warn("Department not found: {}", filters.getDepartment());
+                }
+            }
+            
+            // Create final filters with departmentId set
+            ReportFilterDto finalFilters = ReportFilterDto.builder()
+                .departmentId(departmentId)
+                .projectIds(filters.getProjectIds())
+                .startDate(filters.getStartDate())
+                .endDate(filters.getEndDate())
+                .timeRange(filters.getTimeRange())
+                .exportFormat(filters.getExportFormat())
+                .build();
+            
             // Generate all report components
-            TaskSummaryReportDto taskSummary = reportService.generateTaskSummaryReport(filters, user.getId());
-            TimeAnalyticsReportDto timeAnalytics = reportService.generateTimeAnalyticsReport(filters, user.getId());
-            List<StaffBreakdownDto> staffBreakdown = reportService.generateStaffBreakdown(filters, user.getId());
-            List<TimeSeriesDataPoint> timeSeriesData = reportService.generateTimeSeriesData(filters, user.getId());
+            TaskSummaryReportDto taskSummary = reportService.generateTaskSummaryReport(finalFilters, user.getId());
+            TimeAnalyticsReportDto timeAnalytics = reportService.generateTimeAnalyticsReport(finalFilters, user.getId());
+            List<StaffBreakdownDto> staffBreakdown = reportService.generateStaffBreakdown(finalFilters, user.getId());
+            List<TimeSeriesDataPoint> timeSeriesData = reportService.generateTimeSeriesData(finalFilters, user.getId());
             
             // Build report data map
             Map<String, Object> reportData = new java.util.HashMap<>();
             reportData.put("taskSummary", taskSummary);
             reportData.put("timeAnalytics", timeAnalytics);
             reportData.put("staffBreakdown", staffBreakdown);
-            reportData.put("filters", filters);
+            reportData.put("filters", finalFilters);
             reportData.put("generatedAt", java.time.OffsetDateTime.now());
             
             // Include time-series data only if it exists
@@ -134,7 +174,7 @@ public class ReportController {
             }
             
             // Use export service to handle formatting and response
-            return reportExportService.exportReport(reportData, filters);
+            return reportExportService.exportReport(reportData, finalFilters);
             
         } catch (Exception e) {
             log.error("Error generating report for user: {}", user.getId(), e);

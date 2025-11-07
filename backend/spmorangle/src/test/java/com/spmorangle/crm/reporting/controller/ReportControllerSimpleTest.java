@@ -145,7 +145,7 @@ class ReportControllerSimpleTest {
                 .thenReturn(projectList);
 
         // Act
-        ResponseEntity<Map<String, Object>> response = reportController.getAvailableProjects(100L);
+        ResponseEntity<Map<String, Object>> response = reportController.getAvailableProjects(100L, null);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
