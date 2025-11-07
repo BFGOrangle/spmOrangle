@@ -22,7 +22,10 @@ export interface CalendarEvent {
   projectName?: string;
   tags?: string[];
   assignedUserIds?: number[];
-  ownerId: number;
+  // DEPRECATED: Use createdBy instead
+  ownerId?: number;
+  createdBy: number;
+  createdByName?: string;
   color?: string;
   borderColor?: string; // Border color to distinguish own tasks vs colleague tasks
   // Search-related properties

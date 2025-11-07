@@ -51,11 +51,11 @@ export const taskToEvent: TaskToEventConverter = (task, project, currentUserId) 
   // Check if task is overdue
   const taskIsOverdue = isTaskOverdue(task);
 
-  // Determine if this is the user's own task (assigned to them or owned by them)
+  // Determine if this is the user's own task (assigned to them)
+  // Note: ownerId does not grant any permissions, only assignedUserIds matters
   let isOwnTask: boolean = true; // Default to true if no currentUserId provided (treat as own task)
   if (currentUserId !== undefined) {
-    isOwnTask = task.ownerId === currentUserId ||
-      (task.assignedUserIds !== undefined && task.assignedUserIds.includes(currentUserId));
+    isOwnTask = task.assignedUserIds !== undefined && task.assignedUserIds.includes(currentUserId);
   }
 
   const event = {
@@ -71,7 +71,9 @@ export const taskToEvent: TaskToEventConverter = (task, project, currentUserId) 
     projectName: project?.name,
     tags: task.tags,
     assignedUserIds: task.assignedUserIds,
-    ownerId: task.ownerId,
+    ownerId: task.ownerId, // DEPRECATED: kept for backward compatibility
+    createdBy: task.createdBy,
+    createdByName: task.createdByName,
     color: generateEventColor(task.taskType, task.status, taskIsOverdue),
     borderColor: generateBorderColor(isOwnTask),
   };
@@ -206,23 +208,20 @@ export const filterEventsForMonthView = (events: CalendarEvent[], startDate: Dat
   return filtered;
 };
 
-// Filter events by user assignment or ownership
+// Filter events by user assignment only
+// Note: createdBy and ownerId do not grant permissions, only assignedUserIds matters
 export const filterEventsByUserAccess = (events: CalendarEvent[], currentUserId?: number) => {
   if (!currentUserId) {
     return events; // Return all events if no user ID provided
   }
-  
+
   return events.filter(event => {
-    // Check if user is the owner
-    if (event.ownerId === currentUserId) {
-      return true;
-    }
-    
-    // Check if user is assigned to the task
+    // Only show tasks where user is assigned
+    // REMOVED: createdBy check - task creators must be explicitly assigned to see their tasks
     if (event.assignedUserIds && event.assignedUserIds.includes(currentUserId)) {
       return true;
     }
-    
+
     return false;
   });
 };

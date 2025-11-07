@@ -17,15 +17,19 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     @Query("SELECT t FROM Task t WHERE t.deleteInd = false AND t.projectId = :projectId")
     List<Task> findByProjectIdAndNotDeleted(@Param("projectId") Long projectId);
     
-    @Query("SELECT t FROM Task t WHERE t.deleteInd = false AND (t.projectId IS NULL OR t.projectId = 0) AND t.ownerId = :ownerId")
-    List<Task> findPersonalTasksByOwnerIdAndNotDeleted(@Param("ownerId") Long ownerId);
+    @Query("SELECT DISTINCT t FROM Task t " +
+           "LEFT JOIN TaskAssignee ta ON t.id = ta.taskId " +
+           "WHERE t.deleteInd = false " +
+           "AND (t.projectId IS NULL OR t.projectId = 0) " +
+           "AND ta.userId = :userId")
+    List<Task> findPersonalTasksByOwnerIdAndNotDeleted(@Param("userId") Long userId);
     
     @Query("SELECT t FROM Task t WHERE t.deleteInd = false AND t.ownerId = :ownerId")
     List<Task> findByOwnerIdAndNotDeleted(@Param("ownerId") Long ownerId);
     
-    @Query("SELECT t FROM Task t " +
+    @Query("SELECT DISTINCT t FROM Task t " +
            "LEFT JOIN TaskAssignee ta ON t.id = ta.taskId " +
-           "WHERE t.deleteInd = false AND (t.ownerId = :userId OR ta.userId = :userId)")
+           "WHERE t.deleteInd = false AND ta.userId = :userId")
     List<Task> findUserTasks(@Param("userId") Long userId);
 
     @Query("SELECT DISTINCT t FROM Task t " +
@@ -43,10 +47,10 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     Task findByIdAndNotDeleted(@Param("id") Long id);
 
     // Create a method that gets incompleted tasks due tmr
-    @Query("SELECT t FROM Task t " +
+    @Query("SELECT DISTINCT t FROM Task t " +
             "LEFT JOIN TaskAssignee ta ON t.id = ta.taskId " +
             "WHERE t.deleteInd = false " +
-            "AND (t.ownerId = :userId OR ta.userId = :userId) " +
+            "AND ta.userId = :userId " +
             "AND t.status != 'COMPLETED' " +
             "AND t.dueDateTime >= :startOfDay " +
             "AND t.dueDateTime < :endOfDay ")

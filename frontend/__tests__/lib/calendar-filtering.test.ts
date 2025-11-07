@@ -23,6 +23,7 @@ describe('Calendar Filtering - Colleague Task Visibility', () => {
     tags: [],
     assignedUserIds: [1],
     ownerId: 1,
+    createdBy: 1,
     color: 'bg-blue-500',
   };
 
@@ -40,6 +41,7 @@ describe('Calendar Filtering - Colleague Task Visibility', () => {
     tags: [],
     assignedUserIds: [1, 2],
     ownerId: 2,
+    createdBy: 2,
     color: 'bg-red-500',
   };
 
@@ -57,6 +59,7 @@ describe('Calendar Filtering - Colleague Task Visibility', () => {
     tags: [],
     assignedUserIds: [2, 3],
     ownerId: 2,
+    createdBy: 2,
     color: 'bg-green-500',
   };
 
@@ -74,23 +77,24 @@ describe('Calendar Filtering - Colleague Task Visibility', () => {
     tags: [],
     assignedUserIds: [],
     ownerId: 3,
+    createdBy: 3,
     color: 'bg-yellow-500',
   };
 
   const allTasks = [userOwnedTask, userAssignedTask, colleagueTask, unassignedTask];
 
   describe('filterEventsByUserAccess', () => {
-    it('should filter to show only user-related tasks (owned or assigned)', () => {
+    it('should filter to show only user-assigned tasks', () => {
       const filtered = filterEventsByUserAccess(allTasks, currentUserId);
 
       expect(filtered).toHaveLength(2);
-      expect(filtered).toContainEqual(userOwnedTask);
-      expect(filtered).toContainEqual(userAssignedTask);
+      expect(filtered).toContainEqual(userOwnedTask); // included because user is assigned
+      expect(filtered).toContainEqual(userAssignedTask); // included because user is assigned
       expect(filtered).not.toContainEqual(colleagueTask);
       expect(filtered).not.toContainEqual(unassignedTask);
     });
 
-    it('should include task if user is the owner', () => {
+    it('should include task if user is assigned (even if also owner)', () => {
       const filtered = filterEventsByUserAccess([userOwnedTask], currentUserId);
 
       expect(filtered).toHaveLength(1);
@@ -216,8 +220,8 @@ describe('Calendar Filtering - Colleague Task Visibility', () => {
 
       const filtered = filterEventsByUserAccess([taskWithoutAssignees], currentUserId);
 
-      // Should still be included because user is the owner
-      expect(filtered).toHaveLength(1);
+      // Should be excluded because user is not in assignedUserIds (ownership doesn't grant access)
+      expect(filtered).toHaveLength(0);
     });
 
     it('should handle events with empty assignedUserIds array', () => {

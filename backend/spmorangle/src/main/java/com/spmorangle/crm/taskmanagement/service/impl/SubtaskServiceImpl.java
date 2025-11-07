@@ -195,7 +195,8 @@ public class SubtaskServiceImpl implements SubtaskService {
         }
 
         // check if is a collaborator of the task
-        return task.getOwnerId().equals(userId) || collaboratorService.isUserTaskCollaborator(taskId, userId);
+        // REMOVED: Task owner check - permissions now based on assignees only
+        return collaboratorService.isUserTaskCollaborator(taskId, userId);
 
     }
 
@@ -215,12 +216,7 @@ public class SubtaskServiceImpl implements SubtaskService {
             return subtask.getCreatedBy().equals(userId);
         }
 
-        try {
-            return projectService.getOwnerId(projectId).equals(userId);
-        } catch (RuntimeException e) {
-            // Project not found - user can't delete subtasks from non-existent projects
-            log.warn("Project not found with ID: {} when checking subtask {} delete permission", projectId, subtaskId);
-            return false;
-        }
+        // Use isUserProjectOwner which checks project_members.is_owner flag
+        return projectService.isUserProjectOwner(userId, projectId);
     }
 }

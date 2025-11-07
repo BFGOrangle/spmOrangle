@@ -27,7 +27,7 @@ import { userManagementService } from "@/services/user-management-service";
 import { fileService } from "@/services/file-service";
 import { useCurrentUser } from "@/contexts/user-context";
 import { UserResponseDto } from "@/types/user";
-import { User, Crown, Loader2, X, Calendar } from "lucide-react";
+import { Loader2, X, Calendar } from "lucide-react";
 import { tagService } from "@/services/tag-service";
 import { useCreateTask } from "@/hooks/use-task-mutations";
 import { RecurrenceData, RecurrenceSelector } from "./recurrence-selector";
@@ -113,10 +113,7 @@ export function TaskCreationDialog({
   const [tagsError, setTagsError] = useState<string | null>(null);
   const [loadingTags, setLoadingTags] = useState(false);
   
-  // New state for task assignment and project selection
-  const [projectMembers, setProjectMembers] = useState<UserResponseDto[]>([]);
-  const [loadingMembers, setLoadingMembers] = useState(false);
-  const [selectedAssignee, setSelectedAssignee] = useState<number | null>(null);
+  // New state for project selection
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(projectId || null);
 
   // Collaborator management state
@@ -125,6 +122,11 @@ export function TaskCreationDialog({
   const [collaboratorsError, setCollaboratorsError] = useState<string | null>(null);
   const [isCollaboratorDialogOpen, setIsCollaboratorDialogOpen] = useState(false);
   const [draftCollaboratorIds, setDraftCollaboratorIds] = useState<number[]>([]);
+  
+  // Project members state (for managers assigning tasks to team members)
+  const [projectMembers, setProjectMembers] = useState<UserResponseDto[]>([]);
+  const [loadingProjectMembers, setLoadingProjectMembers] = useState(false);
+  const [projectMembersError, setProjectMembersError] = useState<string | null>(null);
 
   // Due date state
   const [dueDate, setDueDate] = useState<string>('');
@@ -142,7 +144,6 @@ export function TaskCreationDialog({
 
   const isManager = currentUser?.role === 'MANAGER';
   const isPersonalTask = selectedProjectId === null || selectedProjectId === 0;
-  const canAssignToOthers = isManager && !isPersonalTask; // Only managers can assign project tasks to others
   const canSelectProject = isManager && !projectId; // Only managers can select project when not called from specific project
 
   // Get the current user's ID consistently
@@ -205,7 +206,6 @@ export function TaskCreationDialog({
       });
       setDueDate('');
       setSelectedProjectId(projectId || null);
-      setSelectedAssignee(null);
       setSelectedFiles(null);
       setDraftCollaboratorIds([]);
     }
@@ -283,12 +283,40 @@ export function TaskCreationDialog({
     };
   }, [open]);
 
-  // Load project members when dialog opens and projectId is available
+  // Load project members when manager opens dialog with a projectId
   useEffect(() => {
-    if (open && selectedProjectId && canAssignToOthers) {
-      loadProjectMembers();
+    if (!open || !isManager || !projectId) {
+      return;
     }
-  }, [open, selectedProjectId, canAssignToOthers]);
+
+    let isActive = true;
+
+    const loadProjectMembers = async () => {
+      try {
+        setLoadingProjectMembers(true);
+        setProjectMembersError(null);
+        const members = await userManagementService.getProjectMembers(projectId);
+        if (isActive) {
+          setProjectMembers(members);
+        }
+      } catch (err) {
+        console.error('Error loading project members:', err);
+        if (isActive) {
+          setProjectMembersError('Failed to load project members');
+        }
+      } finally {
+        if (isActive) {
+          setLoadingProjectMembers(false);
+        }
+      }
+    };
+
+    loadProjectMembers();
+
+    return () => {
+      isActive = false;
+    };
+  }, [open, isManager, projectId]);
 
   useEffect(() => {
     if (!open) {
@@ -301,21 +329,6 @@ export function TaskCreationDialog({
       setDraftCollaboratorIds(selectedCollaboratorIds);
     }
   }, [isCollaboratorDialogOpen, selectedCollaboratorIds]);
-
-  const loadProjectMembers = async () => {
-    if (!selectedProjectId) return;
-    
-    try {
-      setLoadingMembers(true);
-      const members = await userManagementService.getProjectMembers(selectedProjectId);
-      setProjectMembers(members);
-    } catch (err) {
-      console.error('Error loading project members:', err);
-      setError('Failed to load project members. You can still create the task without assignment.');
-    } finally {
-      setLoadingMembers(false);
-    }
-  };
 
   const toggleDraftCollaborator = (collaboratorId: number) => {
     setDraftCollaboratorIds((prev) => {
@@ -441,10 +454,6 @@ export function TaskCreationDialog({
       setLoading(true);
       setError(null);
 
-      // Determine the owner ID and which endpoint to use
-      const assigneeId = selectedAssignee || currentUserId;
-      const shouldUseManagerEndpoint = canAssignToOthers && selectedAssignee && selectedAssignee !== currentUserId;
-
       const uniqueCollaboratorIds = Array.from(new Set(selectedCollaboratorIds));
       // Convert local datetime to ISO string with timezone offset if dueDate is provided
       const formatDueDateTime = (localDateTime: string): string | undefined => {
@@ -464,7 +473,6 @@ export function TaskCreationDialog({
         ...formData,
         assignedUserIds:
           uniqueCollaboratorIds.length > 0 ? uniqueCollaboratorIds : undefined,
-        ownerId: assigneeId,
         title: formData.title!,
         taskType: formData.taskType!,
         projectId: isPersonalTask ? 0 : selectedProjectId!,
@@ -478,12 +486,11 @@ export function TaskCreationDialog({
       await ensureManagedTagsExist(taskData.tags ?? []);
 
       console.log('Creating task with data:', taskData);
-      console.log('Using manager endpoint:', shouldUseManagerEndpoint);
 
       // Use the mutation hook for task creation with automatic cache invalidation
       const createdTask = await createTaskMutation.mutateAsync({
         taskData,
-        useManagerEndpoint: !!shouldUseManagerEndpoint
+        useManagerEndpoint: false // Always use standard endpoint - backend sets creator from session
       });
       
       console.log('Task created successfully:', createdTask);
@@ -519,7 +526,6 @@ export function TaskCreationDialog({
         priority: 5, // Reset to medium priority
       });
       setSelectedFiles(null);
-      setSelectedAssignee(null);
       setSelectedProjectId(projectId || null);
       setDueDate('');
       setError(null);
@@ -566,28 +572,11 @@ export function TaskCreationDialog({
           </DialogTitle>
           <DialogDescription>
             {canSelectProject ? (
-              <>
-                As a manager, you can create a task for any project or create a personal task.
-                {canAssignToOthers && (
-                  <span className="block mt-1 text-sm text-blue-600">
-                    <Crown className="inline h-3 w-3 mr-1" />
-                    You can also assign project tasks to team members.
-                  </span>
-                )}
-              </>
+              "As a manager, you can create a task for any project or create a personal task."
             ) : (
-              <>
-                {isPersonalTask 
-                  ? "Create a personal task that's not associated with any project."
-                  : "Create a new task for this project."
-                }
-                {canAssignToOthers && (
-                  <span className="block mt-1 text-sm text-blue-600">
-                    <Crown className="inline h-3 w-3 mr-1" />
-                    As a manager, you can assign this task to team members.
-                  </span>
-                )}
-              </>
+              isPersonalTask
+                ? "Create a personal task that's not associated with any project."
+                : "Create a new task for this project."
             )}
           </DialogDescription>
         </DialogHeader>
@@ -614,8 +603,6 @@ export function TaskCreationDialog({
                 onValueChange={(value) => {
                   const projectId = value === "0" ? null : parseInt(value);
                   setSelectedProjectId(projectId);
-                  setSelectedAssignee(null); // Reset assignee when project changes
-                  setProjectMembers([]); // Clear project members
                 }}
               >
                 <SelectTrigger>
@@ -641,6 +628,27 @@ export function TaskCreationDialog({
             </div>
           )}
 
+          {/* Show assignment message for staff members creating project tasks */}
+          {!isManager && projectId && currentUser && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                This project task will be assigned to you.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {currentUser.fullName || currentUser.email || 'You'}
+              </p>
+            </div>
+          )}
+
+          {/* Show project members error for managers */}
+          {isManager && projectId && projectMembersError && (
+            <div className="space-y-2">
+              <p className="text-sm text-destructive">
+                {projectMembersError}
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Textarea
@@ -651,78 +659,6 @@ export function TaskCreationDialog({
               rows={3}
             />
           </div>
-
-          {/* Task Assignment Section */}
-          {isPersonalTask ? (
-            <div className="space-y-2">
-              <Label>Task Owner</Label>
-              <div className="p-3 bg-muted rounded-md">
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="h-4 w-4" />
-                  <span>This personal task will be assigned to you: <strong>{currentUser?.fullName || currentUser?.email}</strong></span>
-                </div>
-              </div>
-            </div>
-          ) : canAssignToOthers ? (
-            <div className="space-y-2">
-              <Label htmlFor="assignee">Assign to *</Label>
-              <Select
-                value={selectedAssignee?.toString() || ''}
-                onValueChange={(value) => setSelectedAssignee(value ? parseInt(value) : null)}
-                disabled={loadingMembers}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingMembers ? "Loading team members..." : "Select team member"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* Option to assign to self */}
-                                    {/* Option to assign to self */}
-                  <SelectItem value={currentUserId.toString()}>
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      <span>Myself ({currentUser?.fullName || currentUser?.email})</span>
-                    </div>
-                  </SelectItem>
-                  
-                  {/* Project team members */}
-                  {projectMembers.map((member) => {
-                    const isCurrentUser = member.id === currentUserId;
-                    if (isCurrentUser) return null; // Don't duplicate the current user
-                    
-                    return (
-                      <SelectItem key={member.id} value={member.id.toString()}>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4" />
-                          <span>{member.username}</span>
-                          <span className="text-xs">{member.email}</span>
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              {loadingMembers && (
-                <p className="text-xs text-muted-foreground">
-                  Loading project team members...
-                </p>
-              )}
-              {!loadingMembers && projectMembers.length === 0 && selectedProjectId && (
-                <p className="text-xs text-muted-foreground">
-                  No other team members found for this project. Task will be assigned to you.
-                </p>
-              )}
-            </div>
-          ) : !isPersonalTask ? (
-            <div className="space-y-2">
-              <Label>Task Owner</Label>
-              <div className="p-3 bg-muted rounded-md">
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="h-4 w-4" />
-                  <span>This project task will be assigned to you: <strong>{currentUser?.fullName || currentUser?.email}</strong></span>
-                </div>
-              </div>
-            </div>
-          ) : null}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

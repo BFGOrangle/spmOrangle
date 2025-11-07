@@ -86,6 +86,19 @@ public class CollaboratorServiceImpl implements CollaboratorService {
             throw new MaxAssigneesExceededException(taskId, currentAssigneeCount);
         }
 
+        // Auto-add collaborator to project_members if not already there (for project tasks only)
+        if (!isPersonalTask) {
+            try {
+                projectService.addProjectMember(taskProjectId, collaboratorId, assignedById);
+                log.info("✅ [COLLABORATOR] Ensured collaborator {} is member of project {}",
+                         collaboratorId, taskProjectId);
+            } catch (Exception e) {
+                log.error("❌ [COLLABORATOR] Failed to add collaborator {} to project {}: {}",
+                         collaboratorId, taskProjectId, e.getMessage());
+                // Don't fail the task assignment if project member addition fails
+            }
+        }
+
         TaskAssignee taskAssignee = new TaskAssignee();
         taskAssignee.setTaskId(taskId);
         taskAssignee.setUserId(collaboratorId);
@@ -120,6 +133,9 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         long taskId = requestDto.getTaskId();
         long collaboratorId = requestDto.getCollaboratorId();
 
+        log.info("🔵 [COLLABORATOR] Attempting to remove collaborator - TaskId: {}, CollaboratorId: {}, RemovedById: {}",
+                 taskId, collaboratorId, assignedById);
+
         // Get task for authorization check
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new TaskNotFoundException(taskId));
@@ -130,15 +146,20 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         boolean isPersonalTask = (taskProjectId == null || taskProjectId == 0);
 
         if (!isPersonalTask && !projectService.isUserProjectMember(assignedById, taskProjectId)) {
+            log.error("❌ [COLLABORATOR] User {} is not a member of project {}", assignedById, taskProjectId);
             throw new com.spmorangle.crm.projectmanagement.exception.ForbiddenException(
                 "Cannot remove collaborators from tasks in a view-only project. You must be a project member or owner.");
         }
 
         if (!taskAssigneeRepository.existsByTaskIdAndUserIdAndAssignedId(taskId, collaboratorId, assignedById)) {
+            log.error("❌ [COLLABORATOR] Collaborator assignment not found - TaskId: {}, CollaboratorId: {}",
+                     taskId, collaboratorId);
             throw new CollaboratorAssignmentNotFoundException(taskId, collaboratorId);
         }
 
         taskAssigneeRepository.deleteById(new TaskAssigneeCK(taskId, collaboratorId, assignedById));
+        log.info("✅ [COLLABORATOR] Successfully removed collaborator from task - TaskId: {}, CollaboratorId: {}",
+                 taskId, collaboratorId);
 
         publishAssigneeRemovedNotification(task, collaboratorId, assignedById);
 
@@ -146,9 +167,50 @@ public class CollaboratorServiceImpl implements CollaboratorService {
         try {
             reportService.syncTimeTrackingOnAssigneeRemove(taskId, collaboratorId);
         } catch (Exception e) {
-            log.error("[COLLABORATOR] Failed to sync time tracking for removed assignee - TaskId: {}, CollaboratorId: {}",
+            log.error("❌ [COLLABORATOR] Failed to sync time tracking for removed assignee - TaskId: {}, CollaboratorId: {}",
                      taskId, collaboratorId, e);
             // Don't fail the operation if time tracking sync fails
+        }
+
+        // Cleanup: Remove user from project members if they have no more tasks in the project
+        if (!isPersonalTask) {
+            try {
+                cleanupProjectMembershipIfNoTasks(taskProjectId, collaboratorId);
+            } catch (Exception e) {
+                log.error("❌ [COLLABORATOR] Failed to cleanup project membership for user {} in project {}: {}",
+                         collaboratorId, taskProjectId, e.getMessage());
+                // Don't fail the operation if cleanup fails
+            }
+        }
+    }
+
+    /**
+     * Removes a user from project members if they no longer have any tasks assigned in the project.
+     * This method is called after removing a collaborator from a task.
+     *
+     * @param projectId The project ID to check
+     * @param userId The user ID to check
+     */
+    private void cleanupProjectMembershipIfNoTasks(Long projectId, Long userId) {
+        log.info("🧹 [CLEANUP] Checking if user {} should be removed from project {} members", userId, projectId);
+
+        // Check if user is a project owner - never remove owners
+        if (projectService.isUserProjectOwner(userId, projectId)) {
+            log.info("ℹ️ [CLEANUP] User {} is a project owner, skipping removal from project {}", userId, projectId);
+            return;
+        }
+
+        // Check if user has any remaining tasks in this project
+        boolean hasTasksInProject = taskAssigneeRepository.existsTaskAssigneeInProject(userId, projectId);
+
+        if (!hasTasksInProject) {
+            log.info("🗑️ [CLEANUP] User {} has no more tasks in project {}, removing from project members",
+                     userId, projectId);
+            projectService.removeProjectMember(projectId, userId);
+            log.info("✅ [CLEANUP] Successfully removed user {} from project {} members", userId, projectId);
+        } else {
+            log.info("ℹ️ [CLEANUP] User {} still has tasks in project {}, keeping as project member",
+                     userId, projectId);
         }
     }
 

@@ -109,7 +109,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         id: backendStaffId ? backendStaffId.toString() : cognitoSubId, // Use backend staff ID or fallback to cognito sub
         firstName: attributes.given_name,
         lastName: attributes.family_name,
-        role: userRole, // Use the role extracted from token
+        role: staffProfile?.roleType || userRole, // Prefer role from backend database, fallback to token
         jobTitle: attributes["custom:job_title"] || attributes.job_title,
         email: attributes.email,
         fullName:

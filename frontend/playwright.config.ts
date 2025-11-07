@@ -10,7 +10,8 @@ import fs from 'fs';
 
 // Debug: Check if .env files exist and load them
 // Try actual project path first, then fallback to worktree path
-const actualProjectPath = 'C:\\Users\\yeoyu\\OneDrive\\Desktop\\UNI\\class\\Y3S1\\SPM\\Project\\spmOrangle\\frontend';
+// const actualProjectPath = 'C:\\Users\\yeoyu\\OneDrive\\Desktop\\UNI\\class\\Y3S1\\SPM\\Project\\spmOrangle\\frontend';
+const actualProjectPath = "/Users/taneeherng/Desktop/SMU/Y3S1/SPM/spmOrangle/frontend/.env";
 const worktreePath = __dirname;
 
 // Check both locations

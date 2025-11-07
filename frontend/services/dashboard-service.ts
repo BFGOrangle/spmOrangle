@@ -25,9 +25,12 @@ export interface TaskDashboardItem {
   status: string;
   taskType?: string;
   priority?: number;
-  ownerId: number;
-  ownerName: string;
+  // DEPRECATED: Use createdBy instead - will be removed in future phase
+  ownerId?: number;
+  ownerName?: string;
   ownerDepartment?: string;
+  createdBy: number;
+  createdByName?: string;
   projectId?: number;
   projectName?: string;
   dueDateTime?: string;

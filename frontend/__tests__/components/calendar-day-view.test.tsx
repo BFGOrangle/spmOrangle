@@ -22,6 +22,7 @@ describe('CalendarDayView', () => {
     tags: [],
     assignedUserIds: [],
     ownerId: 1,
+    createdBy: 1,
     color: 'bg-blue-500 opacity-70',
   });
 
@@ -39,6 +40,7 @@ describe('CalendarDayView', () => {
     tags: [],
     assignedUserIds: [],
     ownerId: 1,
+    createdBy: 1,
     color: 'bg-blue-500 opacity-70',
   });
 

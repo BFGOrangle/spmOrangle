@@ -321,7 +321,7 @@ export default function ProjectTasksPage() {
 
   // Build unique assignee list from tasks
   const assignees = useMemo(() => {
-    const unique = Array.from(new Set(tasks.map(t => t.ownerId)));
+    const unique = Array.from(new Set(tasks.map(t => t.ownerId).filter((id): id is number => id !== undefined)));
     return unique.sort((a, b) => a - b);
   }, [tasks]);
 

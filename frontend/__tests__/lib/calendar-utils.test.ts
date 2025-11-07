@@ -269,6 +269,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 
@@ -328,6 +329,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 
@@ -377,6 +379,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 
@@ -425,6 +428,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: assignedUserIds || [],
       ownerId: ownerId || 0,
+      createdBy: ownerId || 1,
       color: 'bg-blue-500',
     });
 
@@ -435,11 +439,11 @@ describe('calendar-utils', () => {
       expect(filtered).toHaveLength(2);
     });
 
-    it('includes events owned by user', () => {
-      const event = createEvent(5);
+    it('excludes events where user is only owner but not assigned', () => {
+      const event = createEvent(5); // owner but not in assignedUserIds
       const filtered = filterEventsByUserAccess([event], 5);
 
-      expect(filtered).toHaveLength(1);
+      expect(filtered).toHaveLength(0);
     });
 
     it('includes events assigned to user', () => {
@@ -456,15 +460,15 @@ describe('calendar-utils', () => {
       expect(filtered).toHaveLength(0);
     });
 
-    it('includes events user owns or is assigned to', () => {
+    it('only includes events user is assigned to', () => {
       const events = [
-        createEvent(5), // owned
-        createEvent(1, [5]), // assigned
-        createEvent(1, [2, 3]), // no access
+        createEvent(5), // owned but not assigned - excluded
+        createEvent(1, [5]), // assigned - included
+        createEvent(1, [2, 3]), // no access - excluded
       ];
       const filtered = filterEventsByUserAccess(events, 5);
 
-      expect(filtered).toHaveLength(2);
+      expect(filtered).toHaveLength(1);
     });
   });
 
@@ -483,6 +487,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 
@@ -512,6 +517,7 @@ describe('calendar-utils', () => {
         endDate: date,
         taskType: 'FEATURE',
         status: 'TODO',
+        createdBy: 1,
         projectId: 1,
         projectName: 'Test',
         tags: [],
@@ -551,6 +557,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 
@@ -596,6 +603,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 

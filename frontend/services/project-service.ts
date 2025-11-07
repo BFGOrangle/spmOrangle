@@ -42,7 +42,8 @@ export interface TaskResponse {
   id: number;
   projectId?: number;
   projectName?: string;
-  ownerId: number;
+  // DEPRECATED: ownerId, ownerName, ownerDepartment will be removed in future phase - use createdBy/createdByName instead
+  ownerId?: number;
   ownerName?: string;
   ownerDepartment?: string;
   taskType: 'BUG' | 'FEATURE' | 'CHORE' | 'RESEARCH';
@@ -51,11 +52,13 @@ export interface TaskResponse {
   status: 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
   tags?: string[];
   assignedUserIds?: number[];
-  userHasEditAccess: boolean;
-  userHasDeleteAccess: boolean;
+  // Backend-calculated permission flags - ALWAYS use these
+  userHasEditAccess: boolean;  // Can edit task
+  userHasDeleteAccess: boolean; // Can delete task
   createdAt: string;
   updatedAt?: string;
   createdBy: number;
+  createdByName?: string;  // Name of creator
   updatedBy?: number;
   subtasks?: SubtaskResponse[];
   dueDateTime?: string;
@@ -68,7 +71,9 @@ export interface TaskResponse {
 
 export interface CreateTaskRequest {
   projectId?: number;
-  ownerId: number;
+  // DEPRECATED: ownerId still required by backend, but will be removed
+  // Backend uses session user as creator automatically
+  ownerId?: number;
   title: string;
   description?: string;
   status?: 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';

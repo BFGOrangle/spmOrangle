@@ -4,6 +4,7 @@ import com.spmorangle.common.converter.UserConverter;
 import com.spmorangle.common.enums.UserType;
 import com.spmorangle.common.model.User;
 import com.spmorangle.common.repository.UserRepository;
+import com.spmorangle.crm.departmentmgmt.service.DepartmentQueryService;
 import com.spmorangle.crm.taskmanagement.model.TaskAssignee;
 import com.spmorangle.crm.usermanagement.dto.CreateUserDto;
 import com.spmorangle.crm.usermanagement.dto.UpdateUserRoleDto;
@@ -24,6 +25,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     private final UserRepository userRepository;
     private final CognitoServiceImpl cognitoService;
+    private final DepartmentQueryService departmentQueryService;
 
     @Override
     public void createUser(CreateUserDto createStaffDto, String roleType, boolean isSetAsTemporaryPassword) {
@@ -216,4 +218,19 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
 
+
+    @Override
+    public List<UserResponseDto> getAssignableManagers(Long currentUserId) {
+        log.info("Getting all active managers for cross-department assignment (excluding user {})", currentUserId);
+        List<User> managers = userRepository.findAllActiveManagers();
+        log.info("Found {} active managers before filtering", managers.size());
+
+        List<UserResponseDto> filteredManagers = managers.stream()
+                .filter(user -> !user.getId().equals(currentUserId))
+                .map(user -> UserConverter.convert(user, departmentQueryService))
+                .toList();
+
+        log.info("Returning {} managers after excluding current user", filteredManagers.size());
+        return filteredManagers;
+    }
 }
