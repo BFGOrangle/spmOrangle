@@ -57,7 +57,7 @@ export interface TaskResponseDto {
   tags?: string[];
   assignedUserIds?: number[];
   // Backend-calculated permission flags - ALWAYS use these instead of calculating permissions in frontend
-  userHasWriteAccess: boolean;  // Can current user edit this task?
+  userHasEditAccess: boolean;  // Can current user edit this task?
   userHasDeleteAccess: boolean; // Can current user delete this task?
   createdAt: string;
   updatedAt?: string;

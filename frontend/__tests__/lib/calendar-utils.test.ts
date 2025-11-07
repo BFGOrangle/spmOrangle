@@ -72,7 +72,7 @@ describe('calendar-utils', () => {
       tags: ['tag1'],
       assignedUserIds: [1, 2],
       ownerId: 1,
-      userHasWriteAccess: true,
+      userHasEditAccess: true,
       userHasDeleteAccess: true,
       createdBy: 1,
     };

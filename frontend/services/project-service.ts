@@ -53,7 +53,7 @@ export interface TaskResponse {
   tags?: string[];
   assignedUserIds?: number[];
   // Backend-calculated permission flags - ALWAYS use these
-  userHasWriteAccess: boolean;  // Can edit task
+  userHasEditAccess: boolean;  // Can edit task
   userHasDeleteAccess: boolean; // Can delete task
   createdAt: string;
   updatedAt?: string;

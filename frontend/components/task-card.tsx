@@ -129,7 +129,7 @@ const getTaskProperties = (task: TaskSummary | TaskResponse) => {
     id: typeof task.id === 'string' ? parseInt(task.id, 10) : task.id,
     title: task.title,
     description: task.description || '',
-    userHasEditAccess: isTaskSummary ? (task as TaskSummary).userHasEditAccess : (task as TaskResponse).userHasWriteAccess,
+    userHasEditAccess: isTaskSummary ? (task as TaskSummary).userHasEditAccess : (task as TaskResponse).userHasEditAccess,
     userHasDeleteAccess: task.userHasDeleteAccess,
     status: isTaskSummary ? task.status : mapBackendStatus((task as TaskResponse).status),
     key: isTaskSummary ? (task as TaskSummary).key : `TASK-${task.id}`,

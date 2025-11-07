@@ -141,7 +141,7 @@ const mockTask: TaskResponse = {
   createdAt: "2024-01-01T00:00:00Z",
   updatedAt: "2024-01-02T00:00:00Z",
   dueDateTime: "2024-12-31T23:59:59Z",
-  userHasWriteAccess: true,
+  userHasEditAccess: true,
   userHasDeleteAccess: true,
 };
 
