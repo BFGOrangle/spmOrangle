@@ -172,7 +172,9 @@ export default function Dashboard() {
 
     return Object.entries(
       tasks.reduce<Record<number, number>>((acc, task) => {
-        acc[task.ownerId] = (acc[task.ownerId] || 0) + 1;
+        if (task.ownerId !== undefined) {
+          acc[task.ownerId] = (acc[task.ownerId] || 0) + 1;
+        }
         return acc;
       }, {}),
     )
