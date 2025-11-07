@@ -435,13 +435,6 @@ export function TaskUpdateDialog({
     setError(null);
     setIsSubmitting(true);
 
-    // Validate due date is not in the past
-    if (dueDate && new Date(dueDate) < new Date()) {
-      setError('Due date cannot be in the past');
-      setIsSubmitting(false);
-      return;
-    }
-
     try {
       // Build update request with only changed fields
       const updateRequest: UpdateTaskRequest = {
@@ -823,16 +816,8 @@ export function TaskUpdateDialog({
                 type="datetime-local"
                 value={dueDate}
                 onChange={(e) => {
-                  const selectedDate = e.target.value;
-                  // Validate that selected date is not in the past
-                  if (selectedDate && new Date(selectedDate) < new Date()) {
-                    setError('Due date cannot be in the past');
-                    return;
-                  }
-                  setError(null);
-                  setDueDate(selectedDate);
+                  setDueDate(e.target.value);
                 }}
-                min={getCurrentLocalDateTime()}
                 placeholder="Select due date and time (optional)"
                 className={dueDate ? 'pr-10' : ''}
               />
@@ -862,7 +847,7 @@ export function TaskUpdateDialog({
             )}
             
             <p className="text-xs text-muted-foreground">
-              Due date must be in the future
+              Set a past date to mark task as overdue
             </p>
           </div>
 
