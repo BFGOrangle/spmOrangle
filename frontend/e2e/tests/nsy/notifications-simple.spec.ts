@@ -51,12 +51,12 @@ test.describe('Notifications - Basic Working Tests', () => {
 
     // Test unread count endpoint - use authenticated helper
     const unreadResponse = await authenticatedGet(hrPage, '/api/notifications/unread-count');
-    console.log('Unread count response status:', unreadResponse.status());
+    console.log('Unread count response status:', unreadResponse.status);
 
-    if (!unreadResponse.ok()) {
+    if (!unreadResponse.ok) {
       const text = await unreadResponse.text();
       console.log('Unread count response body:', text);
-      throw new Error(`Failed to fetch unread count: ${unreadResponse.status()} - ${text}`);
+      throw new Error(`Failed to fetch unread count: ${unreadResponse.status} - ${text}`);
     }
 
     const unreadData = await unreadResponse.json();
@@ -67,12 +67,12 @@ test.describe('Notifications - Basic Working Tests', () => {
 
     // Test get notifications endpoint
     const notificationsResponse = await authenticatedGet(hrPage, '/api/notifications');
-    console.log('Notifications response status:', notificationsResponse.status());
+    console.log('Notifications response status:', notificationsResponse.status);
 
-    if (!notificationsResponse.ok()) {
+    if (!notificationsResponse.ok) {
       const text = await notificationsResponse.text();
       console.log('Notifications response body:', text);
-      throw new Error(`Failed to fetch notifications: ${notificationsResponse.status()} - ${text}`);
+      throw new Error(`Failed to fetch notifications: ${notificationsResponse.status} - ${text}`);
     }
 
     const notifications = await notificationsResponse.json();
@@ -192,13 +192,13 @@ test.describe('Notifications - Basic Working Tests', () => {
       null
     );
 
-    expect(markAsReadResponse.ok()).toBeTruthy();
+    expect(markAsReadResponse.ok).toBeTruthy();
 
     // Verify it's now marked as read
     const updatedResponse = await authenticatedGet(hrPage, '/api/notifications');
     const updatedNotifications = await updatedResponse.json();
     const updatedNotification = updatedNotifications.find(
-      n => n.notificationId === unreadNotification.notificationId
+      (n: any) => n.notificationId === unreadNotification.notificationId
     );
 
     expect(updatedNotification.readStatus).toBe(true);

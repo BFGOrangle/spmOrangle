@@ -74,7 +74,7 @@ test.describe('Notification Interaction & Management', () => {
       null
     );
 
-    expect(markAsReadResponse.ok()).toBeTruthy();
+    expect(markAsReadResponse.ok).toBeTruthy();
 
     // Wait a bit for the update to process
     await hrPage.waitForTimeout(500);
@@ -127,7 +127,7 @@ test.describe('Notification Interaction & Management', () => {
       null
     );
 
-    expect(dismissResponse.ok()).toBeTruthy();
+    expect(dismissResponse.ok).toBeTruthy();
 
     // Wait for the dismissal to process
     await hrPage.waitForTimeout(500);
@@ -138,7 +138,7 @@ test.describe('Notification Interaction & Management', () => {
 
     // Check that the dismissed notification is no longer in the list
     const dismissedNotification = afterDismissNotifications.find(
-      n => n.notificationId === notificationToDismiss.notificationId
+      (n: any) => n.notificationId === notificationToDismiss.notificationId
     );
 
     // It should either be gone or have dismissedStatus = true
@@ -158,7 +158,7 @@ test.describe('Notification Interaction & Management', () => {
 
     // Verify dismissed notification is still not visible after refresh
     const stillDismissed = afterRefreshNotifications.find(
-      n => n.notificationId === notificationToDismiss.notificationId
+      (n: any) => n.notificationId === notificationToDismiss.notificationId
     );
 
     if (stillDismissed) {
@@ -250,7 +250,7 @@ test.describe('Notification Interaction & Management', () => {
       const response = await authenticatedGet(hrPage, '/api/notifications');
       const notifications = await response.json();
 
-      const unreadNotification = notifications.find(n => !n.readStatus);
+      const unreadNotification = notifications.find((n: any) => !n.readStatus);
 
       if (unreadNotification) {
         // Mark it as read
@@ -298,7 +298,7 @@ test.describe('Notification Interaction & Management', () => {
     // Mark all as read
     const markAllResponse = await authenticatedPatch(hrPage, '/api/notifications/mark-all-read', null);
 
-    expect(markAllResponse.ok()).toBeTruthy();
+    expect(markAllResponse.ok).toBeTruthy();
 
     // Wait for processing
     await hrPage.waitForTimeout(1000);

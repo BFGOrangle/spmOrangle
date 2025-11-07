@@ -5,7 +5,7 @@
  * and add them to API requests for authenticated testing.
  */
 
-import { Page } from '@playwright/test';
+import { Page, APIResponse } from '@playwright/test';
 
 /**
  * Get the Cognito access token for API testing
@@ -118,7 +118,7 @@ export async function authenticatedRequest(
   page: Page,
   url: string,
   options: RequestInit = {}
-): Promise<Response> {
+): Promise<APIResponse> {
   // Get the Cognito token from the browser
   const token = await getCognitoToken(page);
 
@@ -126,10 +126,9 @@ export async function authenticatedRequest(
   const response = await page.request.fetch(url, {
     ...options,
     headers: {
-      ...options.headers,
       'Authorization': token,
       'Content-Type': 'application/json',
-    },
+    } as Record<string, string>,
   });
 
   return response;
@@ -138,7 +137,7 @@ export async function authenticatedRequest(
 /**
  * Helper to make authenticated GET request
  */
-export async function authenticatedGet(page: Page, url: string): Promise<Response> {
+export async function authenticatedGet(page: Page, url: string): Promise<APIResponse> {
   return authenticatedRequest(page, url, { method: 'GET' });
 }
 
@@ -149,7 +148,7 @@ export async function authenticatedPost(
   page: Page,
   url: string,
   data: any
-): Promise<Response> {
+): Promise<APIResponse> {
   return authenticatedRequest(page, url, {
     method: 'POST',
     body: JSON.stringify(data),
@@ -163,7 +162,7 @@ export async function authenticatedPatch(
   page: Page,
   url: string,
   data: any = null
-): Promise<Response> {
+): Promise<APIResponse> {
   return authenticatedRequest(page, url, {
     method: 'PATCH',
     body: data ? JSON.stringify(data) : null,
@@ -173,6 +172,6 @@ export async function authenticatedPatch(
 /**
  * Helper to make authenticated DELETE request
  */
-export async function authenticatedDelete(page: Page, url: string): Promise<Response> {
+export async function authenticatedDelete(page: Page, url: string): Promise<APIResponse> {
   return authenticatedRequest(page, url, { method: 'DELETE' });
 }
