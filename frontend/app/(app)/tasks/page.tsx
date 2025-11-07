@@ -1564,7 +1564,7 @@ export default function TasksPage() {
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         onTaskCreated={handleTaskCreated}
-        availableProjects={projects.map(p => ({ id: p.id, name: p.name }))}
+        availableProjects={projects.filter(p => !p.isRelated).map(p => ({ id: p.id, name: p.name }))}
       />
     </SidebarInset>
   );

@@ -484,10 +484,13 @@ export default function ProjectTasksPage() {
                 {project.description || "Manage tasks for this project"}
               </p>
             </div>
-            <Button onClick={() => setShowCreateDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Task
-            </Button>
+            {/* Only show Add Task button if user is a project member (not just viewing related project) */}
+            {!project.isRelated && (
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Task
+              </Button>
+            )}
           </div>
 
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
