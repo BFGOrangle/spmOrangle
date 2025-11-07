@@ -187,7 +187,7 @@ export default function ProjectTasksPage() {
       return;
     }
 
-    const canUserEdit = task.userHasWriteAccess;
+    const canUserEdit = task.userHasEditAccess;
     if (!canUserEdit) {
         toast({
         description: "Only Task Owner or Collaborator can update task status",

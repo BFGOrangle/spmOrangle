@@ -128,7 +128,7 @@ const createTask = (
     overrides.updatedAt ?? overrides.createdAt ?? "2024-12-01T00:00:00Z",
   createdBy: overrides.createdBy ?? (overrides.ownerId ?? 1),
   updatedBy: overrides.updatedBy,
-  userHasWriteAccess: overrides.userHasWriteAccess ?? true,
+  userHasEditAccess: overrides.userHasEditAccess ?? true,
   userHasDeleteAccess: overrides.userHasDeleteAccess ?? false,
   tags: overrides.tags ?? [],
   assignedUserIds: overrides.assignedUserIds ?? [],
@@ -179,7 +179,7 @@ describe("TasksPage", () => {
       createdAt: task.dueDateTime || '2024-12-01T00:00:00Z',
       createdBy: 1,
       updatedAt: task.lastUpdated || '2024-12-01T00:00:00Z',
-      userHasWriteAccess: task.userHasEditAccess,
+      userHasEditAccess: task.userHasEditAccess,
       userHasDeleteAccess: task.userHasDeleteAccess,
       // Add collaborators field for compatibility with TaskCard component
       collaborators: task.collaborators || [],
@@ -512,7 +512,7 @@ describe("TasksPage", () => {
         createdAt: "2024-12-01T00:00:00Z",
         createdBy: 1,
         projectId: undefined,
-        userHasWriteAccess: true,
+        userHasEditAccess: true,
         userHasDeleteAccess: false
       };
 
@@ -536,7 +536,7 @@ describe("TasksPage", () => {
         createdAt: "2024-12-01T00:00:00Z",
         createdBy: 1,
         projectId: 1,
-        userHasWriteAccess: false,
+        userHasEditAccess: false,
         userHasDeleteAccess: false
       };
 
@@ -597,7 +597,7 @@ describe("TasksPage", () => {
         createdAt: "2024-12-01T15:00:00Z",
         createdBy: 3,
         updatedAt: "2024-12-01T15:00:00Z",
-        userHasWriteAccess: true,
+        userHasEditAccess: true,
         userHasDeleteAccess: false,
         tags: [],
         assignedUserIds: [],
@@ -622,7 +622,7 @@ describe("TasksPage", () => {
         createdAt: task.dueDateTime || '2024-12-01T00:00:00Z',
         createdBy: 1,
         updatedAt: task.lastUpdated || '2024-12-01T00:00:00Z',
-        userHasWriteAccess: task.userHasEditAccess,
+        userHasEditAccess: task.userHasEditAccess,
         userHasDeleteAccess: task.userHasDeleteAccess,
         tags: [],
         assignedUserIds: [],
@@ -689,7 +689,7 @@ describe("mapBackendStatus function", () => {
         createdAt: "2024-12-01T00:00:00Z",
         createdBy: 1,
         projectId: 1,
-        userHasWriteAccess: true,
+        userHasEditAccess: true,
         userHasDeleteAccess: false
       };
 

@@ -89,7 +89,7 @@ const TASK_TYPE_FILTERS = [
 const GROUPING_OPTIONS = [
   { value: "status", label: "Status board" },
   { value: "project", label: "Project view" },
-  { value: "department", label: "Team/Department view" },
+  { value: "department", label: "Creator department view" },
   { value: "tag", label: "Tag view" },
 ] as const;
 
@@ -199,15 +199,15 @@ const getTaskDisplayProps = (task: TaskResponse) => {
     status: mapBackendStatus(task.status),
     key: `TASK-${task.id}`,
     priority: mapTaskTypeToPriority(task.taskType),
-    owner: task.createdByName || `User ${task.createdBy}`,
-    ownerDepartment: task.ownerDepartment || "Unassigned department",
+    creator: task.createdByName || `User ${task.createdBy}`,
+    creatorDepartment: task.ownerDepartment || "Unassigned department",
     collaborators: [] as string[], // TODO: Add collaborators when available in API
     dueDate: task.createdAt, // Using createdAt as placeholder for due date
     lastUpdated: task.updatedAt || task.createdAt,
     attachments: 0, // TODO: Add attachment count when available
     project: task.projectName || (task.projectId ? `Project ${task.projectId}` : 'Personal Task'),
     subtasks: task.subtasks || [],
-    ownerId: task.ownerId, // DEPRECATED: kept for backward compatibility
+    creatorId: task.ownerId, // Task creator ID (no special permissions)
     projectId: task.projectId
   };
 };
@@ -282,9 +282,9 @@ const TaskBoardCard = ({ task }: TaskBoardCardProps) => {
 
       <div className="flex items-center gap-2 mb-2">
         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-          {getInitials(taskProps.owner)}
+          {getInitials(taskProps.creator)}
         </div>
-        <span className="text-xs font-medium truncate">{taskProps.owner}</span>
+        <span className="text-xs font-medium truncate">{taskProps.creator}</span>
       </div>
 
         {taskProps.collaborators.length > 0 && (
@@ -472,11 +472,11 @@ const TaskTableRow = ({ task }: TaskTableRowProps) => {
 
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-          {getInitials(taskProps.owner)}
+          {getInitials(taskProps.creator)}
         </div>
         <div className="text-sm">
-          <p className="font-medium">{taskProps.owner}</p>
-          <p className="text-muted-foreground text-xs">Owner</p>
+          <p className="font-medium">{taskProps.creator}</p>
+          <p className="text-muted-foreground text-xs">Creator</p>
         </div>
       </div>
 
@@ -934,7 +934,7 @@ export default function TasksPage() {
 
     return {
       workItems: tasks.length,
-      owners: creators.size, // Keeping 'owners' name for UI compatibility, but tracks creators
+      creators: creators.size,
       collaborators: 0, // We don't have collaborators data in the simple API response
       dueSoon,
       subtaskTotal: 0, // We don't have subtasks in the current model
@@ -1054,11 +1054,13 @@ export default function TasksPage() {
       }
 
       if (groupBy === "department") {
+        // Group by creator's department (based on task creator, not permissions)
         const department = task.ownerDepartment && task.ownerDepartment.trim().length > 0
           ? task.ownerDepartment
           : "Unassigned department";
         const key = `department-${normalizeKey(department)}`;
-        pushTask(key, department, undefined, task);
+        const helper = "Tasks created by members of this department";
+        pushTask(key, department, helper, task);
         return;
       }
 
@@ -1107,7 +1109,7 @@ export default function TasksPage() {
       return "See how work is distributed across projects.";
     }
     if (groupBy === "department") {
-      return "Understand workload across teams and departments while respecting permissions.";
+      return "See tasks grouped by the creator's department (note: access is controlled by assignees, not creators).";
     }
     if (groupBy === "tag") {
       return "Surface workstreams by tag; tasks with multiple tags appear in each tag group.";
@@ -1153,13 +1155,13 @@ export default function TasksPage() {
           </Card>
           <Card className="p-3">
             <CardHeader className="pb-2">
-              <CardDescription>Owners</CardDescription>
+              <CardDescription>Creators</CardDescription>
               <CardTitle className="text-2xl font-semibold">
-                {totals.owners}
+                {totals.creators}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-muted-foreground text-sm pt-0">
-              People accountable for these work items
+              People who created these work items
             </CardContent>
           </Card>
           <Card className="p-3">
@@ -1527,7 +1529,7 @@ export default function TasksPage() {
             <CardHeader className="pb-4">
               <div className="hidden sm:grid gap-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[minmax(200px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]">
                 <span>Task</span>
-                <span>Owner</span>
+                <span>Creator</span>
                 <span>Collaborators</span>
                 <span>Status</span>
                 <span>Subtasks</span>
