@@ -129,12 +129,12 @@ const getTaskProperties = (task: TaskSummary | TaskResponse) => {
     id: typeof task.id === 'string' ? parseInt(task.id, 10) : task.id,
     title: task.title,
     description: task.description || '',
-    userHasEditAccess: task.userHasEditAccess,
+    userHasEditAccess: isTaskSummary ? (task as TaskSummary).userHasEditAccess : (task as TaskResponse).userHasWriteAccess,
     userHasDeleteAccess: task.userHasDeleteAccess,
     status: isTaskSummary ? task.status : mapBackendStatus((task as TaskResponse).status),
     key: isTaskSummary ? (task as TaskSummary).key : `TASK-${task.id}`,
     priority: isTaskSummary ? (task as TaskSummary).priority : mapPriorityToDisplay((task as TaskResponse).priority),
-    owner: isTaskSummary ? (task as TaskSummary).owner : `User ${(task as TaskResponse).ownerId}`,
+    owner: isTaskSummary ? (task as TaskSummary).owner : ((task as TaskResponse).createdByName || `User ${(task as TaskResponse).createdBy}`),
     collaborators: isTaskSummary ? (task as TaskSummary).collaborators : [],
     dueDateTime: isTaskSummary ? (task as TaskSummary).dueDateTime : (task as TaskResponse).dueDateTime,
     lastUpdated: isTaskSummary ? (task as TaskSummary).lastUpdated : ((task as TaskResponse).updatedAt || (task as TaskResponse).createdAt),
@@ -538,7 +538,7 @@ export function TaskCard({ task, variant = 'board', onTaskUpdated, onTaskDeleted
                     </Badge>
                   </div>
                   <div>
-                    <span className="font-medium">Owner:</span>
+                    <span className="font-medium">Created by:</span>
                     <span className="ml-2">{taskProps.owner}</span>
                   </div>
                   <div>
@@ -880,7 +880,7 @@ function TaskTableCard({ task, onTaskUpdated, onTaskDeleted }: { task: TaskSumma
         </div>
         <div className="text-sm">
           <p className="font-medium">{taskProps.owner}</p>
-          <p className="text-muted-foreground text-xs">Owner</p>
+          <p className="text-muted-foreground text-xs">Created by</p>
         </div>
       </div>
 

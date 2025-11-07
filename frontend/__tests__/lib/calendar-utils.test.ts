@@ -72,7 +72,7 @@ describe('calendar-utils', () => {
       tags: ['tag1'],
       assignedUserIds: [1, 2],
       ownerId: 1,
-      userHasEditAccess: true,
+      userHasWriteAccess: true,
       userHasDeleteAccess: true,
       createdBy: 1,
     };
@@ -269,6 +269,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 
@@ -328,6 +329,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 
@@ -377,6 +379,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 
@@ -425,6 +428,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: assignedUserIds || [],
       ownerId: ownerId || 0,
+      createdBy: ownerId || 1,
       color: 'bg-blue-500',
     });
 
@@ -483,6 +487,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 
@@ -512,6 +517,7 @@ describe('calendar-utils', () => {
         endDate: date,
         taskType: 'FEATURE',
         status: 'TODO',
+        createdBy: 1,
         projectId: 1,
         projectName: 'Test',
         tags: [],
@@ -551,6 +557,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 
@@ -596,6 +603,7 @@ describe('calendar-utils', () => {
       tags: [],
       assignedUserIds: [],
       ownerId: 1,
+      createdBy: 1,
       color: 'bg-blue-500',
     });
 

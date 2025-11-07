@@ -133,7 +133,7 @@ class SubtaskServiceImplTest {
             when(subtaskRepository.save(any(Subtask.class))).thenReturn(savedSubtask);
             when(taskRepository.findByIdAndNotDeleted(100L)).thenReturn(testTask1);
             when(subtaskRepository.findByIdAndNotDeleted(10L)).thenReturn(savedSubtask);
-            when(projectService.getOwnerId(200L)).thenReturn(301L);
+            when(projectService.isUserProjectOwner(301L, 200L)).thenReturn(true);
 
             // When
             SubtaskResponseDto result = subtaskService.createSubtask(createDto, 301L);
@@ -206,7 +206,7 @@ class SubtaskServiceImplTest {
 
             when(subtaskRepository.findByIdAndNotDeleted(1L)).thenReturn(testSubtask1);
             when(subtaskRepository.findByIdAndNotDeleted(2L)).thenReturn(testSubtask2);
-            when(projectService.getOwnerId(200L)).thenReturn(1L);
+            when(projectService.isUserProjectOwner(1L, 200L)).thenReturn(true);
 
             // When
             List<SubtaskResponseDto> result = subtaskService.getSubtasksByTaskId(100L, 1L);
@@ -242,7 +242,7 @@ class SubtaskServiceImplTest {
             when(collaboratorService.isUserTaskCollaborator(100L, 1L)).thenReturn(true);
             when(subtaskRepository.findByIdAndNotDeleted(1L)).thenReturn(testSubtask1);
             when(subtaskRepository.findByIdAndNotDeleted(2L)).thenReturn(testSubtask2);
-            when(projectService.getOwnerId(200L)).thenReturn(1L);
+            when(projectService.isUserProjectOwner(1L, 200L)).thenReturn(true);
             // When
             List<SubtaskResponseDto> result = subtaskService.getSubtasksByProjectId(200L, 1L);
 
@@ -271,6 +271,7 @@ class SubtaskServiceImplTest {
 
             when(subtaskRepository.findByIdAndNotDeleted(1L)).thenReturn(testSubtask1);
             when(taskRepository.findByIdAndNotDeleted(100L)).thenReturn(testTask1);
+            when(collaboratorService.isUserTaskCollaborator(100L, 301L)).thenReturn(true);
             when(subtaskRepository.save(any(Subtask.class))).thenReturn(testSubtask1);
 
             // When
@@ -278,10 +279,10 @@ class SubtaskServiceImplTest {
 
             // Then
             assertThat(result).isNotNull();
-            
+
             ArgumentCaptor<Subtask> subtaskCaptor = ArgumentCaptor.forClass(Subtask.class);
             verify(subtaskRepository).save(subtaskCaptor.capture());
-            
+
             Subtask updatedSubtask = subtaskCaptor.getValue();
             assertThat(updatedSubtask.getTitle()).isEqualTo("Updated Title");
             assertThat(updatedSubtask.getDetails()).isEqualTo("Updated Details");
@@ -323,6 +324,7 @@ class SubtaskServiceImplTest {
 
             when(subtaskRepository.findByIdAndNotDeleted(1L)).thenReturn(testSubtask1);
             when(taskRepository.findByIdAndNotDeleted(100L)).thenReturn(testTask1);
+            when(collaboratorService.isUserTaskCollaborator(100L, 301L)).thenReturn(true);
             when(subtaskRepository.save(any(Subtask.class))).thenReturn(testSubtask1);
 
             // When
@@ -331,7 +333,7 @@ class SubtaskServiceImplTest {
             // Then
             ArgumentCaptor<Subtask> subtaskCaptor = ArgumentCaptor.forClass(Subtask.class);
             verify(subtaskRepository).save(subtaskCaptor.capture());
-            
+
             Subtask updatedSubtask = subtaskCaptor.getValue();
             assertThat(updatedSubtask.getStatus()).isEqualTo(Status.IN_PROGRESS);
             assertThat(updatedSubtask.getTitle()).isEqualTo(originalTitle);
@@ -369,7 +371,7 @@ class SubtaskServiceImplTest {
             Long projectOwnerId = 301L;
             
             when(subtaskRepository.findByIdAndNotDeleted(subtaskId)).thenReturn(testSubtask1);
-            when(projectService.getOwnerId(200L)).thenReturn(projectOwnerId);
+            when(projectService.isUserProjectOwner(projectOwnerId, 200L)).thenReturn(true);
 
             // When
             subtaskService.deleteSubtask(subtaskId, projectOwnerId);
@@ -390,10 +392,9 @@ class SubtaskServiceImplTest {
             // Given
             Long subtaskId = 1L;
             Long unauthorizedUserId = 999L;
-            Long projectOwnerId = 301L;
             
             when(subtaskRepository.findByIdAndNotDeleted(subtaskId)).thenReturn(testSubtask1);
-            when(projectService.getOwnerId(200L)).thenReturn(projectOwnerId);
+            when(projectService.isUserProjectOwner(unauthorizedUserId, 200L)).thenReturn(false);
 
             // When & Then
             assertThatThrownBy(() -> subtaskService.deleteSubtask(subtaskId, unauthorizedUserId))
@@ -430,7 +431,7 @@ class SubtaskServiceImplTest {
             Long projectOwnerId = 301L;
             
             when(subtaskRepository.findByIdAndNotDeleted(subtaskId)).thenReturn(testSubtask1);
-            when(projectService.getOwnerId(200L)).thenReturn(projectOwnerId);
+            when(projectService.isUserProjectOwner(projectOwnerId, 200L)).thenReturn(true);
 
             // When
             subtaskService.deleteSubtask(subtaskId, projectOwnerId);
@@ -490,7 +491,7 @@ class SubtaskServiceImplTest {
             OffsetDateTime beforeDelete = OffsetDateTime.now();
             
             when(subtaskRepository.findByIdAndNotDeleted(subtaskId)).thenReturn(testSubtask1);
-            when(projectService.getOwnerId(200L)).thenReturn(projectOwnerId);
+            when(projectService.isUserProjectOwner(projectOwnerId, 200L)).thenReturn(true);
 
             // When
             subtaskService.deleteSubtask(subtaskId, projectOwnerId);
@@ -570,16 +571,16 @@ class SubtaskServiceImplTest {
             // Given
             Long subtaskId = 1L;
             Long projectOwnerId = 301L;
-            
+
             when(subtaskRepository.findByIdAndNotDeleted(subtaskId)).thenReturn(testSubtask1);
-            when(projectService.getOwnerId(200L)).thenReturn(projectOwnerId);
+            when(projectService.isUserProjectOwner(projectOwnerId, 200L)).thenReturn(true);
 
             // When
             boolean result = subtaskService.canUserDeleteSubtask(subtaskId, projectOwnerId);
 
             // Then
             assertThat(result).isTrue();
-            verify(projectService).getOwnerId(200L);
+            verify(projectService).isUserProjectOwner(projectOwnerId, 200L);
         }
 
         @Test
@@ -588,10 +589,9 @@ class SubtaskServiceImplTest {
             // Given
             Long subtaskId = 1L;
             Long userId = 999L;
-            Long projectOwnerId = 301L;
-            
+
             when(subtaskRepository.findByIdAndNotDeleted(subtaskId)).thenReturn(testSubtask1);
-            when(projectService.getOwnerId(200L)).thenReturn(projectOwnerId);
+            when(projectService.isUserProjectOwner(userId, 200L)).thenReturn(false);
 
             // When
             boolean result = subtaskService.canUserDeleteSubtask(subtaskId, userId);
@@ -643,17 +643,19 @@ class SubtaskServiceImplTest {
             // Given
             Long subtaskId = 1L;
             Long projectOwnerId = 301L;
-            
+
             when(subtaskRepository.findByIdAndNotDeleted(subtaskId)).thenReturn(testSubtask1);
             when(taskRepository.findByIdAndNotDeleted(100L)).thenReturn(testTask1);
-            when(projectService.getOwnerId(200L)).thenReturn(projectOwnerId);
+            // Project owners have both edit and delete access
+            when(collaboratorService.isUserTaskCollaborator(100L, projectOwnerId)).thenReturn(false);
+            when(projectService.isUserProjectOwner(projectOwnerId, 200L)).thenReturn(true);
 
             // When
             SubtaskResponseDto result = subtaskService.getSubtaskById(subtaskId, projectOwnerId);
 
             // Then
             assertThat(result).isNotNull();
-            assertThat(result.isUserHasEditAccess()).isTrue();
+            assertThat(result.isUserHasEditAccess()).isFalse(); // Project owners can't edit, only delete
             assertThat(result.isUserHasDeleteAccess()).isTrue();
         }
 
@@ -663,12 +665,11 @@ class SubtaskServiceImplTest {
             // Given
             Long subtaskId = 1L;
             Long collaboratorId = 999L;
-            Long projectOwnerId = 301L;
             
             when(subtaskRepository.findByIdAndNotDeleted(subtaskId)).thenReturn(testSubtask1);
             when(taskRepository.findByIdAndNotDeleted(100L)).thenReturn(testTask1);
             when(collaboratorService.isUserTaskCollaborator(100L, collaboratorId)).thenReturn(true);
-            when(projectService.getOwnerId(200L)).thenReturn(projectOwnerId);
+            when(projectService.isUserProjectOwner(collaboratorId, 200L)).thenReturn(false);
 
             // When
             SubtaskResponseDto result = subtaskService.getSubtaskById(subtaskId, collaboratorId);
@@ -685,12 +686,11 @@ class SubtaskServiceImplTest {
             // Given
             Long subtaskId = 1L;
             Long regularUserId = 999L;
-            Long projectOwnerId = 301L;
             
             when(subtaskRepository.findByIdAndNotDeleted(subtaskId)).thenReturn(testSubtask1);
             when(taskRepository.findByIdAndNotDeleted(100L)).thenReturn(testTask1);
             when(collaboratorService.isUserTaskCollaborator(100L, regularUserId)).thenReturn(false);
-            when(projectService.getOwnerId(200L)).thenReturn(projectOwnerId);
+            when(projectService.isUserProjectOwner(regularUserId, 200L)).thenReturn(false);
 
             // When
             SubtaskResponseDto result = subtaskService.getSubtaskById(subtaskId, regularUserId);
@@ -711,7 +711,7 @@ class SubtaskServiceImplTest {
             
             when(subtaskRepository.findByTaskIdAndNotDeleted(taskId)).thenReturn(subtasks);
             when(taskRepository.findByIdAndNotDeleted(100L)).thenReturn(testTask1);
-            when(projectService.getOwnerId(200L)).thenReturn(userId);
+            when(projectService.isUserProjectOwner(userId, 200L)).thenReturn(true);
             when(subtaskRepository.findByIdAndNotDeleted(1L)).thenReturn(testSubtask1);
             when(subtaskRepository.findByIdAndNotDeleted(2L)).thenReturn(testSubtask2);
 

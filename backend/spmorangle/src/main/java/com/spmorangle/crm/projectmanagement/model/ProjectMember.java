@@ -34,10 +34,19 @@ public class ProjectMember {
     @ColumnDefault("now()")
     private OffsetDateTime addedAt;
 
+    @Column(name = "is_owner", nullable = false)
+    @ColumnDefault("false")
+    private boolean isOwner;
+
     @PrePersist
     protected void onCreate() {
         if (addedAt == null) {
             addedAt = OffsetDateTime.now();
         }
+    }
+
+    // Manual setter to work around Lombok annotation processing timing
+    public void setOwner(boolean isOwner) {
+        this.isOwner = isOwner;
     }
 }

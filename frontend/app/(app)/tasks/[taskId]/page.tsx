@@ -458,7 +458,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ taskId: s
             </div>
           </div>
           <div className="flex gap-2">
-            {task.userHasEditAccess && (
+            {task.userHasWriteAccess && (
               <Button size="sm" variant="outline" onClick={() => setShowUpdateDialog(true)}>
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Task

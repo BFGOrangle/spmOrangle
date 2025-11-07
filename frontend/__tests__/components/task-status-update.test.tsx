@@ -181,7 +181,7 @@ describe('Task Status Updates with Time Tracking', () => {
     createdBy: 201,
     updatedAt: undefined,
     updatedBy: undefined,
-    userHasEditAccess: true,
+    userHasWriteAccess: true,
     userHasDeleteAccess: true,
     isRecurring: false,
     recurrenceRuleStr: undefined,
