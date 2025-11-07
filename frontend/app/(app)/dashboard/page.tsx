@@ -258,7 +258,18 @@ export default function Dashboard() {
 
   if (isDepartmentDashboard) {
     const scope = departmentDashboard ?? defaultDepartmentDashboard(currentUser?.department);
-    const completionPercent = Math.round(scope.metrics.completionRate ?? 0);
+    
+    // Filter out projects with projectId = 0
+    const filteredProjects = scope.projects.filter(p => p.projectId !== 0);
+    const activeProjectsCount = filteredProjects.length;
+    
+    // Recalculate metrics based on filtered projects
+    const totalTasksInProjects = filteredProjects.reduce((sum, p) => sum + p.totalTasks, 0);
+    const completedTasksInProjects = filteredProjects.reduce((sum, p) => sum + p.completedTasks, 0);
+    const completionPercent = totalTasksInProjects > 0 
+      ? Math.round((completedTasksInProjects / totalTasksInProjects) * 100) 
+      : 0;
+    
     const includedDepartmentsLabel = scope.includedDepartments?.length
       ? scope.includedDepartments.join(", ")
       : scope.department ?? "";
@@ -287,13 +298,13 @@ export default function Dashboard() {
               <CardHeader>
                 <CardDescription>Active projects</CardDescription>
                 <CardTitle className="text-3xl font-semibold">
-                  {scope.metrics.activeProjects}
+                  {activeProjectsCount}
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
-                {scope.metrics.activeProjects === 0
+                {activeProjectsCount === 0
                   ? "No projects yet"
-                  : `${scope.metrics.activeProjects} in flight`}
+                  : `${activeProjectsCount} in flight`}
               </CardContent>
             </Card>
             <Card>
@@ -304,9 +315,9 @@ export default function Dashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
-                {scope.metrics.totalTasks === 0
+                {totalTasksInProjects === 0
                   ? "No tasks yet"
-                  : `${scope.metrics.completedTasks} completed • ${scope.metrics.totalTasks - scope.metrics.completedTasks} in flight`}
+                  : `${completedTasksInProjects} completed • ${totalTasksInProjects - completedTasksInProjects} in flight`}
               </CardContent>
             </Card>
             <Card>
@@ -413,14 +424,6 @@ export default function Dashboard() {
                       Due dates across your scope for the next two weeks.
                     </CardDescription>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-muted-foreground"
-                    disabled
-                  >
-                    Add reminder
-                  </Button>
                 </div>
               </CardHeader>
               <Separator />
