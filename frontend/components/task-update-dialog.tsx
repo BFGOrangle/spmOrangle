@@ -471,16 +471,28 @@ export function TaskUpdateDialog({
         await ensureManagedTagsExist(tags);
       }
 
-      // ALWAYS send dueDateTime to backend (even if unchanged)
-      // This ensures the backend always has the current value and won't accidentally clear it
-      if (dueDate === '') {
-        // No due date set - send null to clear it (or keep it cleared)
-        updateRequest.dueDateTime = null as any;
-        console.log('📅 Sending dueDateTime as null (no due date set)');
+      // Handle due date changes with sentinel value support:
+      // - Don't include field: preserve existing due date
+      // - Empty string "": clear the due date
+      // - ISO string: update to new due date
+      const originalDueDate = task.dueDateTime 
+        ? new Date(task.dueDateTime).toISOString().slice(0, 16)
+        : '';
+      
+      if (dueDate !== originalDueDate) {
+        // Due date has changed from original
+        if (dueDate === '') {
+          // User cleared the due date - send empty string as sentinel
+          updateRequest.dueDateTime = '';
+          console.log('📅 Sending dueDateTime as empty string (clearing due date)');
+        } else {
+          // User set/changed the due date - send the formatted value
+          updateRequest.dueDateTime = formatDueDateTime(dueDate);
+          console.log('📅 Sending dueDateTime:', updateRequest.dueDateTime);
+        }
       } else {
-        // Due date exists - always send the current value
-        updateRequest.dueDateTime = formatDueDateTime(dueDate);
-        console.log('📅 Sending dueDateTime:', updateRequest.dueDateTime);
+        // Due date unchanged - don't include field to preserve existing value
+        console.log('📅 Due date unchanged, not sending dueDateTime field');
       }
 
       // Check if recurrence data has actually been changed by the user
