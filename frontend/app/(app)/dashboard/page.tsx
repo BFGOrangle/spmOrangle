@@ -137,27 +137,17 @@ export default function Dashboard() {
       return [];
     }
 
-    const now = new Date();
-    const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-
     return tasks
-      .filter((task) => {
-        // Filter out completed tasks
-        if (task.status === "COMPLETED") return false;
-        
-        // Only include tasks with a due date
-        if (!task.dueDateTime) return false;
-        
-        // Check if due date is within the next 14 days
-        const dueDate = new Date(task.dueDateTime);
-        return dueDate >= now && dueDate <= fourteenDaysFromNow;
-      })
+      .filter((task) => task.status !== "COMPLETED")
       .sort((a, b) => {
-        // Sort by due date (earliest first)
+        if (a.dueDateTime && !b.dueDateTime) return -1;
+        if (!a.dueDateTime && b.dueDateTime) return 1;
+
         if (a.dueDateTime && b.dueDateTime) {
           return new Date(a.dueDateTime).getTime() - new Date(b.dueDateTime).getTime();
         }
-        return 0;
+
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       })
       .slice(0, 5);
   }, [tasks, isDepartmentDashboard]);
@@ -182,47 +172,13 @@ export default function Dashboard() {
 
     return Object.entries(
       tasks.reduce<Record<number, number>>((acc, task) => {
-        if (task.ownerId !== undefined) {
-          acc[task.ownerId] = (acc[task.ownerId] || 0) + 1;
-        }
+        acc[task.ownerId] = (acc[task.ownerId] || 0) + 1;
         return acc;
       }, {}),
     )
       .sort(([, aCount], [, bCount]) => bCount - aCount)
       .slice(0, 4);
   }, [tasks, isDepartmentDashboard]);
-
-  // Staff dashboard calculations
-  const projectsWithUserTasks = useMemo(() => {
-    if (isDepartmentDashboard) {
-      return [];
-    }
-
-    return projects
-      .filter((project) => !project.isRelated)
-      .map((project) => {
-        const userProjectTasks = tasks.filter((task) => 
-          task.projectId === project.id && 
-          (task.ownerId === currentUser?.backendStaffId || 
-           task.assignedUserIds?.includes(currentUser?.backendStaffId ?? -1))
-        );
-        
-        return {
-          project,
-          userTaskCount: userProjectTasks.length,
-          userCompletedTaskCount: userProjectTasks.filter(
-            (task) => task.status === "COMPLETED"
-          ).length,
-        };
-      })
-      .filter((item) => item.userTaskCount > 0);
-  }, [projects, tasks, currentUser?.backendStaffId, isDepartmentDashboard]);
-
-  const totalUserTasks = projectsWithUserTasks.reduce((sum, item) => sum + item.userTaskCount, 0);
-  const completedUserTasks = projectsWithUserTasks.reduce((sum, item) => sum + item.userCompletedTaskCount, 0);
-  const blockedTasks = tasks.filter((task) => task.status === "BLOCKED").length;
-  const activeProjects = projectsWithUserTasks.map(item => item.project);
-  const activeProjectsCount = activeProjects.length;
 
   if (loading || userLoading) {
     return (
@@ -359,7 +315,7 @@ export default function Dashboard() {
                   </Button>
                 </div>
               </CardHeader>
-              <Separator />
+              <Separator className="mx-6" />
               <CardContent className="flex flex-col divide-y divide-border">
                 {scope.projects.length === 0 ? (
                   <div className="py-8 text-center text-muted-foreground">
@@ -423,7 +379,7 @@ export default function Dashboard() {
                   </Button>
                 </div>
               </CardHeader>
-              <Separator />
+              <Separator className="mx-6" />
               <CardContent className="flex flex-col divide-y divide-border">
                 {scope.upcomingCommitments.length === 0 ? (
                   <div className="py-8 text-center text-muted-foreground">
@@ -467,7 +423,7 @@ export default function Dashboard() {
                   Task distribution across your department.
                 </CardDescription>
               </CardHeader>
-              <Separator />
+              <Separator className="mx-6" />
               <CardContent className="flex flex-col gap-3 py-4">
                 {scope.teamLoad.length === 0 ? (
                   <div className="py-4 text-center text-muted-foreground">
@@ -515,7 +471,7 @@ export default function Dashboard() {
                   High urgency or blocked work that needs attention.
                 </CardDescription>
               </CardHeader>
-              <Separator />
+              <Separator className="mx-6" />
               <CardContent className="flex flex-col gap-3 py-4">
                 {scope.priorityQueue.length === 0 ? (
                   <div className="py-4 text-center text-muted-foreground">
@@ -561,6 +517,13 @@ export default function Dashboard() {
     );
   }
 
+  // Staff dashboard calculations
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter((task) => task.status === "COMPLETED").length;
+  const blockedTasks = tasks.filter((task) => task.status === "BLOCKED").length;
+  const activeProjects = projects;
+  const onTrackProjects = projects.length;
+
   return (
     <SidebarInset>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -578,24 +541,24 @@ export default function Dashboard() {
             <CardHeader>
               <CardDescription>Active projects</CardDescription>
               <CardTitle className="text-3xl font-semibold">
-                {activeProjectsCount}
+                {activeProjects.length}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              {activeProjectsCount === 0 ? "No projects yet" : `${activeProjectsCount} on track`}
+              {activeProjects.length === 0 ? "No projects yet" : `${onTrackProjects} on track`}
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
               <CardDescription>Task completion</CardDescription>
               <CardTitle className="text-3xl font-semibold">
-                {totalUserTasks ? Math.round((completedUserTasks / totalUserTasks) * 100) : 0}%
+                {totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0}%
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              {totalUserTasks === 0
+              {totalTasks === 0
                 ? "No tasks yet"
-                : `${completedUserTasks} closed • ${totalUserTasks - completedUserTasks} in flight`}
+                : `${completedTasks} closed • ${totalTasks - completedTasks} in flight`}
             </CardContent>
           </Card>
           <Card>
@@ -648,23 +611,23 @@ export default function Dashboard() {
                 </Button>
               </div>
             </CardHeader>
-            <Separator />
+            <Separator className="mx-6" />
             <CardContent className="flex flex-col divide-y divide-border">
-              {projectsWithUserTasks.length === 0 ? (
+              {activeProjects.length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground">
                   No projects to display
                 </div>
               ) : (
-                projectsWithUserTasks.map(({ project, userTaskCount, userCompletedTaskCount }) => {
-                    const completion = userTaskCount > 0
-                      ? Math.round((userCompletedTaskCount / userTaskCount) * 100)
-                      : 0;
-                    
-                    return (
-                      <div
-                        key={project.id}
-                        className="grid gap-3 py-4 sm:grid-cols-[1.2fr_auto_auto]"
-                      >
+                activeProjects.map((project) => {
+                  const completion = project.taskCount > 0
+                    ? Math.round((project.completedTaskCount / project.taskCount) * 100)
+                    : 0;
+                  
+                  return (
+                    <div
+                      key={project.id}
+                      className="grid gap-3 py-4 sm:grid-cols-[1.2fr_auto_auto]"
+                    >
                       <div>
                         <p className="font-medium">{project.name}</p>
                         <p className="text-sm text-muted-foreground">
@@ -684,8 +647,8 @@ export default function Dashboard() {
                           Completion
                         </span>
                         <span className="font-medium">
-                          {completion}% · {userCompletedTaskCount}/
-                          {userTaskCount} tasks
+                          {completion}% · {project.completedTaskCount}/
+                          {project.taskCount} tasks
                         </span>
                       </div>
                     </div>
@@ -715,7 +678,7 @@ export default function Dashboard() {
                 </Button>
               </div>
             </CardHeader>
-            <Separator />
+            <Separator className="mx-6" />
             <CardContent className="flex flex-col divide-y divide-border">
               {upcomingTasks.length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground">
@@ -741,11 +704,9 @@ export default function Dashboard() {
                         User {task.ownerId}
                       </Badge>
                       <Badge>{mapTaskStatus(task.status)}</Badge>
-                      {task.dueDateTime && (
-                        <span className="font-medium">
-                          Due {formatDate(task.dueDateTime)}
-                        </span>
-                      )}
+                      <span className="font-medium">
+                        Updated {formatDate(task.updatedAt || task.createdAt)}
+                      </span>
                     </div>
                   </div>
                 ))
@@ -763,7 +724,7 @@ export default function Dashboard() {
                   Who is carrying the most tasks right now.
                 </CardDescription>
               </CardHeader>
-              <Separator />
+              <Separator className="mx-6" />
               <CardContent className="flex flex-col gap-3 py-4">
                 {teamLoad.length === 0 ? (
                   <div className="py-4 text-center text-muted-foreground">
@@ -798,7 +759,7 @@ export default function Dashboard() {
                 High-urgency items that warrant immediate attention.
               </CardDescription>
             </CardHeader>
-            <Separator />
+            <Separator className="mx-6" />
             <CardContent className="flex flex-col gap-3 py-4">
               {highPriorityTasks.length === 0 ? (
                 <div className="py-4 text-center text-muted-foreground">
