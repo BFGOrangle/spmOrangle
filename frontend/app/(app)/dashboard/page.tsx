@@ -197,7 +197,7 @@ export default function Dashboard() {
     }
 
     return projects
-      .filter((project) => !project.isRelated)
+      .filter((project) => !project.isRelated && project.id !== 0)
       .map((project) => {
         const userProjectTasks = tasks.filter((task) => 
           task.projectId === project.id && 
@@ -219,7 +219,7 @@ export default function Dashboard() {
   const totalUserTasks = projectsWithUserTasks.reduce((sum, item) => sum + item.userTaskCount, 0);
   const completedUserTasks = projectsWithUserTasks.reduce((sum, item) => sum + item.userCompletedTaskCount, 0);
   const blockedTasks = tasks.filter((task) => task.status === "BLOCKED").length;
-  const activeProjects = projectsWithUserTasks.map(item => item.project);
+  const activeProjects = projectsWithUserTasks.map(item => item.project).filter(project => project.id !== 0);
   const activeProjectsCount = activeProjects.length;
 
   if (loading || userLoading) {
@@ -359,12 +359,12 @@ export default function Dashboard() {
               </CardHeader>
               <Separator />
               <CardContent className="flex flex-col divide-y divide-border">
-                {scope.projects.length === 0 ? (
+                {scope.projects.filter(p => p.projectId !== 0).length === 0 ? (
                   <div className="py-8 text-center text-muted-foreground">
                     No projects to display
                   </div>
                 ) : (
-                  scope.projects.map((project) => (
+                  scope.projects.filter(p => p.projectId !== 0).map((project) => (
                     <button
                       key={project.projectId}
                       type="button"
@@ -641,6 +641,7 @@ export default function Dashboard() {
                   size="sm"
                   variant="ghost"
                   className="text-muted-foreground"
+                  onClick={() => router.push(Route.Projects)}
                 >
                   View all
                 </Button>
@@ -704,13 +705,6 @@ export default function Dashboard() {
                     Due dates and owners so you can unblock ahead of time.
                   </CardDescription>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-muted-foreground"
-                >
-                  Add reminder
-                </Button>
               </div>
             </CardHeader>
             <Separator />
