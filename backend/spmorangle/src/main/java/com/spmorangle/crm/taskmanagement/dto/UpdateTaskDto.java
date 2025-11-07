@@ -24,7 +24,11 @@ public class UpdateTaskDto {
     private final Status status;
     private final TaskType taskType;
     private final List<String> tags;
-    private final OffsetDateTime dueDateTime;
+    // Changed to String to support sentinel values:
+    // - null: don't update the due date (preserve existing)
+    // - "": empty string to clear the due date
+    // - ISO 8601 string: parse and set as new due date
+    private final String dueDateTime;
     private final Boolean isRecurring;
     private final String recurrenceRuleStr;
     private final OffsetDateTime startDate;

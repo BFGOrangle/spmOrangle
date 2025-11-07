@@ -112,6 +112,10 @@ export interface UpdateTaskRequest {
   status?: 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
   taskType?: 'BUG' | 'FEATURE' | 'CHORE' | 'RESEARCH';
   tags?: string[];
+  // Due date with sentinel value support:
+  // - undefined/not provided: preserve existing due date
+  // - empty string "": clear the due date
+  // - ISO 8601 string: update to new due date
   dueDateTime?: string;
   priority?: number; // Priority from 1 (lowest) to 10 (highest)
   // Recurrence fields

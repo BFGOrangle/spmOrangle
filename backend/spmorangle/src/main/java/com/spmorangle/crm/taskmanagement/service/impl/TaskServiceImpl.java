@@ -1294,40 +1294,48 @@ public class TaskServiceImpl implements TaskService {
             task.getTags().addAll(tagService.findOrCreateTags(updateTaskDto.getTags()));
         }
 
-        // Handle due date update - allow null values
-        // Note: We update the due date regardless of whether it's null or not
-        // This allows clearing the due date if needed
-        OffsetDateTime newDueDate = updateTaskDto.getDueDateTime();
-
-        // Capture previous due date so we can detect changes
-        OffsetDateTime oldDueDate = task.getDueDateTime();
-
-        // Apply the new due date
-        task.setDueDateTime(newDueDate);
-
-        // If the due date actually changed, mark as rescheduled and reset notification flags so
-        // the scheduler will cancel previous reminders and schedule a new 12-hour-before reminder.
-        if (!Objects.equals(oldDueDate, newDueDate)) {
-            if (newDueDate != null) {
-                task.setIsRescheduled(true);
-                // Reset pre-due and overdue flags so new notifications can be sent
-                task.setHasSentPreDue(false);
-                task.setHasSentOverdue(false);
-                log.info("Due date changed for task {} - marked as rescheduled and reset notifications (old={}, new={})", task.getId(), oldDueDate, newDueDate);
+        // Handle due date update with sentinel value support
+        // - null: don't update the due date (preserve existing)
+        // - "": empty string to clear the due date
+        // - ISO 8601 string: parse and set as new due date
+        if (updateTaskDto.getDueDateTime() != null) {
+            String dueDateTimeStr = updateTaskDto.getDueDateTime();
+            OffsetDateTime oldDueDate = task.getDueDateTime();
+            OffsetDateTime newDueDate;
+            
+            if (dueDateTimeStr.isEmpty()) {
+                // Empty string means intentionally clear the due date
+                newDueDate = null;
+                task.setDueDateTime(null);
+                
+                // Clear rescheduled flag and reset notifications when due date is removed
+                if (oldDueDate != null) {
+                    task.setIsRescheduled(false);
+                    task.setHasSentPreDue(false);
+                    task.setHasSentOverdue(false);
+                    log.info("Due date cleared for task {} - cleared rescheduled flag and reset notifications (old={})", task.getId(), oldDueDate);
+                }
             } else {
-                // If due date was cleared, clear rescheduled flag and reset notifications
-                task.setIsRescheduled(false);
-                task.setHasSentPreDue(false);
-                task.setHasSentOverdue(false);
-                log.info("Due date cleared for task {} - cleared rescheduled flag and reset notifications (old={})", task.getId(), oldDueDate);
+                // Parse the ISO 8601 date string
+                try {
+                    newDueDate = OffsetDateTime.parse(dueDateTimeStr);
+                    task.setDueDateTime(newDueDate);
+                    
+                    // If the due date actually changed, mark as rescheduled and reset notification flags
+                    if (!Objects.equals(oldDueDate, newDueDate)) {
+                        task.setIsRescheduled(true);
+                        // Reset pre-due and overdue flags so new notifications can be sent
+                        task.setHasSentPreDue(false);
+                        task.setHasSentOverdue(false);
+                        log.info("Due date changed for task {} - marked as rescheduled and reset notifications (old={}, new={})", task.getId(), oldDueDate, newDueDate);
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to parse due date time string '{}' for task {}: {}", dueDateTimeStr, task.getId(), e.getMessage());
+                    throw new RuntimeException("Invalid due date format. Expected ISO 8601 format or empty string to clear.");
+                }
             }
         }
-
-        if (newDueDate != null) {
-            task.setIsRescheduled(true);
-            task.setHasSentPreDue(false);
-            log.info("Reset hasSentPreDue flag & set isRescheduled flag for task {} to true", task.getId());
-        }
+        // If dueDateTime is null in the DTO, we preserve the existing due date value
 
         // Track if any recurrence fields are being updated
         boolean recurrenceFieldsUpdated = false;
